@@ -1,0 +1,41 @@
+# CI 전용 프로파일 (SPRING_PROFILES_ACTIVE=ci)
+# GitHub Actions 서비스 컨테이너(MySQL/Redis)에 연결해 @SpringBootTest 컨텍스트 로딩을 검증한다.
+# 여기의 값은 전부 CI 테스트용 더미이며 실제 시크릿이 아니다. (외부 OAuth/TURN API는 테스트 중 호출되지 않음)
+spring:
+  datasource:
+    url: jdbc:mysql://localhost:3306/caestro?serverTimezone=UTC&characterEncoding=UTF-8&allowPublicKeyRetrieval=true&useSSL=false
+    username: root
+    password: ci_test_pw
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.MySQLDialect
+
+  data:
+    redis:
+      url: redis://localhost:6379
+
+kakao:
+  client-id: ci-dummy
+  client-secret: ci-dummy
+  redirect-uri: http://localhost:8080/auth/kakao/callback
+
+google:
+  client-id: ci-dummy
+  client-secret: ci-dummy
+  redirect-uri: http://localhost:8080/auth/google/callback
+
+jwt:
+  access-secret: ci_dummy_access_secret_for_ci_only_min_32_chars
+  refresh-secret: ci_dummy_refresh_secret_for_ci_only_min_32_chars
+  access-expiration: 3600
+  refresh-expiration: 2592000
+
+turn:
+  secret: ci-dummy-turn-secret
+  host: 127.0.0.1
+  ttl: 3600

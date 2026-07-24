@@ -1,0 +1,56 @@
+name: CI
+
+# PR(develop·main 대상) 및 develop push 시 테스트를 실행한다.
+# 배포는 하지 않는다. (배포는 deploy.yml — main push)
+on:
+  pull_request:
+    branches: [develop, main]
+  push:
+    branches: [develop]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    # @SpringBootTest(contextLoads)가 DB/Redis 연결을 요구하므로 서비스 컨테이너로 제공한다.
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: ci_test_pw
+          MYSQL_DATABASE: caestro
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h localhost"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+      redis:
+        image: redis:7.0
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd="redis-cli ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      - name: Run tests (ci 프로파일)
+        env:
+          SPRING_PROFILES_ACTIVE: ci
+        run: ./gradlew test

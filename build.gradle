@@ -23,6 +23,7 @@ dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-security'
 	implementation 'org.springframework.boot:spring-boot-starter-validation'
 	implementation 'org.springframework.boot:spring-boot-starter-webmvc'
+	implementation 'org.springframework.boot:spring-boot-starter-actuator'
 	compileOnly 'org.projectlombok:lombok'
 	developmentOnly 'org.springframework.boot:spring-boot-devtools'
 	runtimeOnly 'com.mysql:mysql-connector-j'
@@ -46,6 +47,14 @@ dependencies {
 
 	// Swagger
 	implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.4")
+
+	// WebSocket
+	implementation 'org.springframework.boot:spring-boot-starter-websocket'
+}
+
+// /actuator/info 에 버전·빌드시각 노출 (META-INF/build-info.properties 생성)
+springBoot {
+	buildInfo()
 }
 
 tasks.named('test') {

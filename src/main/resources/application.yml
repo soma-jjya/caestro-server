@@ -1,3 +1,27 @@
 spring:
   profiles:
     active: dev
+
+# 공통 Actuator 설정 (노출 범위/show-details는 프로파일에서 override)
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      group:
+        liveness:
+          include: livenessState
+        readiness:
+          include: readinessState, db, redis
+  info:
+    env:
+      enabled: true
+
+info:
+  app:
+    name: Caestro
+    description: 듀얼 디바이스 협업 촬영 앱 백엔드

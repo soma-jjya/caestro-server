@@ -1,0 +1,45 @@
+package com.caestro.server.domain.shot.dto.request;
+
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import jakarta.validation.constraints.DecimalMax;
+import jakarta.validation.constraints.DecimalMin;
+import jakarta.validation.constraints.Positive;
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+
+/**
+ * 촬영 결과물 메타데이터 저장 요청.
+ * director_id / camera_id / image_url / is_cloud_backed 는 서버에서 결정하므로 요청 바디로 받지 않으며,
+ * 클라이언트가 임의로 보내더라도 무시된다 (ignoreUnknown).
+ * 단일 필드 검증(양수/범위)은 이 DTO에서 Bean Validation으로 처리하고,
+ * 교차 필드 검증(둘 다/둘 다 없음)·mode 유효성·세션 존재 여부는 서비스에서 처리한다.
+ */
+@JsonIgnoreProperties(ignoreUnknown = true)
+public record CreateShotRequest(
+
+        Long sessionId,
+
+        String mode,
+
+        Integer bestCutScore,
+
+        @Positive(message = "width는 양의 정수여야 합니다")
+        Integer width,
+
+        @Positive(message = "height는 양의 정수여야 합니다")
+        Integer height,
+
+        @Positive(message = "fileSizeKb는 양의 정수여야 합니다")
+        Integer fileSizeKb,
+
+        @DecimalMin(value = "-90", message = "latitude는 -90 이상이어야 합니다")
+        @DecimalMax(value = "90", message = "latitude는 90 이하여야 합니다")
+        BigDecimal latitude,
+
+        @DecimalMin(value = "-180", message = "longitude는 -180 이상이어야 합니다")
+        @DecimalMax(value = "180", message = "longitude는 180 이하여야 합니다")
+        BigDecimal longitude,
+
+        LocalDateTime takenAt
+) {
+}

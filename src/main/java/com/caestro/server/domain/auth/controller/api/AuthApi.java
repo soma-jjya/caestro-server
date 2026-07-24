@@ -1,6 +1,7 @@
 package com.caestro.server.domain.auth.controller.api;
 
 import com.caestro.server.domain.auth.dto.request.RefreshRequest;
+import com.caestro.server.domain.auth.dto.request.SocialTokenLoginRequest;
 import com.caestro.server.domain.auth.dto.response.TokenResponse;
 import com.caestro.server.domain.user.entity.User;
 import com.caestro.server.global.security.CustomUserDetails;
@@ -33,6 +34,20 @@ public interface AuthApi {
             @ApiResponse(responseCode = "502", description = "외부 인증 서버 오류")
     })
     ResponseEntity<TokenResponse> socialCallback(String provider, String code);
+
+    @Operation(
+            summary = "소셜 로그인 (모바일 SDK 토큰)",
+            description = "모바일 네이티브 SDK가 발급받은 소셜 access token으로 JWT를 발급합니다. "
+                    + "authorization code 교환 단계가 없어 redirect_uri에 의존하지 않으며 Android·iOS 공통으로 사용됩니다."
+    )
+    @Parameter(name = "provider", description = "소셜 로그인 provider (예: kakao, google)", in = ParameterIn.PATH, required = true)
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "토큰 발급 성공",
+                    content = @Content(schema = @Schema(implementation = TokenResponse.class))),
+            @ApiResponse(responseCode = "400", description = "액세스토큰이 없음"),
+            @ApiResponse(responseCode = "502", description = "외부 인증 서버 오류")
+    })
+    ResponseEntity<TokenResponse> socialLoginByToken(String provider, @Valid @RequestBody SocialTokenLoginRequest request);
 
     @Operation(
             summary = "액세스토큰 재발급",

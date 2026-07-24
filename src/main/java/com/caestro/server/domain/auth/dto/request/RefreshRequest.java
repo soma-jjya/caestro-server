@@ -1,13 +1,10 @@
 package com.caestro.server.domain.auth.dto.request;
 
 import jakarta.validation.constraints.NotBlank;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
 
-@Getter
-@NoArgsConstructor
-public class RefreshRequest {
+public record RefreshRequest(
 
-    @NotBlank
-    private String refreshToken;
+        @NotBlank(message = "리프레시토큰은 필수입니다")
+        String refreshToken
+) {
 }

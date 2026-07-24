@@ -49,6 +49,13 @@ public class KakaoOAuthProvider implements OAuthProvider {
         return toProfile(userResponse);
     }
 
+    @Override
+    public OAuthProfile getProfileByToken(String accessToken) {
+        // 모바일 SDK가 이미 access token을 발급받았으므로 code 교환을 생략하고 바로 사용자 정보를 조회한다
+        KakaoUserResponse userResponse = requestUserInfo(accessToken);
+        return toProfile(userResponse);
+    }
+
     private KakaoTokenResponse requestToken(String code) {
         try {
             MultiValueMap<String, String> formData = new LinkedMultiValueMap<>();

@@ -26,10 +26,17 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(
                                 "/auth/**",
+                                "/signaling",
+                                "/signaling/**",
                                 "/api-docs",
                                 "/api-docs/**",
                                 "/swagger-ui/**",
-                                "/v3/api-docs/**"
+                                "/v3/api-docs/**",
+                                // 헬스체크: 무인증 접근 (LB/배포 파이프라인용). liveness/readiness 포함
+                                "/actuator/health",
+                                "/actuator/health/**",
+                                // info: prod에선 미노출(exposure=health)이라 404, dev에서만 조회됨
+                                "/actuator/info"
                         ).permitAll()
                         .requestMatchers("/admin/**").hasRole("ADMIN")
                         .anyRequest().authenticated()
