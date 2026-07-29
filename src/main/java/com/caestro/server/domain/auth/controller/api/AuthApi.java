@@ -1,5 +1,6 @@
 package com.caestro.server.domain.auth.controller.api;
 
+import com.caestro.server.domain.auth.dto.request.GuestLoginRequest;
 import com.caestro.server.domain.auth.dto.request.RefreshRequest;
 import com.caestro.server.domain.auth.dto.request.SocialTokenLoginRequest;
 import com.caestro.server.domain.auth.dto.response.TokenResponse;
@@ -33,7 +34,20 @@ public interface AuthApi {
             @ApiResponse(responseCode = "400", description = "인가코드가 없음"),
             @ApiResponse(responseCode = "502", description = "외부 인증 서버 오류")
     })
-    ResponseEntity<TokenResponse> socialCallback(String provider, String code);
+    ResponseEntity<TokenResponse> socialCallback(String provider, String code,
+            @Parameter(hidden = true) CustomUserDetails userDetails);
+
+    @Operation(
+            summary = "게스트(익명) 로그인",
+            description = "디바이스 ID로 익명 유저를 생성/조회해 JWT를 발급합니다. 로그인 없이 세션 생성·TURN·촬영 등 "
+                    + "대부분의 기능을 사용할 수 있으며, 이후 소셜 로그인 시 이 게스트 계정이 정식 계정으로 연동됩니다."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "토큰 발급 성공",
+                    content = @Content(schema = @Schema(implementation = TokenResponse.class))),
+            @ApiResponse(responseCode = "400", description = "디바이스 ID가 없음")
+    })
+    ResponseEntity<TokenResponse> guestLogin(@Valid @RequestBody GuestLoginRequest request);
 
     @Operation(
             summary = "소셜 로그인 (모바일 SDK 토큰)",
@@ -47,7 +61,8 @@ public interface AuthApi {
             @ApiResponse(responseCode = "400", description = "액세스토큰이 없음"),
             @ApiResponse(responseCode = "502", description = "외부 인증 서버 오류")
     })
-    ResponseEntity<TokenResponse> socialLoginByToken(String provider, @Valid @RequestBody SocialTokenLoginRequest request);
+    ResponseEntity<TokenResponse> socialLoginByToken(String provider, @Valid @RequestBody SocialTokenLoginRequest request,
+            @Parameter(hidden = true) CustomUserDetails userDetails);
 
     @Operation(
             summary = "액세스토큰 재발급",

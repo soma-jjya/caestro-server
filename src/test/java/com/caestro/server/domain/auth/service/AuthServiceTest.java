@@ -121,4 +121,98 @@ class AuthServiceTest {
         assertThat(response.accessToken()).isEqualTo("jwt-access");
         verify(userRepository).save(any(User.class));
     }
+
+    @Test
+    @DisplayName("게스트 로그인: 신규 디바이스면 익명 유저를 생성해 JWT를 발급한다")
+    void guestLogin_newDevice_createsGuestUser() {
+        // given
+        String deviceId = "device-abc";
+        User guest = User.builder().deviceId(deviceId).role(User.Role.USER).build();
+        ReflectionTestUtils.setField(guest, "id", 10L);
+
+        given(userRepository.findByDeviceId(deviceId)).willReturn(Optional.empty());
+        given(userRepository.save(any(User.class))).willReturn(guest);
+        given(jwtProvider.generateAccessToken(10L, User.Role.USER)).willReturn("g-access");
+        given(jwtProvider.generateRefreshToken(10L)).willReturn("g-refresh");
+        given(redisTemplate.opsForValue()).willReturn(valueOperations);
+
+        // when
+        TokenResponse response = authService.guestLogin(deviceId);
+
+        // then
+        assertThat(response.accessToken()).isEqualTo("g-access");
+        verify(userRepository).save(any(User.class));
+    }
+
+    @Test
+    @DisplayName("게스트 로그인: 기존 디바이스면 새로 생성하지 않고 재사용한다")
+    void guestLogin_existingDevice_reusesUser() {
+        // given
+        String deviceId = "device-xyz";
+        User guest = User.builder().deviceId(deviceId).role(User.Role.USER).build();
+        ReflectionTestUtils.setField(guest, "id", 11L);
+
+        given(userRepository.findByDeviceId(deviceId)).willReturn(Optional.of(guest));
+        given(jwtProvider.generateAccessToken(anyLong(), any())).willReturn("a");
+        given(jwtProvider.generateRefreshToken(anyLong())).willReturn("r");
+        given(redisTemplate.opsForValue()).willReturn(valueOperations);
+
+        // when
+        authService.guestLogin(deviceId);
+
+        // then
+        verify(userRepository, never()).save(any(User.class));
+    }
+
+    @Test
+    @DisplayName("계정 연동(Case A): 신규 소셜 계정이면 게스트를 제자리 승격하고 userId를 유지한다")
+    void socialLoginByToken_guestUpgrade_linksInPlace() {
+        // given
+        String token = "kakao-token";
+        OAuthProfile profile = new OAuthProfile("kakao-500", "카카오", "img");
+        User guest = User.builder().deviceId("dev").role(User.Role.USER).build(); // isGuest == true
+        ReflectionTestUtils.setField(guest, "id", 20L);
+
+        given(oAuthProviderRegistry.getProvider("kakao")).willReturn(oAuthProvider);
+        given(oAuthProvider.getProfileByToken(token)).willReturn(profile);
+        given(userRepository.findByOauthProviderAndOauthId("kakao", "kakao-500")).willReturn(Optional.empty());
+        given(userRepository.findById(20L)).willReturn(Optional.of(guest));
+        given(userRepository.save(guest)).willReturn(guest);
+        given(jwtProvider.generateAccessToken(20L, User.Role.USER)).willReturn("a");
+        given(jwtProvider.generateRefreshToken(20L)).willReturn("r");
+        given(redisTemplate.opsForValue()).willReturn(valueOperations);
+
+        // when
+        authService.socialLoginByToken("kakao", token, 20L);
+
+        // then: 게스트 행에 oauth가 붙고(승격) userId(20L)는 유지 → 데이터 이관
+        assertThat(guest.isGuest()).isFalse();
+        assertThat(guest.getOauthProvider()).isEqualTo("kakao");
+        assertThat(guest.getOauthId()).isEqualTo("kakao-500");
+        verify(userRepository).save(guest);
+    }
+
+    @Test
+    @DisplayName("계정 연동(Case B): 이미 가입된 소셜 계정이면 기존 계정으로 로그인하고 게스트를 건드리지 않는다")
+    void socialLoginByToken_existingSocialAccount_ignoresGuest() {
+        // given
+        String token = "kakao-token";
+        OAuthProfile profile = new OAuthProfile("kakao-600", "카카오", "img");
+        User existingSocial = User.builder().oauthProvider("kakao").oauthId("kakao-600").role(User.Role.USER).build();
+        ReflectionTestUtils.setField(existingSocial, "id", 30L);
+
+        given(oAuthProviderRegistry.getProvider("kakao")).willReturn(oAuthProvider);
+        given(oAuthProvider.getProfileByToken(token)).willReturn(profile);
+        given(userRepository.findByOauthProviderAndOauthId("kakao", "kakao-600")).willReturn(Optional.of(existingSocial));
+        given(jwtProvider.generateAccessToken(30L, User.Role.USER)).willReturn("a");
+        given(jwtProvider.generateRefreshToken(30L)).willReturn("r");
+        given(redisTemplate.opsForValue()).willReturn(valueOperations);
+
+        // when: 게스트(99L)를 함께 넘겨도 기존 소셜 계정이 우선
+        authService.socialLoginByToken("kakao", token, 99L);
+
+        // then: 게스트 조회·신규 저장 없이 기존 계정으로 로그인
+        verify(userRepository, never()).findById(anyLong());
+        verify(userRepository, never()).save(any(User.class));
+    }
 }

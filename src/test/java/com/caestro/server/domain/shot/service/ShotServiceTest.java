@@ -53,10 +53,16 @@ class ShotServiceTest {
         return User.builder().oauthProvider("test").oauthId("u").role(User.Role.USER).build();
     }
 
+    private User user(Long id) {
+        User u = User.builder().oauthProvider("test").oauthId("u" + id).role(User.Role.USER).build();
+        org.springframework.test.util.ReflectionTestUtils.setField(u, "id", id);
+        return u;
+    }
+
     private CreateShotRequest request(Long sessionId, String mode, Integer bestCutScore,
                                       Integer width, Integer height, Integer fileSizeKb,
                                       BigDecimal latitude, BigDecimal longitude) {
-        return new CreateShotRequest(sessionId, mode, bestCutScore, width, height, fileSizeKb, latitude, longitude, null);
+        return new CreateShotRequest(sessionId, null, mode, bestCutScore, width, height, fileSizeKb, latitude, longitude, null);
     }
 
     private Shot capturedSavedShot() {
@@ -68,10 +74,10 @@ class ShotServiceTest {
     @Test
     @DisplayName("협업 세션이 지정되면 세션의 camera_id를 스냅샷으로 복사해 저장한다")
     void createShot_collabSession_snapshotsCamera() {
-        // given
-        User director = user();
-        User camera = user();
-        Session session = Session.builder().id(SESSION_ID).camera(camera).build();
+        // given: 요청자(director)가 owner, 상대편(camera)이 participant인 세션
+        User director = user(DIRECTOR_ID);
+        User camera = user(2L);
+        Session session = Session.builder().id(SESSION_ID).owner(director).participant(camera).build();
         given(userRepository.findById(DIRECTOR_ID)).willReturn(Optional.of(director));
         given(sessionRepository.findById(SESSION_ID)).willReturn(Optional.of(session));
         given(shotRepository.save(any(Shot.class))).willAnswer(inv -> inv.getArgument(0));
@@ -80,7 +86,7 @@ class ShotServiceTest {
         shotService.createShot(DIRECTOR_ID,
                 request(SESSION_ID, "COLLAB", 80, 3840, 2160, 1500, new BigDecimal("37.5"), new BigDecimal("127.0")));
 
-        // then
+        // then: 요청자는 director, 반대편 참여자는 camera로 귀속된다
         Shot saved = capturedSavedShot();
         assertThat(saved.getSession()).isEqualTo(session);
         assertThat(saved.getDirector()).isEqualTo(director);
@@ -116,11 +122,12 @@ class ShotServiceTest {
     }
 
     @Test
-    @DisplayName("라이트 모드 세션(camera 미연결)이면 camera는 NULL로 저장한다")
-    void createShot_lightModeSession_cameraNull() {
-        // given
-        Session session = Session.builder().id(SESSION_ID).camera(null).build();
-        given(userRepository.findById(DIRECTOR_ID)).willReturn(Optional.of(user()));
+    @DisplayName("참여자가 아직 없는 세션(owner만 있음)이면 camera는 NULL로 저장한다")
+    void createShot_noParticipant_cameraNull() {
+        // given: 요청자가 owner이고 participant는 아직 없음
+        User director = user(DIRECTOR_ID);
+        Session session = Session.builder().id(SESSION_ID).owner(director).participant(null).build();
+        given(userRepository.findById(DIRECTOR_ID)).willReturn(Optional.of(director));
         given(sessionRepository.findById(SESSION_ID)).willReturn(Optional.of(session));
         given(shotRepository.save(any(Shot.class))).willAnswer(inv -> inv.getArgument(0));
 
@@ -129,6 +136,23 @@ class ShotServiceTest {
 
         // then
         assertThat(capturedSavedShot().getCamera()).isNull();
+    }
+
+    @Test
+    @DisplayName("요청자가 세션 참여자가 아니면 403(SESSION_ACCESS_DENIED)")
+    void createShot_requesterNotParticipant_throws() {
+        // given: owner/participant 모두 요청자가 아님
+        User director = user(DIRECTOR_ID);
+        Session session = Session.builder().id(SESSION_ID).owner(user(2L)).participant(user(3L)).build();
+        given(userRepository.findById(DIRECTOR_ID)).willReturn(Optional.of(director));
+        given(sessionRepository.findById(SESSION_ID)).willReturn(Optional.of(session));
+
+        // when / then
+        assertThatThrownBy(() -> shotService.createShot(DIRECTOR_ID,
+                request(SESSION_ID, "COLLAB", null, null, null, null, null, null)))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.SESSION_ACCESS_DENIED);
     }
 
     @Test
@@ -205,13 +229,48 @@ class ShotServiceTest {
     }
 
     @Test
-    @DisplayName("내 촬영 이력 조회는 director 기준으로 repository에 위임한다")
+    @DisplayName("내 촬영 이력 조회는 director 또는 camera(공동 소유) 기준으로 repository에 위임한다")
     void getMyShots_delegatesToRepository() {
         Pageable pageable = PageRequest.of(0, 20);
         Page<Shot> page = new PageImpl<>(List.of(mock(Shot.class)));
-        given(shotRepository.findByDirectorId(DIRECTOR_ID, pageable)).willReturn(page);
+        given(shotRepository.findByDirectorIdOrCameraId(DIRECTOR_ID, DIRECTOR_ID, pageable)).willReturn(page);
 
         assertThat(shotService.getMyShots(DIRECTOR_ID, pageable)).isSameAs(page);
+    }
+
+    @Test
+    @DisplayName("협업 저장: directorUserId로 상대 참여자를 지정하면 그가 director, 요청자가 camera로 귀속된다")
+    void createShot_directorUserIdSpecified_attributesRoles() {
+        User owner = user(DIRECTOR_ID);   // 요청자(저장자) = owner
+        User participant = user(2L);       // 상대 참여자
+        Session session = Session.builder().id(SESSION_ID).owner(owner).participant(participant).build();
+        given(userRepository.findById(DIRECTOR_ID)).willReturn(Optional.of(owner));
+        given(sessionRepository.findById(SESSION_ID)).willReturn(Optional.of(session));
+        given(shotRepository.save(any(Shot.class))).willAnswer(inv -> inv.getArgument(0));
+
+        // directorUserId = participant(2L) 명시 → 이 컷은 participant가 디렉터, 요청자(owner)가 카메라
+        CreateShotRequest req = new CreateShotRequest(SESSION_ID, 2L, "COLLAB", null, null, null, null, null, null, null);
+        shotService.createShot(DIRECTOR_ID, req);
+
+        Shot saved = capturedSavedShot();
+        assertThat(saved.getDirector()).isEqualTo(participant);
+        assertThat(saved.getCamera()).isEqualTo(owner);
+    }
+
+    @Test
+    @DisplayName("협업 저장: directorUserId가 세션 참여자가 아니면 403(SESSION_ACCESS_DENIED)")
+    void createShot_directorUserIdNotParticipant_throws() {
+        User owner = user(DIRECTOR_ID);
+        User participant = user(2L);
+        Session session = Session.builder().id(SESSION_ID).owner(owner).participant(participant).build();
+        given(userRepository.findById(DIRECTOR_ID)).willReturn(Optional.of(owner));
+        given(sessionRepository.findById(SESSION_ID)).willReturn(Optional.of(session));
+
+        CreateShotRequest req = new CreateShotRequest(SESSION_ID, 999L, "COLLAB", null, null, null, null, null, null, null);
+        assertThatThrownBy(() -> shotService.createShot(DIRECTOR_ID, req))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.SESSION_ACCESS_DENIED);
     }
 
     @Test
@@ -224,6 +283,19 @@ class ShotServiceTest {
         given(shotRepository.findById(100L)).willReturn(Optional.of(shot));
 
         assertThat(shotService.getOwnedShot(100L, DIRECTOR_ID)).isEqualTo(shot);
+    }
+
+    @Test
+    @DisplayName("단건 조회: 촬영자(camera) 본인이어도 접근 가능하다 (공동 소유)")
+    void getOwnedShot_camera_returns() {
+        User camera = mock(User.class);
+        given(camera.getId()).willReturn(2L);
+        Shot shot = mock(Shot.class);
+        given(shot.getCamera()).willReturn(camera);
+        given(shotRepository.findById(100L)).willReturn(Optional.of(shot));
+
+        // director는 다른 사람이지만 camera 본인이면 조회 가능
+        assertThat(shotService.getOwnedShot(100L, 2L)).isEqualTo(shot);
     }
 
     @Test

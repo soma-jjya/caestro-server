@@ -15,6 +15,6 @@ public record SignalingResponse(
         Integer sdpMLineIndex,
         String candidate,
         String message, // 에러나 시스템 메시지용
-        String liteToken // 라이트 모드 참여 토큰 (SESSION_CREATED 응답에 포함)
+        Long currentDirectorUserId // ROLE_SWAPPED 응답: 교체 후 현재 디렉터인 유저
 ) {
 }

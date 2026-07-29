@@ -103,6 +103,21 @@ class SubscriptionServiceTest {
     }
 
     @Test
+    @DisplayName("구독 생성: 게스트(익명) 계정이면 403(GUEST_ACCOUNT_NOT_ALLOWED)")
+    void createSubscription_guest_throws() {
+        given(subscriptionRepository.existsByUserIdAndStatusAndExpiresAtAfter(eq(USER_ID), eq(SubscriptionStatus.ACTIVE), any()))
+                .willReturn(false);
+        given(userRepository.findById(USER_ID))
+                .willReturn(Optional.of(User.builder().deviceId("dev").role(User.Role.USER).build()));
+
+        assertThatThrownBy(() -> subscriptionService.createSubscription(USER_ID, new CreateSubscriptionRequest(null, null)))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.GUEST_ACCOUNT_NOT_ALLOWED);
+        verify(subscriptionRepository, never()).save(any());
+    }
+
+    @Test
     @DisplayName("내 구독 조회: 활성 구독은 active=true로 반환")
     void getMySubscription_active() {
         Subscription sub = Subscription.builder()

@@ -52,6 +52,11 @@ public class SubscriptionService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
 
+        // 게스트(익명) 계정은 결제/구독 불가 — 소셜 로그인(계정 연동)이 선행되어야 한다
+        if (user.isGuest()) {
+            throw new CustomException(ErrorCode.GUEST_ACCOUNT_NOT_ALLOWED);
+        }
+
         // 4. 기간 계산 (요청 없으면 기본 30일)
         int durationDays = request.duration() != null ? request.duration() : DEFAULT_DURATION_DAYS;
         LocalDateTime startedAt = LocalDateTime.now();

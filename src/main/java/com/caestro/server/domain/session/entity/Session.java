@@ -36,22 +36,21 @@ public class Session {
     @Column(nullable = false, unique = true, length = 100)
     private String sessionCode;
 
+    // 방 생성자(owner). (현재 디렉터는 Redis SessionInfo가 관리)
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "director_id", nullable = false)
-    private User director;
+    @JoinColumn(name = "owner_id", nullable = false)
+    private User owner;
 
+    // 세션에 참여한 사람(participant).
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "camera_id")
-    private User camera;
+    @JoinColumn(name = "participant_id")
+    private User participant;
 
     @Column(nullable = false, length = 20)
     private String cameraMode;
 
     @Column(nullable = false, length = 20)
     private String status;
-
-    @Column(length = 100)
-    private String liteToken;
 
     @Column(nullable = false)
     private LocalDateTime expiresAt;
@@ -67,14 +66,14 @@ public class Session {
     private LocalDateTime createdAt;
 
     /**
-     * 촬영자(카메라)가 세션에 입장했을 때 세션 상태를 연결됨(CONNECTED)으로 전환한다.
-     * 카메라 유저, 카메라 모드, 연결 시각을 함께 갱신한다.
+     * 참여자(participant)가 세션에 입장했을 때 세션 상태를 연결됨(CONNECTED)으로 전환한다.
+     * 참여자 유저, 카메라 모드, 연결 시각을 함께 갱신한다.
      *
-     * @param cameraUser 입장한 촬영자 유저 (라이트 모드인 경우 null)
-     * @param mode       카메라 모드 (APP / LIGHT_MODE)
+     * @param participantUser 입장한 참여자 유저
+     * @param mode            카메라 모드 (APP)
      */
-    public void connect(User cameraUser, String mode) {
-        this.camera = cameraUser;
+    public void connect(User participantUser, String mode) {
+        this.participant = participantUser;
         this.cameraMode = mode;
         this.status = "CONNECTED";
         this.connectedAt = LocalDateTime.now();
@@ -89,17 +88,17 @@ public class Session {
     }
 
     /**
-     * 주어진 유저가 이 세션의 참여자(디렉터 또는 촬영자)인지 확인한다.
+     * 주어진 유저가 이 세션의 참여자(owner 또는 participant)인지 확인한다.
      *
      * @param userId 확인할 유저 ID
-     * @return 디렉터 또는 촬영자와 일치하면 true, 아니면 false
+     * @return owner 또는 participant와 일치하면 true, 아니면 false
      */
     public boolean isParticipant(Long userId) {
         if (userId == null) {
             return false;
         }
-        boolean isDirector = director != null && userId.equals(director.getId());
-        boolean isCamera = camera != null && userId.equals(camera.getId());
-        return isDirector || isCamera;
+        boolean isOwner = owner != null && userId.equals(owner.getId());
+        boolean isJoiner = participant != null && userId.equals(participant.getId());
+        return isOwner || isJoiner;
     }
 }

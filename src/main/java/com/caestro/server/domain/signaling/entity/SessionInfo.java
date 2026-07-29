@@ -9,11 +9,11 @@ import java.time.LocalDateTime;
 @Setter
 public class SessionInfo {
     private String sessionCode;
-    private Long directorUserId;
-    private String directorSocketId;
-    private Long cameraUserId;
-    private String cameraSocketId;
+    private Long ownerUserId;
+    private String ownerSocketId;
+    private Long participantUserId;
+    private String participantSocketId;
+    private Long currentDirectorUserId;
     private String status; // WAITING, CONNECTED, ENDED
     private LocalDateTime expiresAt;
-    private String liteToken; // 라이트 모드(비로그인 촬영자) 참여 토큰
 }

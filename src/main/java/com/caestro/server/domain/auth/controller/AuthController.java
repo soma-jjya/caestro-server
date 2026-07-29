@@ -1,6 +1,7 @@
 package com.caestro.server.domain.auth.controller;
 
 import com.caestro.server.domain.auth.controller.api.AuthApi;
+import com.caestro.server.domain.auth.dto.request.GuestLoginRequest;
 import com.caestro.server.domain.auth.dto.request.RefreshRequest;
 import com.caestro.server.domain.auth.dto.request.SocialTokenLoginRequest;
 import com.caestro.server.domain.auth.dto.response.TokenResponse;
@@ -33,23 +34,34 @@ public class AuthController implements AuthApi {
     private final AuthService authService;
     private final UserRepository userRepository;
 
+    @PostMapping("/guest")
+    @Override
+    public ResponseEntity<TokenResponse> guestLogin(@Valid @RequestBody GuestLoginRequest request) {
+        return ResponseEntity.ok(authService.guestLogin(request.deviceId()));
+    }
+
     @GetMapping("/{provider}/callback")
     @Override
     public ResponseEntity<TokenResponse> socialCallback(
             @PathVariable String provider,
-            @RequestParam(required = false) String code) {
+            @RequestParam(required = false) String code,
+            @AuthenticationPrincipal CustomUserDetails userDetails) {
         if (code == null || code.isBlank()) {
             throw new CustomException(ErrorCode.MISSING_AUTH_CODE);
         }
-        return ResponseEntity.ok(authService.socialLogin(provider, code));
+        // 게스트 JWT를 함께 보냈다면 그 userId로 계정 연동(업그레이드) 처리
+        Long guestUserId = (userDetails != null) ? userDetails.getUserId() : null;
+        return ResponseEntity.ok(authService.socialLogin(provider, code, guestUserId));
     }
 
     @PostMapping("/{provider}/token")
     @Override
     public ResponseEntity<TokenResponse> socialLoginByToken(
             @PathVariable String provider,
-            @Valid @RequestBody SocialTokenLoginRequest request) {
-        return ResponseEntity.ok(authService.socialLoginByToken(provider, request.accessToken()));
+            @Valid @RequestBody SocialTokenLoginRequest request,
+            @AuthenticationPrincipal CustomUserDetails userDetails) {
+        Long guestUserId = (userDetails != null) ? userDetails.getUserId() : null;
+        return ResponseEntity.ok(authService.socialLoginByToken(provider, request.accessToken(), guestUserId));
     }
 
     @PostMapping("/refresh")

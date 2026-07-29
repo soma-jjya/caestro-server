@@ -19,6 +19,10 @@ public record CreateShotRequest(
 
         Long sessionId,
 
+        // 협업(COLLAB)에서 이 컷의 디렉터(피사체) userId. 역할은 컷마다 다를 수 있어 클라이언트가 명시한다.
+        // 없으면 요청자를 디렉터로 폴백하며, 서버는 두 참여자가 세션 참여자인지 검증한다.
+        Long directorUserId,
+
         String mode,
 
         Integer bestCutScore,

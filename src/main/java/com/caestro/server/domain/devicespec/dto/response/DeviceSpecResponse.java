@@ -1,14 +1,13 @@
 package com.caestro.server.domain.devicespec.dto.response;
 
 import com.caestro.server.domain.devicespec.entity.DeviceSpec;
-import com.caestro.server.domain.devicespec.enums.DeviceRole;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 public record DeviceSpecResponse(
         Long id,
         Long sessionId,
-        DeviceRole role,
+        Long userId,
         BigDecimal maxZoom,
         BigDecimal minZoom,
         BigDecimal screenRatio,
@@ -27,7 +26,7 @@ public record DeviceSpecResponse(
         return new DeviceSpecResponse(
                 deviceSpec.getId(),
                 deviceSpec.getSession().getId(),
-                deviceSpec.getRole(),
+                deviceSpec.getUser().getId(),
                 deviceSpec.getMaxZoom(),
                 deviceSpec.getMinZoom(),
                 deviceSpec.getScreenRatio(),

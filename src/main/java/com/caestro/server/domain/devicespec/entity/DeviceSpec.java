@@ -1,12 +1,10 @@
 package com.caestro.server.domain.devicespec.entity;
 
-import com.caestro.server.domain.devicespec.enums.DeviceRole;
 import com.caestro.server.domain.session.entity.Session;
+import com.caestro.server.domain.user.entity.User;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EntityListeners;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -34,8 +32,8 @@ import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 @Table(
         name = "device_specs",
         uniqueConstraints = @UniqueConstraint(
-                name = "uk_device_specs_session_role",
-                columnNames = {"session_id", "role"}
+                name = "uk_device_specs_session_user",
+                columnNames = {"session_id", "user_id"}
         )
 )
 public class DeviceSpec {
@@ -48,9 +46,10 @@ public class DeviceSpec {
     @JoinColumn(name = "session_id", nullable = false)
     private Session session;
 
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 20)
-    private DeviceRole role;
+    // 스펙은 역할이 아니라 "기기(사람)"의 속성이므로 인증된 유저를 기준으로 저장한다.
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id", nullable = false)
+    private User user;
 
     @Column(precision = 5, scale = 2)
     private BigDecimal maxZoom;
@@ -72,8 +71,8 @@ public class DeviceSpec {
     private LocalDateTime createdAt;
 
     /**
-     * 동일 세션·역할의 기기 스펙이 재수신되었을 때 카메라 스펙 값을 갱신한다.
-     * 세션과 역할(role)은 식별자에 해당하므로 갱신 대상에서 제외한다.
+     * 동일 세션·유저의 기기 스펙이 재수신되었을 때 카메라 스펙 값을 갱신한다.
+     * 세션과 유저(user)는 식별자에 해당하므로 갱신 대상에서 제외한다.
      *
      * @param maxZoom       최대 줌 배율 (nullable)
      * @param minZoom       최소 줌 배율 (nullable)

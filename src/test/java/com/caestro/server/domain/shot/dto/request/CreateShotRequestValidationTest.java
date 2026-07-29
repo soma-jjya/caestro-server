@@ -30,7 +30,7 @@ class CreateShotRequestValidationTest {
 
     private CreateShotRequest request(Integer width, Integer height, Integer fileSizeKb,
                                       BigDecimal latitude, BigDecimal longitude) {
-        return new CreateShotRequest(null, "SOLO", null, width, height, fileSizeKb, latitude, longitude, null);
+        return new CreateShotRequest(null, null, "SOLO", null, width, height, fileSizeKb, latitude, longitude, null);
     }
 
     @Test
