@@ -48,6 +48,7 @@ class ShotServiceTest {
 
     private static final Long DIRECTOR_ID = 1L;
     private static final Long SESSION_ID = 10L;
+    private static final String SESSION_CODE = "sess-code-abc123";
 
     private User user() {
         return User.builder().oauthProvider("test").oauthId("u").role(User.Role.USER).build();
@@ -59,10 +60,10 @@ class ShotServiceTest {
         return u;
     }
 
-    private CreateShotRequest request(Long sessionId, String mode, Integer bestCutScore,
+    private CreateShotRequest request(String sessionCode, String mode, Integer bestCutScore,
                                       Integer width, Integer height, Integer fileSizeKb,
                                       BigDecimal latitude, BigDecimal longitude) {
-        return new CreateShotRequest(sessionId, null, mode, bestCutScore, width, height, fileSizeKb, latitude, longitude, null);
+        return new CreateShotRequest(sessionCode, null, mode, bestCutScore, width, height, fileSizeKb, latitude, longitude, null);
     }
 
     private Shot capturedSavedShot() {
@@ -79,12 +80,12 @@ class ShotServiceTest {
         User camera = user(2L);
         Session session = Session.builder().id(SESSION_ID).owner(director).participant(camera).build();
         given(userRepository.findById(DIRECTOR_ID)).willReturn(Optional.of(director));
-        given(sessionRepository.findById(SESSION_ID)).willReturn(Optional.of(session));
+        given(sessionRepository.findBySessionCode(SESSION_CODE)).willReturn(Optional.of(session));
         given(shotRepository.save(any(Shot.class))).willAnswer(inv -> inv.getArgument(0));
 
         // when
         shotService.createShot(DIRECTOR_ID,
-                request(SESSION_ID, "COLLAB", 80, 3840, 2160, 1500, new BigDecimal("37.5"), new BigDecimal("127.0")));
+                request(SESSION_CODE, "COLLAB", 80, 3840, 2160, 1500, new BigDecimal("37.5"), new BigDecimal("127.0")));
 
         // then: 요청자는 director, 반대편 참여자는 camera로 귀속된다
         Shot saved = capturedSavedShot();
@@ -128,11 +129,11 @@ class ShotServiceTest {
         User director = user(DIRECTOR_ID);
         Session session = Session.builder().id(SESSION_ID).owner(director).participant(null).build();
         given(userRepository.findById(DIRECTOR_ID)).willReturn(Optional.of(director));
-        given(sessionRepository.findById(SESSION_ID)).willReturn(Optional.of(session));
+        given(sessionRepository.findBySessionCode(SESSION_CODE)).willReturn(Optional.of(session));
         given(shotRepository.save(any(Shot.class))).willAnswer(inv -> inv.getArgument(0));
 
         // when
-        shotService.createShot(DIRECTOR_ID, request(SESSION_ID, "COLLAB", null, null, null, null, null, null));
+        shotService.createShot(DIRECTOR_ID, request(SESSION_CODE, "COLLAB", null, null, null, null, null, null));
 
         // then
         assertThat(capturedSavedShot().getCamera()).isNull();
@@ -145,11 +146,11 @@ class ShotServiceTest {
         User director = user(DIRECTOR_ID);
         Session session = Session.builder().id(SESSION_ID).owner(user(2L)).participant(user(3L)).build();
         given(userRepository.findById(DIRECTOR_ID)).willReturn(Optional.of(director));
-        given(sessionRepository.findById(SESSION_ID)).willReturn(Optional.of(session));
+        given(sessionRepository.findBySessionCode(SESSION_CODE)).willReturn(Optional.of(session));
 
         // when / then
         assertThatThrownBy(() -> shotService.createShot(DIRECTOR_ID,
-                request(SESSION_ID, "COLLAB", null, null, null, null, null, null)))
+                request(SESSION_CODE, "COLLAB", null, null, null, null, null, null)))
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode())
                 .isEqualTo(ErrorCode.SESSION_ACCESS_DENIED);
@@ -209,7 +210,7 @@ class ShotServiceTest {
     @DisplayName("SOLO 모드인데 session_id가 있으면 400(SOLO_MUST_NOT_HAVE_SESSION)")
     void createShot_soloWithSession_throws() {
         assertThatThrownBy(() ->
-                shotService.createShot(DIRECTOR_ID, request(SESSION_ID, "SOLO", null, null, null, null, null, null)))
+                shotService.createShot(DIRECTOR_ID, request(SESSION_CODE, "SOLO", null, null, null, null, null, null)))
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode())
                 .isEqualTo(ErrorCode.SOLO_MUST_NOT_HAVE_SESSION);
@@ -219,10 +220,10 @@ class ShotServiceTest {
     @DisplayName("존재하지 않는 session_id이면 404(SESSION_NOT_FOUND)")
     void createShot_sessionNotFound_throws() {
         given(userRepository.findById(DIRECTOR_ID)).willReturn(Optional.of(user()));
-        given(sessionRepository.findById(SESSION_ID)).willReturn(Optional.empty());
+        given(sessionRepository.findBySessionCode(SESSION_CODE)).willReturn(Optional.empty());
 
         assertThatThrownBy(() ->
-                shotService.createShot(DIRECTOR_ID, request(SESSION_ID, "COLLAB", null, null, null, null, null, null)))
+                shotService.createShot(DIRECTOR_ID, request(SESSION_CODE, "COLLAB", null, null, null, null, null, null)))
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode())
                 .isEqualTo(ErrorCode.SESSION_NOT_FOUND);
@@ -245,11 +246,11 @@ class ShotServiceTest {
         User participant = user(2L);       // 상대 참여자
         Session session = Session.builder().id(SESSION_ID).owner(owner).participant(participant).build();
         given(userRepository.findById(DIRECTOR_ID)).willReturn(Optional.of(owner));
-        given(sessionRepository.findById(SESSION_ID)).willReturn(Optional.of(session));
+        given(sessionRepository.findBySessionCode(SESSION_CODE)).willReturn(Optional.of(session));
         given(shotRepository.save(any(Shot.class))).willAnswer(inv -> inv.getArgument(0));
 
         // directorUserId = participant(2L) 명시 → 이 컷은 participant가 디렉터, 요청자(owner)가 카메라
-        CreateShotRequest req = new CreateShotRequest(SESSION_ID, 2L, "COLLAB", null, null, null, null, null, null, null);
+        CreateShotRequest req = new CreateShotRequest(SESSION_CODE, 2L, "COLLAB", null, null, null, null, null, null, null);
         shotService.createShot(DIRECTOR_ID, req);
 
         Shot saved = capturedSavedShot();
@@ -264,9 +265,9 @@ class ShotServiceTest {
         User participant = user(2L);
         Session session = Session.builder().id(SESSION_ID).owner(owner).participant(participant).build();
         given(userRepository.findById(DIRECTOR_ID)).willReturn(Optional.of(owner));
-        given(sessionRepository.findById(SESSION_ID)).willReturn(Optional.of(session));
+        given(sessionRepository.findBySessionCode(SESSION_CODE)).willReturn(Optional.of(session));
 
-        CreateShotRequest req = new CreateShotRequest(SESSION_ID, 999L, "COLLAB", null, null, null, null, null, null, null);
+        CreateShotRequest req = new CreateShotRequest(SESSION_CODE, 999L, "COLLAB", null, null, null, null, null, null, null);
         assertThatThrownBy(() -> shotService.createShot(DIRECTOR_ID, req))
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode())

@@ -45,30 +45,30 @@ public class ShotService {
         ShotMode mode = ShotMode.from(request.mode())
                 .orElseThrow(() -> new CustomException(ErrorCode.INVALID_SHOT_MODE));
 
-        // 협업(COLLAB)은 두 기기가 세션으로 연결된 상태이므로 session_id가 필수
-        if (mode == ShotMode.COLLAB && request.sessionId() == null) {
+        // 협업(COLLAB)은 두 기기가 세션으로 연결된 상태이므로 sessionCode가 필수
+        if (mode == ShotMode.COLLAB && request.sessionCode() == null) {
             throw new CustomException(ErrorCode.COLLAB_REQUIRES_SESSION);
         }
-        // 1인(SOLO)은 세션이 없는 상태이므로 session_id가 있으면 안 됨
-        if (mode == ShotMode.SOLO && request.sessionId() != null) {
+        // 1인(SOLO)은 세션이 없는 상태이므로 sessionCode가 있으면 안 됨
+        if (mode == ShotMode.SOLO && request.sessionCode() != null) {
             throw new CustomException(ErrorCode.SOLO_MUST_NOT_HAVE_SESSION);
         }
         validateDimensions(request.width(), request.height());
         validateLocation(request.latitude(), request.longitude());
 
-        // 2. 요청자(저장을 호출한 인증 사용자) 조회
+        // 요청자(저장을 호출한 인증 사용자) 조회
         User requester = userRepository.findById(requesterId)
                 .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
 
-        // 3. 역할 귀속
+        // 역할 귀속
         //    - SOLO: 요청자가 director, camera는 null
         //    - COLLAB: 요청자가 세션 참여자여야 하고, 이 컷의 director는 요청 바디의 directorUserId(없으면 요청자).
         //      director/camera를 세션의 두 참여자(owner/participant)로 귀속하며, director가 참여자인지 검증한다.
         Session session = null;
         User director = requester;
         User camera = null;
-        if (request.sessionId() != null) {
-            session = sessionRepository.findById(request.sessionId())
+        if (request.sessionCode() != null) {
+            session = sessionRepository.findBySessionCode(request.sessionCode())
                     .orElseThrow(() -> new CustomException(ErrorCode.SESSION_NOT_FOUND));
 
             // 저장 요청자는 세션 참여자여야 한다

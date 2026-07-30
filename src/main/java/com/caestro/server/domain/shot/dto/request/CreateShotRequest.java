@@ -17,7 +17,8 @@ import java.time.LocalDateTime;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record CreateShotRequest(
 
-        Long sessionId,
+        // 협업(COLLAB)에서 결과물이 속한 세션 코드. 클라이언트가 WS에서 받은 값을 그대로 사용한다.
+        String sessionCode,
 
         // 협업(COLLAB)에서 이 컷의 디렉터(피사체) userId. 역할은 컷마다 다를 수 있어 클라이언트가 명시한다.
         // 없으면 요청자를 디렉터로 폴백하며, 서버는 두 참여자가 세션 참여자인지 검증한다.

@@ -30,7 +30,7 @@ public interface ShotApi {
                     content = @Content(schema = @Schema(implementation = ShotResponse.class))),
             @ApiResponse(responseCode = "400", description = "유효하지 않은 입력값 (mode/해상도/용량/위치)"),
             @ApiResponse(responseCode = "401", description = "토큰이 없음"),
-            @ApiResponse(responseCode = "404", description = "session_id에 해당하는 세션 없음")
+            @ApiResponse(responseCode = "404", description = "sessionCode에 해당하는 세션 없음")
     })
     ResponseEntity<ShotResponse> createShot(CreateShotRequest request, CustomUserDetails userDetails);
 

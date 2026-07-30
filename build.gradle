@@ -50,6 +50,9 @@ dependencies {
 
 	// WebSocket
 	implementation 'org.springframework.boot:spring-boot-starter-websocket'
+
+	// 구글 ID token 로컬 검증 (모바일 Google Sign-In)
+	implementation("com.google.api-client:google-api-client:2.7.0")
 }
 
 // /actuator/info 에 버전·빌드시각 노출 (META-INF/build-info.properties 생성)

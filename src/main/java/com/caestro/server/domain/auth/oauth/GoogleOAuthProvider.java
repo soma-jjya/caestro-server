@@ -4,6 +4,8 @@ import com.caestro.server.global.exception.CustomException;
 import com.caestro.server.global.exception.error.ErrorCode;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken;
+import com.google.api.client.googleapis.auth.oauth2.GoogleIdTokenVerifier;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
@@ -22,16 +24,19 @@ public class GoogleOAuthProvider implements OAuthProvider {
     private static final String USER_INFO_URI = "https://www.googleapis.com/oauth2/v2/userinfo";
 
     private final WebClient webClient;
+    private final GoogleIdTokenVerifier idTokenVerifier;
     private final String clientId;
     private final String clientSecret;
     private final String redirectUri;
 
     public GoogleOAuthProvider(
             WebClient.Builder webClientBuilder,
+            GoogleIdTokenVerifier idTokenVerifier,
             @Value("${google.client-id}") String clientId,
             @Value("${google.client-secret}") String clientSecret,
             @Value("${google.redirect-uri}") String redirectUri) {
         this.webClient = webClientBuilder.build();
+        this.idTokenVerifier = idTokenVerifier;
         this.clientId = clientId;
         this.clientSecret = clientSecret;
         this.redirectUri = redirectUri;
@@ -49,11 +54,34 @@ public class GoogleOAuthProvider implements OAuthProvider {
         return toProfile(userResponse);
     }
 
+    /**
+     * 모바일(Google Sign-In)에서 전달한 ID token을 로컬 검증해 프로필을 추출한다.
+     * 카카오와 달리 구글 모바일 SDK는 access token이 아니라 ID token(구글이 서명한 JWT)을 주므로,
+     * userinfo 호출 대신 구글 공개키로 서명·aud·iss·exp를 검증한 뒤 클레임(sub/name/picture)을 사용한다.
+     *
+     * @param idTokenString 모바일 SDK가 발급한 구글 ID token
+     * @return 소셜 프로필 (oauthId = 구글 sub)
+     * @throws CustomException OAUTH_LOGIN_FAILED - 검증 실패(서명/aud/iss/exp 불일치 등)
+     */
     @Override
-    public OAuthProfile getProfileByToken(String accessToken) {
-        // 모바일 SDK가 이미 access token을 발급받았으므로 code 교환을 생략하고 바로 사용자 정보를 조회한다
-        GoogleUserResponse userResponse = requestUserInfo(accessToken);
-        return toProfile(userResponse);
+    public OAuthProfile getProfileByToken(String idTokenString) {
+        try {
+            GoogleIdToken idToken = idTokenVerifier.verify(idTokenString);
+            if (idToken == null) {
+                log.warn("구글 ID token 검증 실패 (서명/aud/iss/exp 불일치)");
+                throw new CustomException(ErrorCode.OAUTH_LOGIN_FAILED);
+            }
+            GoogleIdToken.Payload payload = idToken.getPayload();
+            String sub = payload.getSubject();
+            String name = (String) payload.get("name");
+            String picture = (String) payload.get("picture");
+            return new OAuthProfile(sub, name, picture);
+        } catch (CustomException e) {
+            throw e;
+        } catch (Exception e) {
+            log.warn("구글 ID token 검증 중 오류", e);
+            throw new CustomException(ErrorCode.OAUTH_LOGIN_FAILED);
+        }
     }
 
     private GoogleTokenResponse requestToken(String code) {
