@@ -1,6 +1,10 @@
 spring:
   profiles:
     active: dev
+  cloud:
+    aws:
+      region:
+        static: ap-northeast-2
 
 # 공통 Actuator 설정 (노출 범위/show-details는 프로파일에서 override)
 management:

@@ -53,6 +53,10 @@ dependencies {
 
 	// 구글 ID token 로컬 검증 (모바일 Google Sign-In)
 	implementation("com.google.api-client:google-api-client:2.7.0")
+
+	// AWS Secrets Manager (런타임 시크릿 주입) — Spring Cloud AWS 4.x (Boot 4.x 대응)
+	implementation platform("io.awspring.cloud:spring-cloud-aws-dependencies:4.1.0")
+	implementation "io.awspring.cloud:spring-cloud-aws-starter-secrets-manager"
 }
 
 // /actuator/info 에 버전·빌드시각 노출 (META-INF/build-info.properties 생성)
