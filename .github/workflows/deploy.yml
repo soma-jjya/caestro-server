@@ -1,8 +1,7 @@
 name: Deploy
 
 # main push(= PR 병합) 시 자동 배포한다.
-# 테스트는 PR 단계의 CI(ci.yml)에서 이미 검증되므로 여기서는 빌드→배포만 수행한다.
-# (main 직접 push를 막고 CI 통과를 강제하려면 GitHub branch protection을 함께 설정할 것)
+# 도커 이미지를 빌드해 ECR에 push하고, ASG instance refresh로 새 인스턴스가 이미지를 pull한다.
 on:
   push:
     branches: [main]
@@ -12,6 +11,10 @@ permissions:
   id-token: write
   contents: read
 
+env:
+  AWS_REGION: ap-northeast-2
+  ECR_REPOSITORY: peakpic-app
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -19,36 +22,38 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up JDK 21
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '21'
-          cache: gradle
-
-      - name: Grant execute permission for gradlew
-        run: chmod +x gradlew
-
-      # 운영 설정(application-prod.yml)은 저장소에 없고 base64 Secret으로 주입한다.
+      # 운영 설정(application-prod.yml, 시크릿 없음)은 저장소에 없고 base64 Secret으로 주입한다.
+      # 도커 빌드가 이 파일을 이미지에 굽는다. (실제 시크릿은 런타임에 Secrets Manager에서 로드)
       - name: Inject production config
         run: echo "${{ secrets.APPLICATION_PROD_YML }}" | base64 --decode > src/main/resources/application-prod.yml
-
-      # bootJar는 test 태스크에 의존하지 않으므로 DB 없이 jar만 생성된다.
-      - name: Build jar
-        run: ./gradlew clean bootJar
 
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
-          aws-region: ${{ secrets.AWS_REGION }}
+          aws-region: ${{ env.AWS_REGION }}
 
-      - name: Upload jar to S3
-        run: aws s3 cp build/libs/*.jar s3://${{ secrets.S3_BUCKET }}/app.jar
+      - name: Login to Amazon ECR
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
 
-      # 새 인스턴스가 부팅하며 S3의 최신 jar를 pull → 롤링 교체.
-      # MinHealthyPercentage=100 은 "새 인스턴스가 건강해진 뒤 기존 것을 종료"(무중단)를 의미하며,
-      # 이를 위해 ASG max >= 2 여야 한다. (현재 min=1, desired=1, max=2 로 충족)
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # 멀티스테이지 Dockerfile로 이미지 빌드 후 ECR push.
+      # cache-from/to(gha)로 GitHub Actions 캐시에 도커 레이어를 저장 → 다음 빌드 가속.
+      - name: Build and push image to ECR
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ steps.ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ github.sha }}
+            ${{ steps.ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # 새 인스턴스가 부팅하며 ECR에서 최신 이미지를 pull → 롤링 교체.
       - name: Trigger ASG instance refresh
         run: |
           aws autoscaling start-instance-refresh \
