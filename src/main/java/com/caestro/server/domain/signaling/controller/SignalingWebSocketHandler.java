@@ -35,6 +35,9 @@ public class SignalingWebSocketHandler extends TextWebSocketHandler {
             SignalingRequest msg = objectMapper.readValue(message.getPayload(), SignalingRequest.class);
             log.info("Received message: type={}, sessionCode={}", msg.type(), msg.sessionCode());
 
+            // 모든 수신 메시지는 "살아있음"의 증거 → 마지막 활동 시각 갱신 (유휴 정리 대상에서 제외)
+            sessionManager.updateLastSeen(session.getId());
+
             switch (msg.type()) {
                 case "CREATE_SESSION" -> signalingService.createSession(session, msg);
                 case "JOIN_SESSION" -> signalingService.joinSession(session, msg);
@@ -42,6 +45,7 @@ public class SignalingWebSocketHandler extends TextWebSocketHandler {
                 case "OFFER", "ANSWER", "ICE_CANDIDATE" -> signalingService.relay(session, msg);
                 case "SWAP_ROLE" -> signalingService.swapRoles(session, msg);
                 case "END_SESSION" -> signalingService.endSession(session, msg);
+                case "PING" -> signalingService.handlePing(session);
                 default -> log.warn("Unknown message type: {}", msg.type());
             }
         } catch (Exception e) {

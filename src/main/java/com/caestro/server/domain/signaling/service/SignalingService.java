@@ -5,6 +5,7 @@ import com.caestro.server.domain.session.service.SessionService;
 import com.caestro.server.domain.signaling.dto.request.SignalingRequest;
 import com.caestro.server.domain.signaling.dto.response.SignalingResponse;
 import com.caestro.server.domain.signaling.entity.SessionInfo;
+import com.caestro.server.global.exception.CustomException;
 import com.caestro.server.global.exception.error.ErrorCode;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -14,8 +15,8 @@ import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.web.socket.WebSocketSession;
 
+import java.security.SecureRandom;
 import java.time.LocalDateTime;
-import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
 @Slf4j
@@ -31,6 +32,12 @@ public class SignalingService {
     private final SignalingDiagnosticLogger diagnosticLogger;
     private final SignalingRelaySender relaySender;
 
+    private static final char[] CODE_ALPHABET =
+            "0123456789ABCDEFGHJKMNPQRSTVWXYZ".toCharArray();
+    private static final int CODE_LENGTH = 6;
+    private static final int CODE_GENERATION_MAX_ATTEMPTS = 5;
+    private final SecureRandom secureRandom = new SecureRandom();
+
     /**
      * 방을 만든 사람(owner)이 새로운 WebRTC 세션을 생성합니다.
      * 세션 코드를 발급하고 Redis에 대기(WAITING) 상태로 저장한 뒤 클라이언트에게 코드를 반환합니다.
@@ -40,8 +47,8 @@ public class SignalingService {
      * @param msg    클라이언트로부터 받은 세션 생성 요청 메시지
      */
     public void createSession(WebSocketSession socket, SignalingRequest msg) {
-        // 1. 세션 코드 발급 (초대 링크의 비밀값 역할도 겸하므로 충분한 엔트로피 확보: 16 hex = 64bit)
-        String sessionCode = UUID.randomUUID().toString().replace("-", "").substring(0, 16);
+        // 1. 세션 코드 발급
+        String sessionCode = generateUniqueSessionCode();
 
         // 2. 세션 정보 생성 및 owner(생성자) 세팅. 생성자가 시작 디렉터가 된다.
         Long ownerUserId = getUserId(socket);
@@ -72,15 +79,18 @@ public class SignalingService {
     }
 
     /**
-     * 참여자(participant)가 발급된 세션 코드로 기존 방에 입장합니다.
-     * 방이 존재하면 상태를 연결됨(CONNECTED)으로 변경하고, owner에게 입장을 알립니다.
+     * 세션 코드로 방에 입장하거나, 네트워크 전환 등으로 끊긴 뒤 재연결(슬롯 인계)합니다.
+     * 세션 정체성은 소켓이 아니라 userId(JWT, 게스트 포함)를 기준으로 판단합니다.
+     * - 요청 userId가 기존 owner/participant 슬롯의 주인과 같으면: 소켓만 교체하고 재연결로 처리(takeover).
+     * - 슬롯이 비어 있고 신규 사용자면: 참여자로 입장.
+     * - 이미 다른 사용자가 연결된 세션이면: 거부.
      *
-     * @param socket 참여자의 웹소켓 세션 객체
+     * @param socket 입장/재연결하는 클라이언트의 웹소켓 세션 객체
      * @param msg    입장할 세션 코드(sessionCode)가 담긴 요청 메시지
      */
     public void joinSession(WebSocketSession socket, SignalingRequest msg) {
-        // 1. 세션 코드로 방 정보 조회
-        String sessionCode = msg.sessionCode();
+        // 1. 세션 코드로 방 정보 조회 (수동 입력 대비 공백 제거 + 대문자 정규화)
+        String sessionCode = normalizeSessionCode(msg.sessionCode());
         SessionInfo info = getSessionInfo(sessionCode);
 
         // 2. 존재하지 않는 세션이면 에러 응답
@@ -89,29 +99,42 @@ public class SignalingService {
             return;
         }
 
-        // 3. 이미 참여자가 연결된 세션이면 에러 응답
-        if ("CONNECTED".equals(info.getStatus())) {
+        Long userId = getUserId(socket);
+
+        // 3. 재연결(takeover): 요청 userId가 기존 슬롯 주인과 같으면 소켓만 교체하고 복귀 처리
+        //    (네트워크 전환으로 옛 소켓이 유령으로 남아 CONNECTED여도, 본인이면 막지 않고 이어붙인다)
+        if (userId != null && userId.equals(info.getOwnerUserId())) {
+            reconnectToSlot(socket, sessionCode, info, true);
+            return;
+        }
+        if (userId != null && userId.equals(info.getParticipantUserId())) {
+            reconnectToSlot(socket, sessionCode, info, false);
+            return;
+        }
+
+        // 4. 제3자인데 참여자 자리가 이미 다른 사용자로 차 있으면 거부
+        //    (방장 재연결 유예로 status가 WAITING이어도, 참여자 슬롯이 있으면 난입을 막는다)
+        if (info.getParticipantUserId() != null) {
             sendError(socket, sessionCode, ErrorCode.SESSION_ALREADY_CONNECTED);
             return;
         }
 
-        // 4. 참여자 정보 세팅 및 세션 상태를 연결됨으로 변경 (참여자도 JWT(게스트 포함)라 userId가 항상 존재)
-        Long participantUserId = getUserId(socket);
+        // 5. 신규 참여자 입장 및 세션 상태를 연결됨으로 변경
         String cameraMode = "APP";
-        info.setParticipantUserId(participantUserId);
+        info.setParticipantUserId(userId);
         info.setParticipantSocketId(socket.getId());
         info.setStatus("CONNECTED");
 
-        // 5. Redis에 세션 정보 저장 및 소켓 TTL 갱신
+        // 6. Redis에 세션 정보 저장 및 소켓 TTL 갱신
         saveSessionInfo(sessionCode, info);
         redisTemplate.opsForValue().set("socket:" + socket.getId(), sessionCode, 10, TimeUnit.MINUTES);
         // owner 소켓의 TTL도 함께 갱신
         redisTemplate.expire("socket:" + info.getOwnerSocketId(), 10, TimeUnit.MINUTES);
 
-        // 6. DB 세션 상태를 연결됨으로 동기화
-        sessionService.joinSession(sessionCode, participantUserId, cameraMode);
+        // 7. DB 세션 상태를 연결됨으로 동기화
+        sessionService.joinSession(sessionCode, userId, cameraMode);
 
-        // 7. owner에게 참여자 입장 알림
+        // 8. owner에게 참여자 입장 알림
         SignalingResponse notifyOwner = SignalingResponse.builder()
                 .type("PEER_JOINED")
                 .sessionCode(sessionCode)
@@ -119,6 +142,62 @@ public class SignalingService {
         relaySender.send(info.getOwnerSocketId(), notifyOwner);
 
         log.info("Peer joined session: {}", sessionCode);
+    }
+
+    /**
+     * 같은 userId의 재연결을 처리합니다(슬롯 인계, takeover).
+     * 기존 슬롯의 socketId를 새 소켓으로 교체하고, 옛 소켓의 매핑을 제거해
+     * 뒤늦게 죽는 유령 소켓의 disconnect가 복구된 세션을 훼손하지 못하게 합니다.
+     * 재연결한 쪽에는 현재 상태 복원용 SESSION_RESUMED를, 상대에게는 PEER_RECONNECTED를 통지합니다.
+     *
+     * @param socket      재연결한 클라이언트의 새 웹소켓 세션
+     * @param sessionCode 대상 세션 코드
+     * @param info        현재 세션 상태
+     * @param isOwner     재연결 주체가 owner 슬롯이면 true, participant 슬롯이면 false
+     */
+    private void reconnectToSlot(WebSocketSession socket, String sessionCode, SessionInfo info, boolean isOwner) {
+        // 1. 옛 소켓 매핑 제거 — 뒤늦게 끊기는 유령 소켓이 handleDisconnect로 세션을 종료/훼손하는 것 방지
+        String oldSocketId = isOwner ? info.getOwnerSocketId() : info.getParticipantSocketId();
+        if (oldSocketId != null) {
+            redisTemplate.delete("socket:" + oldSocketId);
+        }
+
+        // 2. 슬롯의 socketId만 새 소켓으로 교체 (정체성=userId는 유지, "전화선"만 갱신)
+        if (isOwner) {
+            info.setOwnerSocketId(socket.getId());
+        } else {
+            info.setParticipantSocketId(socket.getId());
+        }
+        // 두 슬롯이 모두 사용자로 차 있으면 CONNECTED, 아니면(상대가 아직 유예/부재) WAITING으로 정정
+        boolean bothPresent = info.getOwnerUserId() != null && info.getParticipantUserId() != null;
+        info.setStatus(bothPresent ? "CONNECTED" : "WAITING");
+        saveSessionInfo(sessionCode, info);
+
+        // 3. 새 소켓 매핑 등록 + 상대 슬롯 TTL 갱신
+        redisTemplate.opsForValue().set("socket:" + socket.getId(), sessionCode, 10, TimeUnit.MINUTES);
+        String peerSocketId = isOwner ? info.getParticipantSocketId() : info.getOwnerSocketId();
+        if (peerSocketId != null) {
+            redisTemplate.expire("socket:" + peerSocketId, 10, TimeUnit.MINUTES);
+        }
+
+        // 4. 재연결한 쪽에 현재 상태(디렉터 포인터)를 담아 SESSION_RESUMED 전송 (화면 복원용)
+        SignalingResponse resumed = SignalingResponse.builder()
+                .type("SESSION_RESUMED")
+                .sessionCode(sessionCode)
+                .currentDirectorUserId(info.getCurrentDirectorUserId())
+                .build();
+        sessionManager.sendMessage(socket.getId(), resumed);
+
+        // 5. 상대가 남아 있으면 재연결 알림 (신규 입장 PEER_JOINED와 구분)
+        if (peerSocketId != null) {
+            SignalingResponse peerNotify = SignalingResponse.builder()
+                    .type("PEER_RECONNECTED")
+                    .sessionCode(sessionCode)
+                    .build();
+            relaySender.send(peerSocketId, peerNotify);
+        }
+
+        log.info("Reconnected to session {} as {}", sessionCode, isOwner ? "owner" : "participant");
     }
 
     /**
@@ -177,7 +256,7 @@ public class SignalingService {
         try {
             Long userId = getUserId(socket);
             deviceSpecService.saveDeviceSpec(
-                    msg.sessionCode(),
+                    normalizeSessionCode(msg.sessionCode()),
                     userId,
                     msg.maxZoom(),
                     msg.minZoom(),
@@ -267,11 +346,13 @@ public class SignalingService {
                 saveSessionInfo(sessionCode, info);
                 log.info("Participant disconnected, session kept for reconnect: {}", sessionCode);
             } else {
-                // owner 이탈: 세션 종료 (방의 주인이 나가면 방을 닫는다)
-                info.setStatus("ENDED");
+                // 방장 이탈: 즉시 종료하지 않고 재연결을 유예한다(Redis TTL 동안 대기).
+                // ownerUserId는 유지해, 같은 방장이 JOIN_SESSION으로 슬롯을 인계(takeover)받을 수 있게 한다.
+                // 유예 안에 돌아오지 않으면 세션은 TTL로 자연 만료된다.
+                info.setOwnerSocketId(null);
+                info.setStatus("WAITING");
                 saveSessionInfo(sessionCode, info);
-                sessionService.endSession(sessionCode);
-                log.info("Session ended due to disconnect: {}", sessionCode);
+                log.info("Owner disconnected, session kept for reconnect (grace via TTL): {}", sessionCode);
             }
         }
 
@@ -315,6 +396,28 @@ public class SignalingService {
     }
 
     /**
+     * 하트비트(PING)를 처리한다.
+     * 연결 유지를 위해 PONG으로 응답하고, 세션에 소속된 소켓이면 Redis TTL을 연장해
+     * 조용한 촬영 중에도 방/소켓 상태가 만료되지 않게 한다.
+     *
+     * @param socket PING을 보낸 클라이언트의 웹소켓 세션
+     */
+    public void handlePing(WebSocketSession socket) {
+        // 세션에 소속된 소켓이면 방·소켓 TTL을 함께 연장 (조용한 세션의 조기 만료 방지)
+        String sessionCode = redisTemplate.opsForValue().get("socket:" + socket.getId());
+        if (sessionCode != null) {
+            redisTemplate.expire("socket:" + socket.getId(), 10, TimeUnit.MINUTES);
+            redisTemplate.expire("session:" + sessionCode, 10, TimeUnit.MINUTES);
+        }
+
+        // 연결 유지를 위해 PONG 응답
+        SignalingResponse pong = SignalingResponse.builder()
+                .type("PONG")
+                .build();
+        sessionManager.sendMessage(socket.getId(), pong);
+    }
+
+    /**
      * 에러 응답을 보낸 클라이언트에게 직접 전송한다.
      */
     private void sendError(WebSocketSession socket, String sessionCode, ErrorCode errorCode) {
@@ -324,6 +427,40 @@ public class SignalingService {
                 .message(errorCode.getMessage())
                 .build();
         sessionManager.sendMessage(socket.getId(), errorResponse);
+    }
+
+    /**
+     * 활성 세션과 충돌하지 않는 짧은 세션 코드를 발급한다.
+     * Crockford Base32 알파벳으로 6자를 SecureRandom으로 생성하고, Redis에 동일 코드가 있으면 재시도한다.
+     *
+     * @return 활성 세션 기준으로 유일한 6자 세션 코드
+     * @throws CustomException SESSION_CODE_GENERATION_FAILED - 최대 재시도 내 유일 코드 발급 실패
+     */
+    private String generateUniqueSessionCode() {
+        for (int attempt = 0; attempt < CODE_GENERATION_MAX_ATTEMPTS; attempt++) {
+            StringBuilder sb = new StringBuilder(CODE_LENGTH);
+            for (int i = 0; i < CODE_LENGTH; i++) {
+                sb.append(CODE_ALPHABET[secureRandom.nextInt(CODE_ALPHABET.length)]);
+            }
+            String code = sb.toString();
+
+            // 활성 세션(session:{code})에 없을 때만 채택
+            if (Boolean.FALSE.equals(redisTemplate.hasKey("session:" + code))) {
+                return code;
+            }
+        }
+        throw new CustomException(ErrorCode.SESSION_CODE_GENERATION_FAILED);
+    }
+
+    /**
+     * 사용자가 수동 입력한 세션 코드를 정규화한다. (앞뒤 공백 제거 + 대문자 변환)
+     * QR/텍스트 어느 경로로 들어오든 발급 시 형식(대문자)과 일치시키기 위함이다.
+     *
+     * @param rawCode 클라이언트가 보낸 원본 세션 코드 (null 가능)
+     * @return 정규화된 코드 (입력이 null이면 null)
+     */
+    private String normalizeSessionCode(String rawCode) {
+        return rawCode == null ? null : rawCode.trim().toUpperCase();
     }
 
     /**

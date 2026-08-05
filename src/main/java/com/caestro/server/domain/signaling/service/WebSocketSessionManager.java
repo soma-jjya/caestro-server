@@ -9,6 +9,8 @@ import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.handler.ConcurrentWebSocketSessionDecorator;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -22,18 +24,51 @@ public class WebSocketSessionManager {
 
     private final ObjectMapper objectMapper;
     private final Map<String, WebSocketSession> socketMap = new ConcurrentHashMap<>();
+    // 소켓별 마지막 활동 시각(ms). 하트비트/메시지 수신 시 갱신하여 유휴 소켓 판별에 사용한다.
+    private final Map<String, Long> lastSeenMap = new ConcurrentHashMap<>();
 
     public void addSession(WebSocketSession session) {
         WebSocketSession concurrentSession = new ConcurrentWebSocketSessionDecorator(
                 session, SEND_TIME_LIMIT, SEND_BUFFER_SIZE_LIMIT
         );
         socketMap.put(session.getId(), concurrentSession);
+        lastSeenMap.put(session.getId(), System.currentTimeMillis());
         log.info("WebSocket Session Add: {}", session.getId());
     }
 
     public void removeSession(WebSocketSession session) {
         socketMap.remove(session.getId());
+        lastSeenMap.remove(session.getId());
         log.info("WebSocket Session Remove: {}", session.getId());
+    }
+
+    /**
+     * 소켓의 마지막 활동 시각을 현재로 갱신한다. (메시지 수신·PING 시 호출)
+     *
+     * @param socketId 활동이 감지된 소켓 ID
+     */
+    public void updateLastSeen(String socketId) {
+        lastSeenMap.computeIfPresent(socketId, (id, prev) -> System.currentTimeMillis());
+    }
+
+    /**
+     * 지정한 유휴 한계(ms)를 초과해 활동이 없는(=죽었을 가능성이 큰) 소켓들을 반환한다.
+     *
+     * @param maxIdleMillis 유휴로 판단할 한계 시간(ms)
+     * @return 유휴 한계를 초과한 소켓 목록
+     */
+    public List<WebSocketSession> findStaleSessions(long maxIdleMillis) {
+        long now = System.currentTimeMillis();
+        List<WebSocketSession> stale = new ArrayList<>();
+        lastSeenMap.forEach((socketId, lastSeen) -> {
+            if (now - lastSeen > maxIdleMillis) {
+                WebSocketSession session = socketMap.get(socketId);
+                if (session != null) {
+                    stale.add(session);
+                }
+            }
+        });
+        return stale;
     }
 
     /**

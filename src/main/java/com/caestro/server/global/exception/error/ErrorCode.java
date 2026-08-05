@@ -16,6 +16,7 @@ public enum ErrorCode {
     INVALID_REFRESH_TOKEN(401, "유효하지 않은 리프레시 토큰입니다"),
     USER_NOT_FOUND(404, "유저를 찾을 수 없습니다"),
     SESSION_NOT_FOUND(404, "세션을 찾을 수 없습니다"),
+    SESSION_CODE_GENERATION_FAILED(500, "세션 코드 생성에 실패했습니다"),
     SESSION_ALREADY_CONNECTED(409, "이미 다른 촬영자가 연결된 세션입니다"),
     SESSION_NOT_CONNECTED(409, "두 참여자가 모두 연결된 세션이 아닙니다"),
     SESSION_ACCESS_DENIED(403, "해당 세션에 접근할 권한이 없습니다"),
