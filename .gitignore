@@ -45,3 +45,7 @@ application-secret.yml
 *.jks
 *.p12
 .env
+
+### thumbnail ###
+lambda/thumbnail/venv/
+lambda/thumbnail/__pycache__/

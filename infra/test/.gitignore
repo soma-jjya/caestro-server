@@ -1,9 +1,0 @@
-# 실제 변수 값 (비밀번호 등) - 커밋 금지
-terraform.tfvars
-
-# Terraform 상태/캐시
-.terraform/
-.terraform.lock.hcl
-*.tfstate
-*.tfstate.*
-crash.log

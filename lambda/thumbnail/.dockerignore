@@ -1,0 +1,5 @@
+venv/
+out_*.jpg
+sample.jpg
+__pycache__/
+*.pyc

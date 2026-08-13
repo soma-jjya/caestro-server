@@ -53,6 +53,10 @@ public class User {
     @Column(updatable = false)
     private LocalDateTime createdAt;
 
+    // 탈퇴(soft delete) 시각. null이면 활성 계정. 유예 후 배치가 이 값을 기준으로 완전 파기한다.
+    @Column
+    private LocalDateTime deletedAt;
+
     @Builder
     public User(String oauthProvider, String oauthId, String deviceId, String nickname, String profileImage, Role role) {
         this.oauthProvider = oauthProvider;
@@ -88,6 +92,30 @@ public class User {
         if (profileImage != null) {
             this.profileImage = profileImage;
         }
+    }
+
+    /**
+     * 이미 탈퇴한(soft delete) 계정인지 여부.
+     */
+    public boolean isDeleted() {
+        return deletedAt != null;
+    }
+
+    /**
+     * 회원 탈퇴 처리.
+     * 개인정보 필드를 즉시 익명화(파기)하고 탈퇴 시각을 기록한다.
+     * userId(참조 무결성용 뼈대)는 유지되며, 완전 파기(row 삭제)는 유예 후 배치가 수행한다.
+     * oauthId를 제거하므로 같은 소셜 계정으로 재로그인하면 신규 유저로 취급된다.
+     *
+     * @param deletedAt 탈퇴 시각
+     */
+    public void withdraw(LocalDateTime deletedAt) {
+        this.oauthProvider = null;
+        this.oauthId = null;
+        this.deviceId = null;
+        this.nickname = null;
+        this.profileImage = null;
+        this.deletedAt = deletedAt;
     }
 
     public enum Role {

@@ -30,8 +30,14 @@ info:
     name: Caestro
     description: 듀얼 디바이스 협업 촬영 앱 백엔드
 
-# 시그널링 하트비트/유휴 소켓 정리 설정 (시크릿 아님 → 공통 yml에서 관리, 프로파일에서 override 가능)
+# 시그널링 하트비트/유휴 소켓 정리 설정
 signaling:
   heartbeat:
     max-idle-ms: 90000
     reaper-interval-ms: 30000
+
+# 만료 데이터 정리 배치 설정
+cleanup:
+  session:
+    retention-days: 30        # 생성 후 이 기간이 지난 세션을 정리
+    cron: "0 0 4 * * *"       # 매일 새벽 4시

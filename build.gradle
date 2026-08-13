@@ -61,6 +61,10 @@ dependencies {
 	// AWS Secrets Manager (런타임 시크릿 주입) — Spring Cloud AWS 4.x (Boot 4.x 대응)
 	implementation platform("io.awspring.cloud:spring-cloud-aws-dependencies:4.1.0")
 	implementation "io.awspring.cloud:spring-cloud-aws-starter-secrets-manager"
+
+	// ShedLock — 다중 인스턴스 스케줄러 중복 실행 방지 (기존 Redis를 락 저장소로 사용)
+	implementation "net.javacrumbs.shedlock:shedlock-spring:6.6.0"
+	implementation "net.javacrumbs.shedlock:shedlock-provider-redis-spring:6.6.0"
 }
 
 // /actuator/info 에 버전·빌드시각 노출 (META-INF/build-info.properties 생성)
