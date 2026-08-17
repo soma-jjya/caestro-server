@@ -1,0 +1,96 @@
+name: Release Notes (draft)
+
+# main push(= 릴리스 병합) 시, 이번에 들어온 변경으로 "다른 팀 공지" 릴리스 노트 초안을 만든다.
+# LLM이 초안을 쓰고, 규칙이 검증하고, 사람이 draft를 확인해 publish 한다(자동 게시 아님).
+# 실제 팀 알림(Discord)은 release-notify.yml이 publish 시점에 담당한다.
+on:
+  push:
+    branches: [main]
+  # 수동 실행: main에 아무것도 밀지 않고 과거 구간으로 초안 생성을 테스트할 수 있다.
+  workflow_dispatch:
+    inputs:
+      base:
+        description: "이전 릴리스 커밋 SHA (예: 92052fc)"
+        required: true
+      head:
+        description: "이번 릴리스 커밋 SHA/브랜치 (예: 1c4c9e5)"
+        required: true
+        default: main
+
+# Release draft 생성을 위해 contents:write 필요.
+permissions:
+  contents: write
+
+jobs:
+  draft:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout (전체 히스토리)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install deps
+        run: pip install -r .github/scripts/release_notes/requirements.txt
+
+      # 이번 push로 새로 들어온 구간: 직전 main 상태(before) → 현재(sha).
+      # before가 0으로 시작하면(브랜치 생성 등) 직전 커밋으로 폴백.
+      - name: Resolve range
+        id: range
+        env:
+          BEFORE: ${{ github.event.before }}
+          IN_BASE: ${{ github.event.inputs.base }}
+          IN_HEAD: ${{ github.event.inputs.head }}
+        run: |
+          if [ -n "$IN_BASE" ]; then
+            # 수동 실행(workflow_dispatch): 입력한 구간을 그대로 사용
+            BASE="$IN_BASE"; HEAD="$IN_HEAD"
+          else
+            # push: 직전 main 상태(before) → 현재(sha). before가 비었으면 직전 커밋으로 폴백
+            HEAD="$GITHUB_SHA"
+            if [ -z "$BEFORE" ] || [ "$BEFORE" = "0000000000000000000000000000000000000000" ]; then
+              BASE=$(git rev-parse "${GITHUB_SHA}^") || BASE="$GITHUB_SHA"
+            else
+              BASE="$BEFORE"
+            fi
+          fi
+          echo "base=$BASE" >> "$GITHUB_OUTPUT"
+          echo "head=$HEAD" >> "$GITHUB_OUTPUT"
+          echo "range: $BASE..$HEAD"
+
+      - name: Generate release notes draft
+        id: gen
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python3 .github/scripts/release_notes/generate.py \
+            --base "${{ steps.range.outputs.base }}" \
+            --head "${{ steps.range.outputs.head }}" \
+            --md-out release-notes.md
+
+      # 다른 팀 공지 항목이 있을 때만 Release draft를 만든다(소음 방지).
+      - name: Create/refresh draft release
+        if: steps.gen.outputs.has_items == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          SHORT="${{ steps.range.outputs.head }}"; SHORT="${SHORT:0:7}"; TAG="draft-${SHORT}"
+          TITLE="릴리스 노트 초안 ${SHORT} (required ${{ steps.gen.outputs.required_count }} · 확인필요 ${{ steps.gen.outputs.low_conf_count }})"
+          # 같은 SHA로 재실행되면 기존 draft를 교체
+          gh release delete "$TAG" --yes --cleanup-tag 2>/dev/null || true
+          gh release create "$TAG" \
+            --draft \
+            --title "$TITLE" \
+            --notes-file release-notes.md \
+            --target "${{ steps.range.outputs.head }}"
+          echo "draft 생성: $TAG — GitHub Releases 탭에서 확인 후 publish 하세요."
+
+      - name: No cross-team notice
+        if: steps.gen.outputs.has_items != 'true'
+        run: echo "이번 릴리스에는 다른 팀 공지 항목이 없어 draft를 만들지 않았습니다."

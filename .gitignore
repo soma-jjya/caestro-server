@@ -49,3 +49,5 @@ application-secret.yml
 ### thumbnail ###
 lambda/thumbnail/venv/
 lambda/thumbnail/__pycache__/
+
+docs/

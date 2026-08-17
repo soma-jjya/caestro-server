@@ -14,6 +14,8 @@ permissions:
 env:
   AWS_REGION: ap-northeast-2
   ECR_REPOSITORY: peakpic-app
+  # 비어 있으면(시크릿 미설정) 알림 스텝이 자동 skip 된다.
+  DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
 
 jobs:
   deploy:
@@ -54,8 +56,43 @@ jobs:
           cache-to: type=gha,mode=max
 
       # 새 인스턴스가 부팅하며 ECR에서 최신 이미지를 pull → 롤링 교체.
+      # 완료까지 러너를 20분 붙잡지 않고, refresh를 시작만 시킨다.
+      # (최종 성공 판정은 ALB 헬스체크가 하고, 진행률은 콘솔에서 확인)
       - name: Trigger ASG instance refresh
+        id: refresh
         run: |
-          aws autoscaling start-instance-refresh \
+          REFRESH_ID=$(aws autoscaling start-instance-refresh \
             --auto-scaling-group-name ${{ secrets.ASG_NAME }} \
-            --preferences '{"MinHealthyPercentage":100,"InstanceWarmup":120}'
+            --preferences '{"MinHealthyPercentage":100,"InstanceWarmup":120}' \
+            --query InstanceRefreshId --output text)
+          echo "refresh_id=$REFRESH_ID" >> "$GITHUB_OUTPUT"
+          echo "instance refresh started: $REFRESH_ID"
+
+      # 배포 결과를 Discord에 1회 알린다. (ChatOps — 누가·무엇을 배포했고 나갔는지/실패했는지)
+      # 성공 = 빌드·ECR push·instance refresh 트리거까지 완료(= 새 이미지가 롤링 반영 시작).
+      # 인스턴스 교체 '완료'는 몇 분 뒤이며 ALB 헬스체크가 최종 판정한다(여기서 폴링하지 않음).
+      # 알림 실패가 배포를 막지 않도록 continue-on-error.
+      - name: Notify deploy result (Discord)
+        if: always() && env.DISCORD_WEBHOOK_URL != ''
+        continue-on-error: true
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          REFRESH_ID: ${{ steps.refresh.outputs.refresh_id }}
+          JOB_STATUS: ${{ job.status }}
+        run: |
+          COMMIT_MSG=$(git log -1 --pretty=%s)
+          if [ "$JOB_STATUS" = "success" ] && [ -n "$REFRESH_ID" ]; then
+            TITLE="🚀 배포됨 · 롤링 교체 시작"; COLOR=3066993
+            NOTE="새 이미지 push 완료, instance refresh 시작. 몇 분 뒤 ALB 헬스체크로 최종 반영 확인."
+          else
+            TITLE="❌ 배포 실패 (미반영)"; COLOR=15158332
+            NOTE="빌드/푸시 또는 refresh 트리거 단계에서 실패 — 새 버전이 나가지 않았습니다. 로그 확인 필요."
+          fi
+          curl -sf -H "Content-Type: application/json" -X POST "$DISCORD_WEBHOOK_URL" -d @- <<JSON
+          {"embeds":[{"title":"${TITLE}","description":"${NOTE}","color":${COLOR},
+            "fields":[
+              {"name":"커밋","value":"[\`${GITHUB_SHA:0:7}\`](https://github.com/${GITHUB_REPOSITORY}/commit/${GITHUB_SHA}) ${COMMIT_MSG}"},
+              {"name":"actor","value":"${GITHUB_ACTOR}","inline":true},
+              {"name":"실행","value":"[로그](https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID})","inline":true}
+            ]}]}
+          JSON

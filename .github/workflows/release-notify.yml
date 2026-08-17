@@ -1,0 +1,35 @@
+name: Release Notify (Discord)
+
+# 사람이 Release draft를 검토·publish 하면, 그 내용을 Discord로 팀에 1회 알린다.
+# (초안 자동 생성은 release-notes.yml, 여기서는 사람이 승인한 것만 나간다)
+on:
+  release:
+    types: [published]
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Post release to Discord
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          TITLE: ${{ github.event.release.name }}
+          BODY: ${{ github.event.release.body }}
+          URL: ${{ github.event.release.html_url }}
+        run: |
+          if [ -z "$DISCORD_WEBHOOK_URL" ]; then
+            echo "DISCORD_WEBHOOK_URL 미설정 → skip"; exit 0
+          fi
+          # Discord embed description 상한(4096) 보호: 넘으면 잘라내고 링크로 안내.
+          DESC=$(printf '%s' "$BODY" | head -c 3500)
+          if [ "$(printf '%s' "$BODY" | wc -c)" -gt 3500 ]; then
+            DESC="${DESC}
+          …(생략) 전체 노트: ${URL}"
+          fi
+          # required 항목(🚨)이 있으면 색을 빨강으로.
+          if printf '%s' "$BODY" | grep -q '🚨'; then COLOR=15158332; else COLOR=3066993; fi
+          # jq로 안전하게 JSON 조립(따옴표·개행 이스케이프).
+          jq -n --arg t "📦 $TITLE" --arg d "$DESC" --arg u "$URL" --argjson c "$COLOR" \
+            '{embeds:[{title:$t,description:$d,url:$u,color:$c}]}' \
+            | curl -sf -H "Content-Type: application/json" -X POST "$DISCORD_WEBHOOK_URL" -d @-
+          echo "Discord 게시 완료"
