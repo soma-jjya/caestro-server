@@ -1,0 +1,155 @@
+# 릴리스 노트 LLM 평가용 골든 셋 (정답 라벨)
+#
+# 각 릴리스에 대해 "팀에 알렸어야 할 항목"을 사람이 확정한다.
+# - keywords: LLM 출력(제목+변경+조치 텍스트)에 이 중 하나라도 포함되면 매칭 (소문자 비교)
+# - audience: mobile | ai | all
+# - tier: required | fyi
+# - must: true  = 반드시 잡아야 함 (누락 시 재현율 감점)
+#         false = 잡으면 좋음 (누락해도 감점 없음, 등급·대상 채점에는 포함)
+# - verified: 사람 검수 완료 여부. ⚠️ 초안은 Claude가 작성 — 반드시 검수 후 true로 바꿀 것.
+#
+# 채점 지표 (run_eval.py):
+#   재현율 = 매칭된 must 항목 / 전체 must 항목
+#   등급 정확도 = 매칭 항목 중 tier 일치 비율
+#   대상 정확도 = 매칭 항목 중 audience 일치 비율
+#   날조 = unverified_identifiers 붙은 LLM 항목 수 (규칙 검증이 잡은 것)
+
+releases:
+  - name: "R1 (#30) 초기 통합 (스트레스 케이스 — 3주치 101파일·PR 28개, 실운영 릴리스 아님)"
+    base: 82ab4d7
+    head: b7e0a9f
+    verified: true
+    expected:
+      - key: turn-credential-api
+        keywords: ["turn", "자격증명", "credential"]
+        audience: mobile
+        tier: fyi
+        must: false        # 초대형 백필 구간 — 입력 폭주로 미검출 허용(v2 평가에서 items 0 확인)
+      - key: mobile-sdk-oauth
+        keywords: ["sdk", "access token", "소셜", "oauth"]
+        audience: mobile
+        tier: fyi
+        must: false        # 상동
+      - key: healthcheck
+        keywords: ["헬스체크", "health"]
+        audience: all
+        tier: fyi
+        must: false
+
+  - name: "R2 (#39) 게스트 모드·역할 교체·촬영 결과물"
+    base: b7e0a9f
+    head: e6cafbd
+    verified: true
+    expected:
+      - key: guest-jwt-unify
+        keywords: ["라이트 토큰", "게스트", "guest"]
+        audience: mobile
+        tier: required     # 라이트 토큰 삭제 → 게스트 JWT 통일 = 기존 인증 수단 제거(breaking)
+        must: true
+      - key: swap-role
+        keywords: ["swap_role", "역할 교체", "역할 전환", "필드"]
+        audience: mobile
+        tier: required     # 검수 확정: 응답 필드 구조가 다수 변경(breaking)
+        must: true
+      - key: shot-shared-view
+        keywords: ["공동 조회", "촬영 결과물", "디렉터", "촬영자"]
+        audience: mobile
+        tier: fyi
+        must: false
+
+  - name: "R3 (#44) 구글 로그인 확대·shot 저장 방식 변경"
+    base: e6cafbd
+    head: 826503e
+    verified: true
+    expected:
+      - key: shot-save-by-sessioncode
+        keywords: ["sessioncode", "세션 코드", "저장 방식"]
+        audience: mobile
+        tier: required     # CreateShotRequest 필드 변경 = 요청 계약 변경(breaking)
+        must: true
+      - key: google-login-both
+        keywords: ["구글", "google"]
+        audience: mobile
+        tier: fyi
+        must: true
+
+  - name: "R4 (#48) Secrets Manager·Region (서버 내부)"
+    base: 826503e
+    head: e73cabe
+    verified: true
+    expected:
+      - key: secrets-manager
+        keywords: ["secrets manager", "시크릿"]
+        audience: all
+        tier: required     # 검수 재반영: 배포 전 시크릿 마이그레이션 선행 필요 — LLM 판정 채택
+        must: false
+
+  - name: "R5 (#51) 배포 파이프라인 ECR 전환 (서버 내부)"
+    base: e73cabe
+    head: 92052fc
+    verified: true
+    expected:
+      - key: ecr-pipeline
+        keywords: ["ecr", "docker", "배포"]
+        audience: all
+        tier: required     # 검수 재반영: 배포 전 AWS 사전 준비(ECR·IAM) 필요했음 — LLM 판정이 옳았음
+        must: true
+
+  - name: "R6 (#57) 6자 코드·재연결·하트비트 ★핵심 케이스"
+    base: 92052fc
+    head: 1c4c9e5
+    verified: true
+    expected:
+      - key: heartbeat-ping
+        keywords: ["ping"]
+        audience: mobile
+        tier: required     # PING 미전송 시 90초 후 세션 종료 — 대표 required
+        must: true
+      - key: session-code-format
+        keywords: ["base32", "6자", "세션 코드"]
+        audience: mobile
+        tier: required     # 코드 형식 변경(breaking)
+        must: true
+      - key: reconnect-takeover
+        keywords: ["재연결", "takeover", "session_resumed", "인계"]
+        audience: mobile
+        tier: fyi          # 서버가 관대해진 변경 — 활용 시 처리
+        must: true
+      - key: owner-grace
+        keywords: ["방장", "유예", "waiting"]
+        audience: mobile
+        tier: fyi
+        must: false
+
+  - name: "R7 (#65) 회원 탈퇴·세션 정리 배치·썸네일 Lambda"
+    base: 1c4c9e5
+    head: 4504bd8
+    verified: true
+    expected:
+      - key: withdraw-api
+        keywords: ["탈퇴", "withdraw", "delete /users"]
+        audience: mobile
+        tier: fyi          # 새 엔드포인트 (탈퇴 후 401/403 처리 권장)
+        must: true
+      - key: thumbnail-lambda
+        keywords: ["썸네일", "thumb", "preview", "lambda"]
+        audience: ai
+        tier: fyi          # orig만 올리면 자동 생성 — AI 팀 워크플로 변화
+        must: true
+      # 배치·ShedLock은 서버 내부 → other_changes로 가야 정답 (항목화되면 감점 아님, extras로만 집계)
+
+  - name: "R8 (#69) 릴리스 노트 자동화·배포 알림"
+    base: 4504bd8
+    head: 6a23460
+    verified: true
+    expected:
+      - key: release-automation
+        keywords: ["릴리스 노트", "team notice", "자동화"]
+        audience: all
+        tier: fyi
+        must: false        # 실제 run에서 all/fyi로 분류됨 — 합리적이라 정답으로 채택
+      - key: deploy-notify
+        keywords: ["배포", "discord", "알림"]
+        audience: all
+        tier: fyi
+        must: false

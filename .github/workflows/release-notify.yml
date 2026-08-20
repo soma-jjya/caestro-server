@@ -1,7 +1,9 @@
 name: Release Notify (Discord)
 
-# 사람이 Release draft를 검토·publish 하면, 그 내용을 Discord로 팀에 1회 알린다.
-# (초안 자동 생성은 release-notes.yml, 여기서는 사람이 승인한 것만 나간다)
+# 사람이 Release draft를 검토·publish 하면, 요약을 Discord로 팀에 1회 알린다.
+# 릴리스 본문에 숨겨둔 구조화 JSON(<!-- release-notes-json ... -->)을 파싱해
+# "요약 + 🚨 required 항목만 필드로, fyi는 N건 링크" 형태로 게시한다(가시성).
+# JSON이 없는 수동 릴리스는 본문 앞부분을 그대로 게시(폴백).
 on:
   release:
     types: [published]
@@ -10,26 +12,63 @@ jobs:
   notify:
     runs-on: ubuntu-latest
     steps:
-      - name: Post release to Discord
+      - name: Post release summary to Discord
         env:
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
-          TITLE: ${{ github.event.release.name }}
-          BODY: ${{ github.event.release.body }}
-          URL: ${{ github.event.release.html_url }}
+          RELEASE_TITLE: ${{ github.event.release.name }}
+          RELEASE_BODY: ${{ github.event.release.body }}
+          RELEASE_URL: ${{ github.event.release.html_url }}
         run: |
-          if [ -z "$DISCORD_WEBHOOK_URL" ]; then
-            echo "DISCORD_WEBHOOK_URL 미설정 → skip"; exit 0
-          fi
-          # Discord embed description 상한(4096) 보호: 넘으면 잘라내고 링크로 안내.
-          DESC=$(printf '%s' "$BODY" | head -c 3500)
-          if [ "$(printf '%s' "$BODY" | wc -c)" -gt 3500 ]; then
-            DESC="${DESC}
-          …(생략) 전체 노트: ${URL}"
-          fi
-          # required 항목(🚨)이 있으면 색을 빨강으로.
-          if printf '%s' "$BODY" | grep -q '🚨'; then COLOR=15158332; else COLOR=3066993; fi
-          # jq로 안전하게 JSON 조립(따옴표·개행 이스케이프).
-          jq -n --arg t "📦 $TITLE" --arg d "$DESC" --arg u "$URL" --argjson c "$COLOR" \
-            '{embeds:[{title:$t,description:$d,url:$u,color:$c}]}' \
-            | curl -sf -H "Content-Type: application/json" -X POST "$DISCORD_WEBHOOK_URL" -d @-
-          echo "Discord 게시 완료"
+          python3 - <<'PY'
+          import json, os, re, sys, urllib.request
+
+          hook = os.environ.get("DISCORD_WEBHOOK_URL", "")
+          if not hook:
+              print("DISCORD_WEBHOOK_URL 미설정 → skip"); sys.exit(0)
+          title = os.environ.get("RELEASE_TITLE") or "Release"
+          body = os.environ.get("RELEASE_BODY") or ""
+          url = os.environ.get("RELEASE_URL") or ""
+          AUD = {"mobile": "📱 모바일", "ai": "🤖 AI", "all": "👥 전원"}
+
+          data = None
+          m = re.search(r"<!-- release-notes-json (.*?) -->", body, re.S)
+          if m:
+              try:
+                  data = json.loads(m.group(1))
+              except json.JSONDecodeError:
+                  data = None
+
+          embed = {"title": f"📦 {title}"[:256], "url": url}
+          if data:
+              items = data.get("items", [])
+              req = [i for i in items if i.get("tier") == "required"]
+              fyi = [i for i in items if i.get("tier") == "fyi"]
+              desc = data.get("summary", "")
+              if fyi:
+                  desc += f"\n\nℹ️ 참고(fyi) {len(fyi)}건 — 상세는 [릴리스 노트]({url})"
+              embed["description"] = desc[:2000]
+              embed["color"] = 15158332 if req else 3066993  # required 있으면 빨강
+              fields = []
+              for i in req[:5]:
+                  name = f"🚨 {AUD.get(i.get('audience'), '')} {i.get('title', '')}"[:256]
+                  val = i.get("required_action") or i.get("change") or "-"
+                  if i.get("deploy_order_note"):
+                      val += f"\n**배포 순서**: {i['deploy_order_note']}"
+                  fields.append({"name": name, "value": val[:1000]})
+              if len(req) > 5:
+                  fields.append({"name": f"🚨 외 {len(req) - 5}건", "value": f"[릴리스 노트]({url})"})
+              embed["fields"] = fields
+          else:
+              # 자동 생성 JSON이 없는 수동 릴리스 → 본문 앞부분 폴백
+              desc = body[:1500]
+              if len(body) > 1500:
+                  desc += f"\n…(생략) 전체: {url}"
+              embed["description"] = desc
+              embed["color"] = 3066993
+
+          payload = json.dumps({"embeds": [embed]}).encode()
+          req_ = urllib.request.Request(hook, data=payload,
+                                        headers={"Content-Type": "application/json"})
+          with urllib.request.urlopen(req_, timeout=15) as r:
+              print(f"Discord 게시 완료 (HTTP {r.status})")
+          PY

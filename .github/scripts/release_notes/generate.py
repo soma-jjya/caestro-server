@@ -187,11 +187,14 @@ def collect_diff(base: str, head: str, max_bytes: int) -> tuple[str, str, list[s
     stat = sh("git", "diff", "--stat=120", base, head)
     files = [f for f in sh("git", "diff", "--name-only", base, head).splitlines() if f]
     files = [f for f in files if not any(rx.search(f) for rx in EXCLUDE_RULES)]
-    files.sort(key=lambda f: (priority_of(f), f))
+    # 파일별 diff를 미리 떠서, 같은 우선순위 안에서는 변경량 큰 파일부터 담는다.
+    # (알파벳순은 auth/*가 예산을 소진해 핵심 파일(SignalingService 등)을 굶기는 문제가 있었음 — R2 사례)
+    diffs = {f: sh("git", "diff", base, head, "--", f) for f in files}
+    files.sort(key=lambda f: (priority_of(f), -len(diffs[f])))
 
     chunks, included, skipped, size = [], [], [], 0
     for f in files:
-        d = sh("git", "diff", base, head, "--", f)
+        d = diffs[f]
         if size + len(d.encode()) > max_bytes:
             skipped.append(f)
             continue
@@ -230,18 +233,28 @@ def call_anthropic(model: str, system: str, user: str) -> tuple[dict, dict]:
     except ImportError:
         sys.exit("anthropic SDK가 없습니다: pip install -r requirements.txt")
     client = anthropic.Anthropic()
-    resp = client.messages.create(
-        model=model,
-        max_tokens=4000,
-        system=system,
-        tools=[TOOL],
-        tool_choice={"type": "tool", "name": "release_notes"},
-        messages=[{"role": "user", "content": user}],
-    )
-    data = next((b.input for b in resp.content if b.type == "tool_use"), None)
+    total_in = total_out = 0
+    data = None
+    for attempt in range(2):
+        resp = client.messages.create(
+            model=model,
+            max_tokens=8000,
+            system=system,
+            tools=[TOOL],
+            tool_choice={"type": "tool", "name": "release_notes"},
+            messages=[{"role": "user", "content": user}],
+        )
+        total_in += resp.usage.input_tokens
+        total_out += resp.usage.output_tokens
+        cand = next((b.input for b in resp.content if b.type == "tool_use"), None)
+        # 스키마 필수 키(items/other_changes)가 빠진 불완전 출력(잘림 등)이면 1회 재시도
+        if cand is not None and "items" in cand and "other_changes" in cand:
+            data = cand
+            break
+        print(f"  [재시도] 불완전 출력(stop_reason={resp.stop_reason}, keys={list(cand.keys()) if cand else None})")
     if data is None:
-        sys.exit("모델이 구조화 출력을 반환하지 않았습니다.")
-    usage = {"input_tokens": resp.usage.input_tokens, "output_tokens": resp.usage.output_tokens}
+        sys.exit(f"모델이 완전한 구조화 출력을 반환하지 않았습니다 (stop_reason={resp.stop_reason}).")
+    usage = {"input_tokens": total_in, "output_tokens": total_out, "stop_reason": resp.stop_reason}
     return data, usage
 
 
@@ -374,7 +387,7 @@ def main() -> None:
     ap.add_argument("--head", required=True, help="이번 릴리스 커밋/브랜치 (예: develop)")
     ap.add_argument("--repo", default=None, help="owner/repo (기본: origin 원격에서 추론)")
     ap.add_argument("--model", default=DEFAULT_MODEL)
-    ap.add_argument("--max-diff-bytes", type=int, default=60_000)
+    ap.add_argument("--max-diff-bytes", type=int, default=120_000)
     ap.add_argument("--github-token", default=None)
     ap.add_argument("--out-dir", default=str(HERE / "out"))
     ap.add_argument("--md-out", default=None, help="마크다운 초안을 이 경로에도 저장(CI에서 Release 본문으로 사용)")

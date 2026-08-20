@@ -11,12 +11,15 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.script.RedisScript;
 import org.springframework.stereotype.Service;
 import org.springframework.web.socket.WebSocketSession;
 
 import java.security.SecureRandom;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 @Slf4j
@@ -36,6 +39,12 @@ public class SignalingService {
             "0123456789ABCDEFGHJKMNPQRSTVWXYZ".toCharArray();
     private static final int CODE_LENGTH = 6;
     private static final int CODE_GENERATION_MAX_ATTEMPTS = 5;
+    private static final long SESSION_TTL_SECONDS = 600;
+
+    // JOIN 참여자 슬롯 원자 획득 스크립트 (#73) — 검사+기록을 Redis 안에서 단일 단위로 수행
+    private static final RedisScript<String> JOIN_SLOT_CLAIM_SCRIPT =
+            RedisScript.of(new ClassPathResource("scripts/join_slot_claim.lua"), String.class);
+
     private final SecureRandom secureRandom = new SecureRandom();
 
     /**
@@ -89,57 +98,65 @@ public class SignalingService {
      * @param msg    입장할 세션 코드(sessionCode)가 담긴 요청 메시지
      */
     public void joinSession(WebSocketSession socket, SignalingRequest msg) {
-        // 1. 세션 코드로 방 정보 조회 (수동 입력 대비 공백 제거 + 대문자 정규화)
+        // 1. 세션 코드 정규화(수동 입력 대비) 및 사용자 확인
         String sessionCode = normalizeSessionCode(msg.sessionCode());
-        SessionInfo info = getSessionInfo(sessionCode);
-
-        // 2. 존재하지 않는 세션이면 에러 응답
-        if (info == null) {
-            sendError(socket, sessionCode, ErrorCode.SESSION_NOT_FOUND);
-            return;
-        }
-
         Long userId = getUserId(socket);
-
-        // 3. 재연결(takeover): 요청 userId가 기존 슬롯 주인과 같으면 소켓만 교체하고 복귀 처리
-        //    (네트워크 전환으로 옛 소켓이 유령으로 남아 CONNECTED여도, 본인이면 막지 않고 이어붙인다)
-        if (userId != null && userId.equals(info.getOwnerUserId())) {
-            reconnectToSlot(socket, sessionCode, info, true);
-            return;
-        }
-        if (userId != null && userId.equals(info.getParticipantUserId())) {
-            reconnectToSlot(socket, sessionCode, info, false);
+        if (userId == null) {
+            sendError(socket, sessionCode, ErrorCode.INVALID_SIGNALING_MESSAGE);
             return;
         }
 
-        // 4. 제3자인데 참여자 자리가 이미 다른 사용자로 차 있으면 거부
-        //    (방장 재연결 유예로 status가 WAITING이어도, 참여자 슬롯이 있으면 난입을 막는다)
-        if (info.getParticipantUserId() != null) {
-            sendError(socket, sessionCode, ErrorCode.SESSION_ALREADY_CONNECTED);
-            return;
+        // 2. 참여자 슬롯 획득 — 검사와 기록을 Lua로 원자화해 동시 JOIN 경합을 차단(#73)
+        String result = redisTemplate.execute(JOIN_SLOT_CLAIM_SCRIPT,
+                List.of("session:" + sessionCode),
+                String.valueOf(userId), socket.getId(), String.valueOf(SESSION_TTL_SECONDS));
+
+        // 3. 스크립트 판정 결과에 따라 분기
+        switch (result == null ? "" : result) {
+            case "NOT_FOUND" -> sendError(socket, sessionCode, ErrorCode.SESSION_NOT_FOUND);
+            case "OCCUPIED" -> sendError(socket, sessionCode, ErrorCode.SESSION_ALREADY_CONNECTED);
+            case "TAKEOVER_OWNER", "TAKEOVER_PARTICIPANT" -> {
+                // 재연결(takeover): 본인 슬롯이면 소켓만 교체하고 복귀 처리
+                SessionInfo info = getSessionInfo(sessionCode);
+                if (info == null) {
+                    sendError(socket, sessionCode, ErrorCode.SESSION_NOT_FOUND);
+                    return;
+                }
+                reconnectToSlot(socket, sessionCode, info, "TAKEOVER_OWNER".equals(result));
+            }
+            case "CLAIMED" -> completeJoin(socket, sessionCode, userId);
+            default -> sendError(socket, sessionCode, ErrorCode.INVALID_SIGNALING_MESSAGE);
         }
+    }
 
-        // 5. 신규 참여자 입장 및 세션 상태를 연결됨으로 변경
-        String cameraMode = "APP";
-        info.setParticipantUserId(userId);
-        info.setParticipantSocketId(socket.getId());
-        info.setStatus("CONNECTED");
-
-        // 6. Redis에 세션 정보 저장 및 소켓 TTL 갱신
-        saveSessionInfo(sessionCode, info);
+    /**
+     * 슬롯 획득(CLAIMED) 이후의 신규 참여자 입장 마무리.
+     * 소켓 매핑 등록, owner 소켓 TTL 연장, DB 동기화, 방장에게 입장 알림을 수행한다.
+     *
+     * @param socket      참여자의 웹소켓 세션
+     * @param sessionCode 입장한 세션 코드
+     * @param userId      참여자 userId
+     */
+    private void completeJoin(WebSocketSession socket, String sessionCode, Long userId) {
+        // 1. 소켓-세션 매핑 등록
         redisTemplate.opsForValue().set("socket:" + socket.getId(), sessionCode, 10, TimeUnit.MINUTES);
-        // owner 소켓의 TTL도 함께 갱신
-        redisTemplate.expire("socket:" + info.getOwnerSocketId(), 10, TimeUnit.MINUTES);
 
-        // 7. DB 세션 상태를 연결됨으로 동기화
-        sessionService.joinSession(sessionCode, userId, cameraMode);
+        // 2. owner 소켓 TTL 연장 및 입장 알림 (스크립트가 기록한 최신 상태 재조회)
+        SessionInfo info = getSessionInfo(sessionCode);
+        String ownerSocketId = info != null ? info.getOwnerSocketId() : null;
+        if (ownerSocketId != null) {
+            redisTemplate.expire("socket:" + ownerSocketId, 10, TimeUnit.MINUTES);
+        }
 
-        // 8. owner에게 참여자 입장 알림
+        // 3. DB 세션 상태를 연결됨으로 동기화
+        sessionService.joinSession(sessionCode, userId, "APP");
+
+        // 4. owner에게 참여자 입장 알림
         SignalingResponse notifyOwner = SignalingResponse.builder()
                 .type("PEER_JOINED")
                 .sessionCode(sessionCode)
                 .build();
-        relaySender.send(info.getOwnerSocketId(), notifyOwner);
+        relaySender.send(ownerSocketId, notifyOwner);
 
         log.info("Peer joined session: {}", sessionCode);
     }
@@ -323,7 +340,18 @@ public class SignalingService {
         // 2. 세션에 상대방이 남아있으면 연결 끊김을 알림
         SessionInfo info = getSessionInfo(sessionCode);
         if (info != null) {
-            String targetSocketId = socket.getId().equals(info.getOwnerSocketId())
+            boolean isOwnerDrop = socket.getId().equals(info.getOwnerSocketId());
+            boolean isParticipantDrop = socket.getId().equals(info.getParticipantSocketId());
+
+            // 유령 소켓 가드: 어느 슬롯과도 일치하지 않으면(takeover로 이미 교체된 옛 소켓)
+            // 세션을 건드리지 않고 매핑만 정리한다. 없으면 "참여자 아니면 방장" 이분법에 걸려 오분류된다.
+            if (!isOwnerDrop && !isParticipantDrop) {
+                redisTemplate.delete("socket:" + socket.getId());
+                log.info("Stale socket disconnect ignored: {} (session {})", socket.getId(), sessionCode);
+                return;
+            }
+
+            String targetSocketId = isOwnerDrop
                     ? info.getParticipantSocketId()
                     : info.getOwnerSocketId();
 
@@ -335,9 +363,6 @@ public class SignalingService {
             relaySender.send(targetSocketId, disconnectMsg);
 
             // 참여자가 이탈한 경우: 세션을 종료하지 않고 재연결 대기(WAITING)로 되돌림
-            // (원래 참여자만 슬롯을 재획득하도록 묶는 강화는 후속 Redis 작업에서 처리)
-            boolean isParticipantDrop = socket.getId().equals(info.getParticipantSocketId());
-
             if (isParticipantDrop) {
                 info.setParticipantSocketId(null);
                 info.setParticipantUserId(null);
