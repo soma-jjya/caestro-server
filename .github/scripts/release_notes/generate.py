@@ -16,6 +16,7 @@ CI(GitHub Actions)에서는 --base <이전 릴리스 SHA> --head <현재 SHA> �
 """
 
 import argparse
+import base64
 import json
 import os
 import re
@@ -375,7 +376,8 @@ def render_md(data: dict, prs: list[dict], repo: str, base: str, head: str) -> s
         "### 포함 PR",
         pr_list,
         "",
-        f"<!-- release-notes-json {json.dumps(data, ensure_ascii=False)} -->",
+        # base64 임베드: 항목 텍스트에 '-->'가 인용돼도 주석이 조기 종료되지 않는다 (실전 누출 사고 재발 방지)
+        f"<!-- release-notes-json-b64 {base64.b64encode(json.dumps(data, ensure_ascii=False).encode()).decode()} -->",
     ]
     return "\n".join(md)
 

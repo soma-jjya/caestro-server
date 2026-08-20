@@ -153,3 +153,15 @@ releases:
         audience: all
         tier: fyi
         must: false
+
+  - name: "R9 (#75) 시그널링 동시성 결함 수정 — ★내부 버그픽스만 있는 릴리스 (운영 발견 케이스)"
+    base: 6a23460
+    head: 67a368e
+    verified: true
+    forbid_required: true   # 정답: required 0 — 전부 서버 배포만으로 적용되는 수정 (첫 실전 릴리스에서 required 2건 오분류 발견)
+    expected:
+      - key: release-eval-tooling
+        keywords: ["골든", "평가", "eval"]
+        audience: all
+        tier: fyi
+        must: false

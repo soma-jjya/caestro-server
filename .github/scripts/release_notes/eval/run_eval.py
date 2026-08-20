@@ -98,6 +98,7 @@ def main() -> None:
 
     tot_must = tot_must_found = tot_matched = tot_tier_ok = tot_aud_ok = 0
     tot_hall = tot_extras = 0
+    tot_forbidden = 0
     skipped = []
     unverified_golden = [r["name"] for r in releases if not r.get("verified")]
 
@@ -115,6 +116,12 @@ def main() -> None:
             continue
 
         ev = evaluate(rel, result)
+        # forbid_required: 이 릴리스에 required가 하나라도 있으면 위반 (내부 변경만 있는 릴리스용)
+        if rel.get("forbid_required"):
+            bad = [it for it in result["data"].get("items", []) if it.get("tier") == "required"]
+            for it in bad:
+                print(f"  ✗ 금지 위반(required 생성): {it.get('title', '?')[:50]}")
+            tot_forbidden += len(bad)
         for r in ev["rows"]:
             if r["found"]:
                 mark_t = "" if r["tier_ok"] else f"  [등급 다름: got {r['got']} / want {r['want']}]"
@@ -144,6 +151,7 @@ def main() -> None:
     if tot_matched:
         print(f"  등급 정확도        : {tot_tier_ok}/{tot_matched} ({100 * tot_tier_ok / tot_matched:.0f}%)")
         print(f"  대상 정확도        : {tot_aud_ok}/{tot_matched} ({100 * tot_aud_ok / tot_matched:.0f}%)")
+    print(f"  required 금지 위반 : {tot_forbidden}건 (내부 변경만 있는 릴리스에서 required 생성)")
     print(f"  규칙 검증 검출     : {tot_hall}건 (⚠️로 표시되어 사람 확인 유도)")
     print(f"  골든 셋 밖 항목    : {tot_extras}건 (검토 대상, 감점 아님)")
     if skipped:

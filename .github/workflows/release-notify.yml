@@ -1,9 +1,8 @@
 name: Release Notify (Discord)
 
 # 사람이 Release draft를 검토·publish 하면, 요약을 Discord로 팀에 1회 알린다.
-# 릴리스 본문에 숨겨둔 구조화 JSON(<!-- release-notes-json ... -->)을 파싱해
-# "요약 + 🚨 required 항목만 필드로, fyi는 N건 링크" 형태로 게시한다(가시성).
-# JSON이 없는 수동 릴리스는 본문 앞부분을 그대로 게시(폴백).
+# 릴리스 본문에 숨겨둔 구조화 JSON(base64)을 파싱해 "요약 + 🚨 required 필드, fyi는 건수+링크"로 게시.
+# JSON이 없는 수동 릴리스는 본문 앞부분 폴백.
 on:
   release:
     types: [published]
@@ -20,7 +19,7 @@ jobs:
           RELEASE_URL: ${{ github.event.release.html_url }}
         run: |
           python3 - <<'PY'
-          import json, os, re, sys, urllib.request
+          import base64, json, os, re, sys, urllib.request
 
           hook = os.environ.get("DISCORD_WEBHOOK_URL", "")
           if not hook:
@@ -30,13 +29,21 @@ jobs:
           url = os.environ.get("RELEASE_URL") or ""
           AUD = {"mobile": "📱 모바일", "ai": "🤖 AI", "all": "👥 전원"}
 
+          # base64 임베드 우선(본문 텍스트가 '-->'를 포함해도 안전), 구형 평문은 폴백
           data = None
-          m = re.search(r"<!-- release-notes-json (.*?) -->", body, re.S)
+          m = re.search(r"<!-- release-notes-json-b64 ([A-Za-z0-9+/=\s]+?) -->", body)
           if m:
               try:
-                  data = json.loads(m.group(1))
-              except json.JSONDecodeError:
+                  data = json.loads(base64.b64decode(m.group(1)))
+              except (ValueError, json.JSONDecodeError):
                   data = None
+          if data is None:
+              m = re.search(r"<!-- release-notes-json (.*?) -->", body, re.S)
+              if m:
+                  try:
+                      data = json.loads(m.group(1))
+                  except json.JSONDecodeError:
+                      data = None
 
           embed = {"title": f"📦 {title}"[:256], "url": url}
           if data:
@@ -59,7 +66,6 @@ jobs:
                   fields.append({"name": f"🚨 외 {len(req) - 5}건", "value": f"[릴리스 노트]({url})"})
               embed["fields"] = fields
           else:
-              # 자동 생성 JSON이 없는 수동 릴리스 → 본문 앞부분 폴백
               desc = body[:1500]
               if len(body) > 1500:
                   desc += f"\n…(생략) 전체: {url}"
@@ -67,8 +73,11 @@ jobs:
               embed["color"] = 3066993
 
           payload = json.dumps({"embeds": [embed]}).encode()
-          req_ = urllib.request.Request(hook, data=payload,
-                                        headers={"Content-Type": "application/json"})
+          # User-Agent 필수: 기본 python-urllib UA는 Discord(Cloudflare)가 403으로 차단한다 (실전 사고)
+          req_ = urllib.request.Request(hook, data=payload, headers={
+              "Content-Type": "application/json",
+              "User-Agent": "peakpic-release-notify/1.0",
+          })
           with urllib.request.urlopen(req_, timeout=15) as r:
               print(f"Discord 게시 완료 (HTTP {r.status})")
           PY
