@@ -56,6 +56,9 @@ class SignalingServiceTest {
     private SignalingRelaySender relaySender;
 
     @Mock
+    private SignalingMetrics metrics;
+
+    @Mock
     private WebSocketSession socket;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -70,7 +73,7 @@ class SignalingServiceTest {
     void setUp() {
         signalingService = new SignalingService(
                 redisTemplate, sessionManager, objectMapper,
-                sessionService, deviceSpecService, diagnosticLogger, relaySender);
+                sessionService, deviceSpecService, diagnosticLogger, relaySender, metrics);
         // 일부 경로(OCCUPIED 등)는 opsForValue를 쓰지 않으므로 lenient로 스텁
         lenient().when(redisTemplate.opsForValue()).thenReturn(valueOperations);
     }
@@ -126,6 +129,7 @@ class SignalingServiceTest {
         verify(redisTemplate).expire(eq("socket:" + OWNER_SOCKET), anyLong(), any(TimeUnit.class));
         verify(sessionService).joinSession(SESSION_CODE, 2L, "APP");
         verify(relaySender).send(eq(OWNER_SOCKET), any());
+        verify(metrics).countJoin("claimed");
     }
 
     @Test
@@ -139,6 +143,7 @@ class SignalingServiceTest {
         signalingService.joinSession(socket, joinRequest(SESSION_CODE));
 
         verify(sessionManager).sendMessage(eq("late-sock"), any()); // ERROR 응답
+        verify(metrics).countJoin("occupied");
         verify(sessionService, never()).joinSession(any(), any(), any());
         verify(valueOperations, never()).set(any(), any(), anyLong(), any());
     }

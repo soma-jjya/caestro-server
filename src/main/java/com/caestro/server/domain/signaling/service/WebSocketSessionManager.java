@@ -23,9 +23,15 @@ public class WebSocketSessionManager {
     private static final int SEND_BUFFER_SIZE_LIMIT = 512 * 1024; // 512KB
 
     private final ObjectMapper objectMapper;
+    private final SignalingMetrics metrics;
     private final Map<String, WebSocketSession> socketMap = new ConcurrentHashMap<>();
     // 소켓별 마지막 활동 시각(ms). 하트비트/메시지 수신 시 갱신하여 유휴 소켓 판별에 사용한다.
     private final Map<String, Long> lastSeenMap = new ConcurrentHashMap<>();
+
+    @jakarta.annotation.PostConstruct
+    void bindMetrics() {
+        metrics.bindActiveConnections(socketMap::size);
+    }
 
     public void addSession(WebSocketSession session) {
         WebSocketSession concurrentSession = new ConcurrentWebSocketSessionDecorator(

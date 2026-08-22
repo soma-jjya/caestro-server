@@ -1,0 +1,30 @@
+# 모니터링 EC2에서 실행: docker compose up -d
+# 사전 준비: 같은 디렉터리에 metrics_token 파일 생성 (앱의 metrics.token과 동일 값, 개행 없이)
+#   printf '%s' '<토큰값>' > metrics_token && chmod 600 metrics_token
+services:
+  prometheus:
+    image: prom/prometheus:v2.53.0
+    container_name: prometheus
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./metrics_token:/etc/prometheus/metrics_token:ro
+      - prom-data:/prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.retention.time=30d
+    ports:
+      - "9090:9090"     # 인바운드 0인 인스턴스라 노출 무해. 접속은 SSM 포트 포워딩
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:11.1.0
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana-data:/var/lib/grafana
+    restart: unless-stopped
+
+volumes:
+  prom-data:
+  grafana-data:

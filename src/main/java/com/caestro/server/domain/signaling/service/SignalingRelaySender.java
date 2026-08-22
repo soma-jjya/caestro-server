@@ -25,6 +25,7 @@ public class SignalingRelaySender {
     private final WebSocketSessionManager sessionManager;
     private final RedisTemplate<String, String> redisTemplate;
     private final ObjectMapper objectMapper;
+    private final SignalingMetrics metrics;
 
     /**
      * 대상 소켓에게 메시지를 전달한다.
@@ -38,6 +39,7 @@ public class SignalingRelaySender {
         // 1. 이 인스턴스가 대상 소켓을 가지고 있으면 직접 전달 (단일 인스턴스면 항상 여기)
         if (sessionManager.isConnected(socketId)) {
             sessionManager.sendMessage(socketId, payload);
+            metrics.countRelay(true);
             return;
         }
 
@@ -45,8 +47,14 @@ public class SignalingRelaySender {
         try {
             String payloadJson = objectMapper.writeValueAsString(payload);
             String envelope = objectMapper.writeValueAsString(new SignalingRelayMessage(socketId, payloadJson));
-            redisTemplate.convertAndSend(CHANNEL, envelope);
-            log.debug("[PUBSUB] published (socket not local): socketId={}", socketId);
+            Long receivers = redisTemplate.convertAndSend(CHANNEL, envelope);
+            metrics.countRelay(false);
+            // Pub/Sub은 fire-and-forget: 구독자가 0이면 메시지가 조용히 사라진다 → 유실을 지표·로그로 남긴다
+            if (receivers != null && receivers == 0) {
+                metrics.countRelayNoReceiver();
+                log.warn("[PUBSUB] no receiver — message dropped: socketId={}", socketId);
+            }
+            log.debug("[PUBSUB] published (socket not local): socketId={}, receivers={}", socketId, receivers);
         } catch (JsonProcessingException e) {
             // 발행 실패가 시그널링 흐름을 막지 않도록 예외를 격리
             log.error("Failed to publish relay message: socketId={}", socketId, e);

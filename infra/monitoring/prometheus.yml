@@ -1,0 +1,28 @@
+# PeakPic 지표 수집 설정.
+# ASG 인스턴스는 IP가 유동적이므로 EC2 서비스 디스커버리로 자동 발견한다.
+# (모니터링 EC2의 IAM 역할에 ec2:DescribeInstances 권한 필요 — 자격증명은 인스턴스 역할에서 자동 획득)
+
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: peakpic-backend
+    metrics_path: /actuator/prometheus
+    # 앱의 MetricsTokenFilter와 맞추는 정적 토큰 (파일로 주입, 레포에는 커밋하지 않음)
+    authorization:
+      type: Bearer
+      credentials_file: /etc/prometheus/metrics_token
+    ec2_sd_configs:
+      - region: ap-northeast-2
+        port: 8080
+        filters:
+          # ASG가 인스턴스에 자동으로 붙이는 태그 → 배포로 교체돼도 자동 추적
+          - name: tag:aws:autoscaling:groupName
+            values: [peakpic-asg]
+          - name: instance-state-name
+            values: [running]
+    relabel_configs:
+      - source_labels: [__meta_ec2_instance_id]
+        target_label: instance_id
+      - source_labels: [__meta_ec2_availability_zone]
+        target_label: az

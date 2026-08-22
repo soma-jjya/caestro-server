@@ -24,6 +24,7 @@ import java.util.List;
 public class SignalingHeartbeatReaper {
 
     private final WebSocketSessionManager sessionManager;
+    private final SignalingMetrics metrics;
 
     // 유휴 한계(ms): 이 시간 넘게 활동이 없으면 죽은 소켓으로 간주. 클라이언트 PING 주기(~25s)의 여유 배수로 설정.
     @Value("${signaling.heartbeat.max-idle-ms:90000}")
@@ -40,6 +41,7 @@ public class SignalingHeartbeatReaper {
         }
 
         log.info("Reaping {} stale websocket session(s) (maxIdle={}ms)", stale.size(), maxIdleMillis);
+        metrics.countReaperClosed(stale.size());
         for (WebSocketSession session : stale) {
             try {
                 // 닫으면 afterConnectionClosed → handleDisconnect로 이탈 처리가 이어진다.

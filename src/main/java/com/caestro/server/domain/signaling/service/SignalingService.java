@@ -34,6 +34,7 @@ public class SignalingService {
     private final DeviceSpecService deviceSpecService;
     private final SignalingDiagnosticLogger diagnosticLogger;
     private final SignalingRelaySender relaySender;
+    private final SignalingMetrics metrics;
 
     private static final char[] CODE_ALPHABET =
             "0123456789ABCDEFGHJKMNPQRSTVWXYZ".toCharArray();
@@ -84,6 +85,7 @@ public class SignalingService {
                 .build();
 
         sessionManager.sendMessage(socket.getId(), response);
+        metrics.countSessionCreated();
         log.info("Session created: {}", sessionCode);
     }
 
@@ -111,7 +113,8 @@ public class SignalingService {
                 List.of("session:" + sessionCode),
                 String.valueOf(userId), socket.getId(), String.valueOf(SESSION_TTL_SECONDS));
 
-        // 3. 스크립트 판정 결과에 따라 분기
+        // 3. 스크립트 판정 결과를 지표로 기록 후 분기 (Lua 반환값이 그대로 라벨이 된다)
+        metrics.countJoin(result == null ? "invalid" : result.toLowerCase());
         switch (result == null ? "" : result) {
             case "NOT_FOUND" -> sendError(socket, sessionCode, ErrorCode.SESSION_NOT_FOUND);
             case "OCCUPIED" -> sendError(socket, sessionCode, ErrorCode.SESSION_ALREADY_CONNECTED);
@@ -417,6 +420,7 @@ public class SignalingService {
         }
         // 5. 소켓의 세션 매핑 정보 삭제
         redisTemplate.delete("socket:" + socket.getId());
+        metrics.countSessionEnded();
         log.info("Session ended: {}", sessionCode);
     }
 

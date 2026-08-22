@@ -27,6 +27,9 @@ class SignalingRelaySenderTest {
     @Mock
     private RedisTemplate<String, String> redisTemplate;
 
+    @Mock
+    private SignalingMetrics metrics;
+
     private SignalingRelaySender relaySender;
 
     private final Object payload = Map.of("type", "PEER_JOINED");
@@ -34,7 +37,7 @@ class SignalingRelaySenderTest {
     @BeforeEach
     void setUp() {
         // ObjectMapper는 실제 인스턴스를 사용해 발행 봉투 직렬화까지 검증한다
-        relaySender = new SignalingRelaySender(sessionManager, redisTemplate, new ObjectMapper());
+        relaySender = new SignalingRelaySender(sessionManager, redisTemplate, new ObjectMapper(), metrics);
     }
 
     @Test
@@ -46,6 +49,7 @@ class SignalingRelaySenderTest {
 
         verify(sessionManager).sendMessage("sock-local", payload);
         verify(redisTemplate, never()).convertAndSend(any(), any());
+        verify(metrics).countRelay(true);
     }
 
     @Test
@@ -63,6 +67,18 @@ class SignalingRelaySenderTest {
         String envelope = (String) envelopeCaptor.getValue();
         assertThat(envelope).contains("sock-remote");
         assertThat(envelope).contains("PEER_JOINED");
+        verify(metrics).countRelay(false);
+    }
+
+    @Test
+    @DisplayName("발행했지만 수신 인스턴스가 0이면 유실 지표를 남긴다")
+    void send_publishWithZeroReceivers_countsNoReceiver() {
+        given(sessionManager.isConnected("sock-remote")).willReturn(false);
+        given(redisTemplate.convertAndSend(any(), any())).willReturn(0L);
+
+        relaySender.send("sock-remote", payload);
+
+        verify(metrics).countRelayNoReceiver();
     }
 
     @Test

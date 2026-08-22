@@ -11,7 +11,9 @@ management:
   endpoints:
     web:
       exposure:
-        include: health
+        # prometheus: 커스텀 WS 지표 노출. 보안은 SecurityConfig의 anyRequest().authenticated()가 담당
+        # (JWT 없는 외부 요청은 401 — 헬스체크와 달리 permitAll 목록에 넣지 않는다)
+        include: health, prometheus
   endpoint:
     health:
       probes:
