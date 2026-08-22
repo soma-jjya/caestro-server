@@ -50,4 +50,7 @@ application-secret.yml
 lambda/thumbnail/venv/
 lambda/thumbnail/__pycache__/
 
+### alert-notify ###
+lambda/alert-notify/__pycache__/
+
 docs/

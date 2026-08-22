@@ -1,0 +1,129 @@
+{
+  "title": "PeakPic Signaling",
+  "uid": "peakpic-signaling",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "timezone": "browser",
+  "time": { "from": "now-3h", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "활성 WS 연결 (인스턴스별)",
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 0 },
+      "fieldConfig": { "defaults": { "unit": "short", "min": 0 }, "overrides": [] },
+      "targets": [
+        { "refId": "A", "expr": "ws_connections_active", "legendFormat": "{{instance_id}}" }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "중계 처리율 (경로별)",
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 0 },
+      "fieldConfig": { "defaults": { "unit": "ops", "min": 0 }, "overrides": [] },
+      "targets": [
+        { "refId": "A", "expr": "sum by (route) (rate(ws_relay_sent_total[5m]))", "legendFormat": "{{route}}" }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "크로스 인스턴스 중계 비율",
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 0 },
+      "fieldConfig": { "defaults": { "unit": "percentunit", "min": 0, "max": 1 }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(ws_relay_sent_total{route=\"pubsub\"}[5m])) / sum(rate(ws_relay_sent_total[5m]))",
+          "legendFormat": "pubsub 비율"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "JOIN 결과 분포 (1h)",
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 8 },
+      "fieldConfig": { "defaults": { "unit": "short", "min": 0 }, "overrides": [] },
+      "targets": [
+        { "refId": "A", "expr": "sum by (result) (increase(ws_join_total[1h]))", "legendFormat": "{{result}}" }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "세션 생성/종료 (1h)",
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 8 },
+      "fieldConfig": { "defaults": { "unit": "short", "min": 0 }, "overrides": [] },
+      "targets": [
+        { "refId": "A", "expr": "sum by (event) (increase(ws_session_total[1h]))", "legendFormat": "{{event}}" }
+      ]
+    },
+    {
+      "id": 6,
+      "type": "stat",
+      "title": "Pub/Sub 유실 (5m)",
+      "gridPos": { "h": 8, "w": 4, "x": 16, "y": 8 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 1 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        { "refId": "A", "expr": "sum(increase(ws_relay_no_receiver_total[5m]))", "legendFormat": "유실" }
+      ]
+    },
+    {
+      "id": 7,
+      "type": "stat",
+      "title": "리퍼 정리 (10m)",
+      "gridPos": { "h": 8, "w": 4, "x": 20, "y": 8 },
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "targets": [
+        { "refId": "A", "expr": "sum(increase(ws_reaper_closed_total[10m]))", "legendFormat": "정리" }
+      ]
+    },
+    {
+      "id": 8,
+      "type": "timeseries",
+      "title": "JVM 힙 (인스턴스별)",
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 16 },
+      "fieldConfig": { "defaults": { "unit": "bytes", "min": 0 }, "overrides": [] },
+      "targets": [
+        { "refId": "A", "expr": "sum by (instance_id) (jvm_memory_used_bytes{area=\"heap\"})", "legendFormat": "used {{instance_id}}" },
+        { "refId": "B", "expr": "sum by (instance_id) (jvm_memory_max_bytes{area=\"heap\"})", "legendFormat": "max {{instance_id}}" }
+      ]
+    },
+    {
+      "id": 9,
+      "type": "timeseries",
+      "title": "Hikari DB 커넥션",
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 16 },
+      "fieldConfig": { "defaults": { "unit": "short", "min": 0 }, "overrides": [] },
+      "targets": [
+        { "refId": "A", "expr": "hikaricp_connections_active", "legendFormat": "active {{instance_id}}" },
+        { "refId": "B", "expr": "hikaricp_connections_pending", "legendFormat": "pending {{instance_id}}" }
+      ]
+    },
+    {
+      "id": 10,
+      "type": "timeseries",
+      "title": "프로세스 CPU",
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 16 },
+      "fieldConfig": { "defaults": { "unit": "percentunit", "min": 0, "max": 1 }, "overrides": [] },
+      "targets": [
+        { "refId": "A", "expr": "process_cpu_usage", "legendFormat": "{{instance_id}}" }
+      ]
+    }
+  ]
+}
