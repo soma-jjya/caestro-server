@@ -50,8 +50,8 @@ CloudWatch는 AWS 관리형이라 우리 인프라와 장애 도메인이 분리
 
 | 알람 | 조건 | 근거 |
 |---|---|---|
-| `alb-unhealthy-host` | UnHealthyHostCount ≥ 1, 2회 × 60s | 헬스체크 탈락은 이분법적 사실. 2회 연속으로 순간 스파이크 배제 |
-| `ec2-status-check-failed` | StatusCheckFailed ≥ 1, 2회 × 60s | 인스턴스/호스트 수준 장애 |
+| `alb-unhealthy-host` | UnHealthyHostCount ≥ 1, 5회 × 60s | 헬스체크 탈락은 이분법적 사실. 5분 연속 = 배포(롤링 교체)로 인스턴스가 하나씩 빠지는 정상 구간과 겹치지 않음 (아래 오탐 조정 참고) |
+| `ec2-status-check-failed` | StatusCheckFailed ≥ 1, 3회 × 60s | 인스턴스/호스트 수준 장애. 배포 중 새 인스턴스 초기 검사 실패 배제 위해 3분 |
 | `redis-connections-lost` | CurrConnections < 1, 300s | 앱-Redis 단절 = 시그널링 전면 마비. 지표 결측도 이상 신호이므로 `breaching` 처리 |
 | `rds-low-storage` | FreeStorageSpace < 4GiB, 3회 × 300s | 할당 20GiB의 20%. 오토스케일링(최대 50GiB)이 자동 구제책이므로 "곧 작동하거나 실패했다"는 통지 역할 |
 | `ec2-cpu-credit-low` | CPUCreditBalance < 15, 3회 × 300s | 아래 별도 설명 |
@@ -77,6 +77,16 @@ t3는 버스트형이다. 평소 CPU를 적게 쓰면 크레딧이 쌓이고(t3.
 ```
 
 15는 배포 직후 상태와 겹치지 않으면서 0에 닿기 한참 전에 알린다. 여기에 15분 연속 조건으로 스파이크를 배제한다.
+
+### 오탐 조정 기록 — 배포 중 UnHealthyHost 알람 (2026-08-22)
+
+첫 배포에서 `alb-unhealthy-host`가 발화했다. 원인은 장애가 아니라 **롤링 교체 그 자체**였다.
+`MinHealthyPercentage=100`이라도 인스턴스가 하나씩 교체되는 수 분 동안 UnHealthyHostCount가
+잠깐 1이 되고, 임계값이 2분 연속이라 그 구간에 걸렸다.
+
+원칙("정상 운영에서 밟는 값이면 나쁜 임계값") 그대로의 사례다. 지속 시간을 **2분 → 5분**으로 늘려
+배포 정상 구간과 겹치지 않게 했다. 개수 기준(≥1 → ≥2)은 쓰지 않았다 — 2대뿐이라 1대 손실도
+용량 50% 손실이므로 놓치면 안 된다. `ec2-status-check-failed`도 같은 이유로 2 → 3분으로 조정.
 
 ### 차원(dimension) 설계 주의
 

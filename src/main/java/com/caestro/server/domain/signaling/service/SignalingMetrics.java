@@ -3,8 +3,14 @@ package com.caestro.server.domain.signaling.service;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
 import org.springframework.stereotype.Component;
 
+import java.time.Duration;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
 /**
@@ -23,6 +29,12 @@ public class SignalingMetrics {
     private final Counter reaperClosed;
     // gauge는 상태 객체를 약참조로 잡으므로, GC되지 않도록 이 빈(영구 생존)이 supplier를 강참조로 보관한다
     private volatile Supplier<Number> activeConnections = () -> 0;
+    // 타입별 처리시간 Timer 캐시 — 핫패스에서 매번 레지스트리를 조회(Meter.Id 생성)하는 비용을 피한다
+    private final Map<String, Timer> handleTimers = new ConcurrentHashMap<>();
+    // type 라벨 허용 목록 — 임의 문자열이 라벨로 유입돼 시계열이 폭증하는 것 방지 (목록 밖은 other로 정규화)
+    private static final Set<String> HANDLE_TYPE_LABELS = Set.of(
+            "CREATE_SESSION", "JOIN_SESSION", "DEVICE_SPEC", "OFFER", "ANSWER",
+            "ICE_CANDIDATE", "SWAP_ROLE", "END_SESSION", "PING", "error");
 
     public SignalingMetrics(MeterRegistry registry) {
         this.registry = registry;
@@ -73,6 +85,23 @@ public class SignalingMetrics {
     /** JOIN 판정 결과(Lua 반환값)를 라벨로 기록: claimed/occupied/takeover_owner/... */
     public void countJoin(String result) {
         registry.counter("ws.join", "result", result).increment();
+    }
+
+    /**
+     * 메시지 1건의 처리시간(수신 파싱→처리 완료)을 타입 라벨의 Timer로 기록한다.
+     * Timer의 count가 타입별 수신량 카운터를 겸한다. 파싱 실패로 타입 불명이면 "error"로 들어온다.
+     */
+    public void recordHandled(String type, long elapsedNanos) {
+        String label = type != null && HANDLE_TYPE_LABELS.contains(type) ? type : "other";
+        handleTimers.computeIfAbsent(label, t -> Timer.builder("ws.message.handle")
+                        .tag("type", t)
+                        .description("시그널링 메시지 처리시간 (수신 파싱→처리 완료)")
+                        // 버킷 히스토그램 발행: Prometheus에서 인스턴스 횡단 분위수 집계(histogram_quantile)용
+                        .publishPercentileHistogram()
+                        .minimumExpectedValue(Duration.ofNanos(100_000)) // 100µs
+                        .maximumExpectedValue(Duration.ofSeconds(10))
+                        .register(registry))
+                .record(elapsedNanos, TimeUnit.NANOSECONDS);
     }
 
     public void countSessionCreated() {

@@ -49,15 +49,18 @@ alarm() {
 
 echo "▶ A그룹 — 사실 판정형 (베이스라인 불필요)"
 
+# 5분 연속: 배포(롤링 교체)로 인스턴스가 하나씩 빠지는 정상 구간(수 분)과 겹치지 않게 한다.
+# 2분이면 배포마다 오탐 → 실제 첫 배포에서 발생 확인 후 상향(#85 후속 조정).
 alarm "peakpic-alb-unhealthy-host" "ALB 대상 그룹에서 헬스체크에 실패한 인스턴스가 있다. 사용자 요청이 이미 실패 중일 수 있다." \
   --namespace AWS/ApplicationELB --metric-name UnHealthyHostCount \
-  --statistic Maximum --period 60 --evaluation-periods 2 \
+  --statistic Maximum --period 60 --evaluation-periods 5 \
   --comparison-operator GreaterThanOrEqualToThreshold --threshold 1 \
   --dimensions $ALB_DIMS --treat-missing-data missing
 
+# 3분 연속: 배포 중 새 인스턴스의 초기 상태 검사 실패가 잠깐 잡히는 것을 배제한다.
 alarm "peakpic-ec2-status-check-failed" "EC2 인스턴스/호스트 상태 검사 실패. 인스턴스 자체에 문제가 있다." \
   --namespace AWS/EC2 --metric-name StatusCheckFailed \
-  --statistic Maximum --period 60 --evaluation-periods 2 \
+  --statistic Maximum --period 60 --evaluation-periods 3 \
   --comparison-operator GreaterThanOrEqualToThreshold --threshold 1 \
   --dimensions "Name=AutoScalingGroupName,Value=${ASG_NAME}" --treat-missing-data missing
 

@@ -2,6 +2,7 @@ package com.caestro.server.domain.signaling.controller;
 
 import com.caestro.server.domain.signaling.dto.request.SignalingRequest;
 import com.caestro.server.domain.signaling.dto.response.SignalingResponse;
+import com.caestro.server.domain.signaling.service.SignalingMetrics;
 import com.caestro.server.domain.signaling.service.SignalingService;
 import com.caestro.server.domain.signaling.service.WebSocketSessionManager;
 import com.caestro.server.global.exception.error.ErrorCode;
@@ -22,6 +23,7 @@ public class SignalingWebSocketHandler extends TextWebSocketHandler {
     private final SignalingService signalingService;
     private final WebSocketSessionManager sessionManager;
     private final ObjectMapper objectMapper;
+    private final SignalingMetrics metrics;
 
     @Override
     public void afterConnectionEstablished(WebSocketSession session) {
@@ -31,8 +33,12 @@ public class SignalingWebSocketHandler extends TextWebSocketHandler {
 
     @Override
     protected void handleTextMessage(WebSocketSession session, TextMessage message) throws Exception {
+        // 처리시간 계측(#89): 파싱 포함 전 구간을 잰다. 파싱 실패는 타입 불명이므로 error로 기록.
+        long startNanos = System.nanoTime();
+        String metricType = "error";
         try {
             SignalingRequest msg = objectMapper.readValue(message.getPayload(), SignalingRequest.class);
+            metricType = msg.type();
             log.info("Received message: type={}, sessionCode={}", msg.type(), msg.sessionCode());
 
             // 모든 수신 메시지는 "살아있음"의 증거 → 마지막 활동 시각 갱신 (유휴 정리 대상에서 제외)
@@ -55,6 +61,8 @@ public class SignalingWebSocketHandler extends TextWebSocketHandler {
                     .message(ErrorCode.INVALID_SIGNALING_MESSAGE.getMessage())
                     .build();
             sessionManager.sendMessage(session.getId(), errorResponse);
+        } finally {
+            metrics.recordHandled(metricType, System.nanoTime() - startNanos);
         }
     }
 

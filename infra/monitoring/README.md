@@ -58,6 +58,8 @@ aws ssm start-session --profile peakpic --region ap-northeast-2 \
    - 리퍼 정리량: `increase(ws_reaper_closed_total[10m])`
    - JVM 힙: `jvm_memory_used_bytes{area="heap"}` vs `jvm_memory_max_bytes{area="heap"}` (-m 800m 검증)
    - Hikari: `hikaricp_connections_active`
+   - 메시지 처리시간 P95(타입별): `histogram_quantile(0.95, sum by (le, type) (rate(ws_message_handle_seconds_bucket[5m])))`
+   - Redis 명령 지연 P95(명령별): `histogram_quantile(0.95, sum by (le, command) (rate(lettuce_command_completion_seconds_bucket[5m])))`
 3. 대시보드 완성 후 JSON 내보내기 → `infra/monitoring/dashboards/`에 백업
 
 ## 주의

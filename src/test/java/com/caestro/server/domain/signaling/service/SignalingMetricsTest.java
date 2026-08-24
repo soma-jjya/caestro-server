@@ -7,6 +7,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.util.concurrent.TimeUnit;
+
 /** 지표 이름·태그·값이 의도대로 기록되는지 실제 레지스트리로 검증한다. */
 class SignalingMetricsTest {
 
@@ -63,5 +65,27 @@ class SignalingMetricsTest {
 
         size[0] = 7;
         assertThat(registry.get("ws.connections.active").gauge().value()).isEqualTo(7);
+    }
+
+    @Test
+    @DisplayName("메시지 처리시간이 type 라벨 Timer로 기록되고, count가 수신량 카운터를 겸한다")
+    void recordHandled_byType() {
+        metrics.recordHandled("ICE_CANDIDATE", 1_000_000L); // 1ms
+        metrics.recordHandled("ICE_CANDIDATE", 3_000_000L); // 3ms
+        metrics.recordHandled("PING", 500_000L);
+
+        assertThat(registry.get("ws.message.handle").tag("type", "ICE_CANDIDATE").timer().count()).isEqualTo(2);
+        assertThat(registry.get("ws.message.handle").tag("type", "ICE_CANDIDATE").timer()
+                .totalTime(TimeUnit.MILLISECONDS)).isEqualTo(4.0);
+        assertThat(registry.get("ws.message.handle").tag("type", "PING").timer().count()).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("허용 목록 밖 타입과 null은 other로 정규화되어 라벨 폭증을 막는다")
+    void recordHandled_unknownTypeNormalized() {
+        metrics.recordHandled("HACK_TYPE_12345", 1_000_000L);
+        metrics.recordHandled(null, 1_000_000L);
+
+        assertThat(registry.get("ws.message.handle").tag("type", "other").timer().count()).isEqualTo(2);
     }
 }
