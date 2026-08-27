@@ -1,0 +1,8 @@
+# Grafana 대시보드 프로비저닝 — infra/monitoring/dashboards/의 운영 대시보드 JSON을 그대로 로드
+apiVersion: 1
+
+providers:
+  - name: peakpic-dashboards
+    type: file
+    options:
+      path: /var/lib/grafana/dashboards

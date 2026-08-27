@@ -1,0 +1,82 @@
+# 부하테스트 로컬 환경 (#90) — 앱을 t3.micro 근사 스펙으로 제한해 실행하고,
+# 운영과 같은 대시보드로 관측한다. 개발용 compose와 포트·컨테이너명을 분리해 공존 가능.
+#
+#   cd load-test
+#   printf '%s' '<application-dev.yml의 metrics.token 값>' > monitoring/metrics_token
+#   docker compose -f docker-compose.loadtest.yml up -d --build
+#
+# 접속: 앱 :8081 / Grafana :3001 (무로그인) / Prometheus :9091
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: lt-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: caestro1234
+      MYSQL_DATABASE: caestro
+    ports:
+      - "3308:3306"
+    # 일회용 부하 환경 — 데이터를 메모리에 둬서 디스크 I/O 변수를 줄이고 초기화를 빠르게
+    tmpfs:
+      - /var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-pcaestro1234"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:7.0
+    container_name: lt-redis
+    ports:
+      - "6380:6379"
+
+  app:
+    build:
+      context: ..
+    container_name: lt-app
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    ports:
+      - "8081:8080"
+    environment:
+      SPRING_PROFILES_ACTIVE: dev
+      # dev 프로파일의 localhost 접속 정보를 컨테이너 네트워크 기준으로 덮어쓴다
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/caestro?serverTimezone=UTC&characterEncoding=UTF-8
+      # dev yml이 host/port가 아니라 url 방식이므로 url을 덮어써야 한다 (url이 host/port보다 우선)
+      SPRING_DATA_REDIS_URL: redis://redis:6379
+    # t3.micro 근사: 2 vCPU(버스트 상태) + 1GB. CPU 크레딧 고갈(기준선 강등)은 로컬에서 재현 불가 —
+    # 절대값 비교는 운영 최종 검증에서, 로컬은 개선 전/후 "상대 비교"에 쓴다.
+    cpus: 2.0
+    mem_limit: 1g
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: lt-prometheus
+    depends_on:
+      - app
+    ports:
+      - "9091:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/metrics_token:/etc/prometheus/metrics_token:ro
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: lt-grafana
+    depends_on:
+      - prometheus
+    ports:
+      - "3001:3000"
+    environment:
+      # 로컬 전용이므로 무로그인 허용 (운영 모니터링 EC2와 무관)
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
+    volumes:
+      - ./monitoring/grafana/datasource.yml:/etc/grafana/provisioning/datasources/datasource.yml:ro
+      - ./monitoring/grafana/dashboards.yml:/etc/grafana/provisioning/dashboards/dashboards.yml:ro
+      # 운영 대시보드 JSON을 그대로 로드 → 로컬과 운영이 같은 화면
+      - ../infra/monitoring/dashboards:/var/lib/grafana/dashboards:ro

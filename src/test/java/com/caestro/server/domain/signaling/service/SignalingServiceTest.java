@@ -59,6 +59,9 @@ class SignalingServiceTest {
     private SignalingMetrics metrics;
 
     @Mock
+    private SessionRecordDispatcher recordDispatcher;
+
+    @Mock
     private WebSocketSession socket;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -73,13 +76,18 @@ class SignalingServiceTest {
     void setUp() {
         signalingService = new SignalingService(
                 redisTemplate, sessionManager, objectMapper,
-                sessionService, deviceSpecService, diagnosticLogger, relaySender, metrics);
+                sessionService, deviceSpecService, diagnosticLogger, relaySender, metrics, recordDispatcher);
         // 일부 경로(OCCUPIED 등)는 opsForValue를 쓰지 않으므로 lenient로 스텁
         lenient().when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+        // 기록 디스패처는 단위 테스트에서 동기 실행으로 대체 — 기존 DB 호출 검증(verify)을 그대로 유지한다
+        lenient().doAnswer(inv -> {
+            inv.getArgument(2, Runnable.class).run();
+            return null;
+        }).when(recordDispatcher).dispatch(any(), any(), any(Runnable.class));
     }
 
-    /** 두 슬롯이 모두 찬 CONNECTED 세션을 Redis 모킹에 심는다. */
-    private void givenConnectedSession(String disconnectingSocketId) throws Exception {
+    /** 두 슬롯이 모두 찬 세션을 주어진 상태로 Redis 모킹에 심는다. */
+    private void givenSessionWithStatus(String disconnectingSocketId, String status) throws Exception {
         SessionInfo info = new SessionInfo();
         info.setSessionCode(SESSION_CODE);
         info.setOwnerUserId(1L);
@@ -87,12 +95,16 @@ class SignalingServiceTest {
         info.setParticipantUserId(2L);
         info.setParticipantSocketId(PARTICIPANT_SOCKET);
         info.setCurrentDirectorUserId(1L);
-        info.setStatus("CONNECTED");
+        info.setStatus(status);
 
         given(socket.getId()).willReturn(disconnectingSocketId);
         given(valueOperations.get("socket:" + disconnectingSocketId)).willReturn(SESSION_CODE);
         given(valueOperations.get("session:" + SESSION_CODE))
                 .willReturn(objectMapper.writeValueAsString(info));
+    }
+
+    private void givenConnectedSession(String disconnectingSocketId) throws Exception {
+        givenSessionWithStatus(disconnectingSocketId, "CONNECTED");
     }
 
     @Test
@@ -106,6 +118,20 @@ class SignalingServiceTest {
         verify(valueOperations, never()).set(startsWith("session:"), any(), anyLong(), any()); // 세션 미변경
         verify(relaySender, never()).send(any(), any());                                      // 가짜 알림 없음
         verify(redisTemplate).delete("socket:ghost-sock");                                    // 매핑만 정리
+    }
+
+    @Test
+    @DisplayName("종료된(ENDED) 세션의 늦은 disconnect는 세션을 부활시키지 않고 매핑만 정리한다")
+    void handleDisconnect_endedSession_cleansMappingOnly() throws Exception {
+        // END_SESSION 처리 뒤 뒤늦게 닫히는 소켓 — 슬롯과 일치하더라도 죽은 세션을 건드리면 안 된다.
+        // 방치 시: 이미 닫힌 상대에게 PEER_DISCONNECTED 발행(수신자 0) + ENDED가 WAITING으로 부활(#93)
+        givenSessionWithStatus(PARTICIPANT_SOCKET, "ENDED");
+
+        signalingService.handleDisconnect(socket);
+
+        verify(relaySender, never()).send(any(), any());                                       // 유령 알림 없음
+        verify(valueOperations, never()).set(startsWith("session:"), any(), anyLong(), any()); // 부활 없음
+        verify(redisTemplate).delete("socket:" + PARTICIPANT_SOCKET);                          // 매핑만 정리
     }
 
     @Test

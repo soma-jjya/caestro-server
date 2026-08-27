@@ -1,0 +1,16 @@
+# 부하테스트 로컬 수집 설정 — 운영(EC2 SD 자동 발견)과 달리 고정 타깃 1개(lt-app).
+# 토큰 파일은 커밋하지 않는다: printf '%s' '<dev metrics.token>' > monitoring/metrics_token
+
+global:
+  scrape_interval: 5s # 짧은 부하 구간을 촘촘히 본다 (운영은 15s)
+
+scrape_configs:
+  - job_name: peakpic-loadtest
+    metrics_path: /actuator/prometheus
+    authorization:
+      type: Bearer
+      credentials_file: /etc/prometheus/metrics_token
+    static_configs:
+      - targets: ["app:8080"]
+        labels:
+          instance_id: local # 대시보드 legend({{instance_id}})가 로컬에서도 표시되게

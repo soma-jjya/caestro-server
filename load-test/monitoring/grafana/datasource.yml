@@ -1,0 +1,9 @@
+# Grafana 데이터소스 프로비저닝 — 컨테이너 기동 시 자동 등록 (수동 설정 불필요)
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true

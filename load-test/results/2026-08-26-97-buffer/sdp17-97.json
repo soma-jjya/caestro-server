@@ -1,0 +1,179 @@
+{
+    "metrics": {
+        "relay_msgs_received": {
+            "count": 2,
+            "rate": 39.17037153097397
+        },
+        "data_received": {
+            "rate": 86684.0321980454,
+            "count": 4426
+        },
+        "http_req_duration{expected_response:true}": {
+            "max": 11.491,
+            "p(90)": 11.4853,
+            "p(95)": 11.48815,
+            "avg": 9.383000000000001,
+            "min": 7.271,
+            "med": 9.385
+        },
+        "http_req_failed": {
+            "passes": 0,
+            "fails": 4,
+            "value": 0
+        },
+        "join_established_ms": {
+            "p(90)": 6,
+            "p(95)": 6,
+            "avg": 6,
+            "min": 6,
+            "med": 6,
+            "max": 6
+        },
+        "ws_msgs_received": {
+            "count": 6,
+            "rate": 117.51111459292191
+        },
+        "iterations": {
+            "count": 2,
+            "rate": 39.17037153097397
+        },
+        "http_req_blocked": {
+            "p(95)": 0.30369999999999997,
+            "avg": 0.1525,
+            "min": 0.001,
+            "med": 0.1525,
+            "max": 0.304,
+            "p(90)": 0.3034
+        },
+        "http_req_receiving": {
+            "min": 0.64,
+            "med": 0.651,
+            "max": 0.694,
+            "p(90)": 0.6838,
+            "p(95)": 0.6889,
+            "avg": 0.659
+        },
+        "http_req_sending": {
+            "p(95)": 0.034949999999999995,
+            "avg": 0.019250000000000003,
+            "min": 0.004,
+            "med": 0.018500000000000003,
+            "max": 0.036,
+            "p(90)": 0.0339
+        },
+        "ws_msgs_sent": {
+            "count": 12,
+            "rate": 235.02222918584383
+        },
+        "signaling_errors": {
+            "count": 2,
+            "rate": 39.17037153097397
+        },
+        "session_success": {
+            "fails": 2,
+            "passes": 0,
+            "thresholds": {
+                "rate>0.99": true
+            },
+            "value": 0
+        },
+        "ws_connecting": {
+            "avg": 3.40776025,
+            "min": 3.194875,
+            "med": 3.4181665,
+            "max": 3.599833,
+            "p(90)": 3.5844205,
+            "p(95)": 3.59212675
+        },
+        "ws_session_duration": {
+            "p(90)": 31.0616501,
+            "p(95)": 31.10051255,
+            "avg": 25.6478855,
+            "min": 20.22575,
+            "med": 25.6132085,
+            "max": 31.139375
+        },
+        "iteration_duration": {
+            "avg": 50.930063000000004,
+            "min": 50.863542,
+            "med": 50.930063000000004,
+            "max": 50.996584,
+            "p(90)": 50.9832798,
+            "p(95)": 50.9899319
+        },
+        "http_req_waiting": {
+            "min": 6.596,
+            "med": 8.705,
+            "max": 10.813,
+            "p(90)": 10.81,
+            "p(95)": 10.8115,
+            "avg": 8.70475
+        },
+        "ws_sessions": {
+            "count": 4,
+            "rate": 78.34074306194795
+        },
+        "relay_msgs_sent": {
+            "count": 6,
+            "rate": 117.51111459292191
+        },
+        "http_req_duration": {
+            "min": 7.271,
+            "med": 9.385,
+            "max": 11.491,
+            "p(90)": 11.4853,
+            "p(95)": 11.48815,
+            "avg": 9.383000000000001
+        },
+        "relay_ice_e2e_ms": {
+            "min": 0,
+            "med": 0,
+            "max": 0,
+            "p(90)": 0,
+            "p(95)": 0,
+            "avg": 0,
+            "thresholds": {
+                "p(95)<200": false
+            }
+        },
+        "http_req_connecting": {
+            "max": 0.135,
+            "p(90)": 0.1335,
+            "p(95)": 0.13425,
+            "avg": 0.06625,
+            "min": 0,
+            "med": 0.065
+        },
+        "http_reqs": {
+            "count": 4,
+            "rate": 78.34074306194795
+        },
+        "http_req_tls_handshaking": {
+            "avg": 0,
+            "min": 0,
+            "med": 0,
+            "max": 0,
+            "p(90)": 0,
+            "p(95)": 0
+        },
+        "data_sent": {
+            "count": 39094,
+            "rate": 765663.2523159483
+        },
+        "create_session_ms": {
+            "avg": 7,
+            "min": 7,
+            "med": 7,
+            "max": 7,
+            "p(90)": 7,
+            "p(95)": 7
+        }
+    },
+    "root_group": {
+        "name": "",
+        "path": "",
+        "id": "d41d8cd98f00b204e9800998ecf8427e",
+        "groups": {},
+        "checks": {}
+    }
+}

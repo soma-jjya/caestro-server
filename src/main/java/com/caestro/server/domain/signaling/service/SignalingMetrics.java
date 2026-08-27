@@ -66,6 +66,27 @@ public class SignalingMetrics {
                 .register(registry);
     }
 
+    // gauge 강참조 보관 (activeConnections와 동일한 이유)
+    private volatile Supplier<Number> recordQueueDepth = () -> 0;
+
+    /** 세션 DB 기록 대기 큐 길이 gauge 등록 (#99). 포화 접근을 관측하기 위한 지표. */
+    public void bindRecordQueueDepth(Supplier<Number> depth) {
+        this.recordQueueDepth = depth;
+        Gauge.builder("ws.record.queue.depth", this, m -> m.recordQueueDepth.get().doubleValue())
+                .description("세션 DB 기록 대기 큐 길이 (전 워커 합)")
+                .register(registry);
+    }
+
+    /** DB 기록 작업 실패 횟수 (예외는 격리되고 지표만 남는다) */
+    public void countRecordFailed(String task) {
+        registry.counter("ws.record.failed", "task", task).increment();
+    }
+
+    /** DB 기록 큐 포화로 버려진 작업 수 (0이 아니면 워커·큐 재조정 신호) */
+    public void countRecordDropped(String task) {
+        registry.counter("ws.record.dropped", "task", task).increment();
+    }
+
     /** 활성 WS 연결 수 gauge 등록. (호출 시점의 값을 읽어가는 방식이라 supplier로 받는다) */
     public void bindActiveConnections(Supplier<Number> activeCount) {
         this.activeConnections = activeCount;

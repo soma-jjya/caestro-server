@@ -35,6 +35,7 @@ public class SignalingService {
     private final SignalingDiagnosticLogger diagnosticLogger;
     private final SignalingRelaySender relaySender;
     private final SignalingMetrics metrics;
+    private final SessionRecordDispatcher recordDispatcher;
 
     private static final char[] CODE_ALPHABET =
             "0123456789ABCDEFGHJKMNPQRSTVWXYZ".toCharArray();
@@ -45,6 +46,10 @@ public class SignalingService {
     // JOIN 참여자 슬롯 원자 획득 스크립트 (#73) — 검사+기록을 Redis 안에서 단일 단위로 수행
     private static final RedisScript<String> JOIN_SLOT_CLAIM_SCRIPT =
             RedisScript.of(new ClassPathResource("scripts/join_slot_claim.lua"), String.class);
+
+    // relay 조회+수명연장 스크립트 (#98) — 5왕복(GET·GET·PEXPIRE×3)을 1왕복으로 통합
+    private static final RedisScript<String> RELAY_TOUCH_SCRIPT =
+            RedisScript.of(new ClassPathResource("scripts/relay_touch.lua"), String.class);
 
     private final SecureRandom secureRandom = new SecureRandom();
 
@@ -75,8 +80,9 @@ public class SignalingService {
         saveSessionInfo(sessionCode, info);
         redisTemplate.opsForValue().set("socket:" + socket.getId(), sessionCode, 10, TimeUnit.MINUTES);
 
-        // 4. DB에 세션 영구 저장 (Redis는 실시간 상태, DB는 영구 기록 용도)
-        sessionService.createSession(sessionCode, ownerUserId, expiresAt);
+        // 4. DB 영구 기록은 실시간 경로에서 분리 (#99) — Redis가 진실의 원천, WS 스레드는 기다리지 않는다
+        recordDispatcher.dispatch(sessionCode, "create",
+                () -> sessionService.createSession(sessionCode, ownerUserId, expiresAt));
 
         // 5. owner에게 세션 생성 완료 응답 전송 (참여자는 이 sessionCode로 입장)
         SignalingResponse response = SignalingResponse.builder()
@@ -151,8 +157,9 @@ public class SignalingService {
             redisTemplate.expire("socket:" + ownerSocketId, 10, TimeUnit.MINUTES);
         }
 
-        // 3. DB 세션 상태를 연결됨으로 동기화
-        sessionService.joinSession(sessionCode, userId, "APP");
+        // 3. DB 세션 상태 동기화는 실시간 경로에서 분리 (#99) — 같은 세션은 같은 워커라 create보다 늦게 실행됨이 보장된다
+        recordDispatcher.dispatch(sessionCode, "join",
+                () -> sessionService.joinSession(sessionCode, userId, "APP"));
 
         // 4. owner에게 참여자 입장 알림
         SignalingResponse notifyOwner = SignalingResponse.builder()
@@ -271,22 +278,13 @@ public class SignalingService {
      * @param msg    기기 스펙(줌 배율, 해상도 등)이 담긴 DEVICE_SPEC 메시지
      */
     public void handleDeviceSpec(WebSocketSession socket, SignalingRequest msg) {
-        // 1. 기기 스펙 DB 저장 (실패해도 relay를 막지 않도록 예외를 격리)
+        // 1. 기기 스펙 DB 기록은 실시간 경로에서 분리 (#99) — 실패는 디스패처가 격리해 relay를 막지 않는다.
         //    role은 클라이언트 주장을 믿지 않고, 인증된 userId를 키로 사용한다.
-        try {
-            Long userId = getUserId(socket);
-            deviceSpecService.saveDeviceSpec(
-                    normalizeSessionCode(msg.sessionCode()),
-                    userId,
-                    msg.maxZoom(),
-                    msg.minZoom(),
-                    msg.screenRatio(),
-                    msg.maxResolution(),
-                    msg.osType()
-            );
-        } catch (Exception e) {
-            log.error("Failed to save device spec: sessionCode={}", msg.sessionCode(), e);
-        }
+        Long userId = getUserId(socket);
+        String sessionCode = normalizeSessionCode(msg.sessionCode());
+        recordDispatcher.dispatch(sessionCode, "spec",
+                () -> deviceSpecService.saveDeviceSpec(sessionCode, userId, msg.maxZoom(), msg.minZoom(),
+                        msg.screenRatio(), msg.maxResolution(), msg.osType()));
 
         // 2. 기존 정책대로 상대 기기에 스펙 중계
         relay(socket, msg);
@@ -301,27 +299,23 @@ public class SignalingService {
      * @param msg    중계할 WebRTC 시그널링 데이터 또는 커스텀 제어 신호
      */
     public void relay(WebSocketSession socket, SignalingRequest msg) {
-        // 1. 소켓ID로 세션 코드 조회
-        String sessionCode = redisTemplate.opsForValue().get("socket:" + socket.getId());
-        if (sessionCode == null) return;
+        // 조회+수명연장을 Lua 1왕복으로 통합 (#98) — 기존 5왕복(GET·GET·PEXPIRE×3)과 동일 의미.
+        // 몰림 시 단일 커넥션 대기열에 서는 횟수 자체가 줄어 스파이크 내성이 올라간다.
+        String raw = redisTemplate.execute(RELAY_TOUCH_SCRIPT,
+                List.of("socket:" + socket.getId()),
+                String.valueOf(SESSION_TTL_SECONDS * 1000));
+        if (raw == null) return;
 
-        // 2. 세션 코드로 방 정보 조회
-        SessionInfo info = getSessionInfo(sessionCode);
+        SessionInfo info = parseSessionInfo(raw);
         if (info == null) return;
+        String sessionCode = info.getSessionCode();
 
-        // 3. 슬라이딩 세션: 메시지를 주고받을 때마다 방과 소켓의 수명을 10분으로 연장
-        redisTemplate.expire("session:" + sessionCode, 10, TimeUnit.MINUTES);
-        redisTemplate.expire("socket:" + info.getOwnerSocketId(), 10, TimeUnit.MINUTES);
-        if (info.getParticipantSocketId() != null) {
-            redisTemplate.expire("socket:" + info.getParticipantSocketId(), 10, TimeUnit.MINUTES);
-        }
-
-        // 4. SDP/ICE 진단 로깅 — 어느 엔드포인트가 보냈는지(정체성 기준) 판별해 구조화 로깅
+        // SDP/ICE 진단 로깅 — 어느 엔드포인트가 보냈는지(정체성 기준) 판별해 구조화 로깅
         boolean fromOwner = socket.getId().equals(info.getOwnerSocketId());
         String direction = fromOwner ? "owner->participant" : "participant->owner";
         diagnosticLogger.logRelayed(msg, sessionCode, direction);
 
-        // 5. 보낸 사람의 반대편 소켓으로 메시지 중계 (다른 인스턴스면 Redis 발행으로 자동 처리)
+        // 3. 보낸 사람의 반대편 소켓으로 메시지 중계 (다른 인스턴스면 Redis 발행으로 자동 처리)
         String targetSocketId = fromOwner
                 ? info.getParticipantSocketId()
                 : info.getOwnerSocketId();
@@ -336,13 +330,19 @@ public class SignalingService {
      * @param socket 연결이 끊어진 클라이언트의 웹소켓 세션
      */
     public void handleDisconnect(WebSocketSession socket) {
-        // 1. 소켓ID로 세션 코드 조회
         String sessionCode = redisTemplate.opsForValue().get("socket:" + socket.getId());
         if (sessionCode == null) return;
 
-        // 2. 세션에 상대방이 남아있으면 연결 끊김을 알림
+        // 세션에 상대방이 남아있으면 연결 끊김을 알림
         SessionInfo info = getSessionInfo(sessionCode);
         if (info != null) {
+            // 없으면 이미 닫힌 상대에게 PEER_DISCONNECTED를 발행(수신자 0)하고 ENDED를 WAITING으로 부활시킨다.
+            if ("ENDED".equals(info.getStatus())) {
+                redisTemplate.delete("socket:" + socket.getId());
+                log.info("Disconnect after session end ignored: {} (session {})", socket.getId(), sessionCode);
+                return;
+            }
+
             boolean isOwnerDrop = socket.getId().equals(info.getOwnerSocketId());
             boolean isParticipantDrop = socket.getId().equals(info.getParticipantSocketId());
 
@@ -404,8 +404,8 @@ public class SignalingService {
             info.setStatus("ENDED");
             saveSessionInfo(sessionCode, info);
 
-            // 3. DB 세션도 종료 상태로 동기화
-            sessionService.endSession(sessionCode);
+            // 3. DB 종료 기록은 실시간 경로에서 분리 (#99)
+            recordDispatcher.dispatch(sessionCode, "end", () -> sessionService.endSession(sessionCode));
 
             // 4. 상대방에게 세션 종료 알림 전송
             String targetSocketId = socket.getId().equals(info.getOwnerSocketId())
@@ -501,6 +501,13 @@ public class SignalingService {
     private SessionInfo getSessionInfo(String sessionCode) {
         String raw = redisTemplate.opsForValue().get("session:" + sessionCode);
         if (raw == null) return null;
+        return parseSessionInfo(raw);
+    }
+
+    /**
+     * 세션 JSON 원문을 SessionInfo로 역직렬화한다. (파싱 실패 시 null)
+     */
+    private SessionInfo parseSessionInfo(String raw) {
         try {
             return objectMapper.readValue(raw, SessionInfo.class);
         } catch (JsonProcessingException e) {

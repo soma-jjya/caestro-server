@@ -53,4 +53,7 @@ lambda/thumbnail/__pycache__/
 ### alert-notify ###
 lambda/alert-notify/__pycache__/
 
+### load-test ###
+load-test/monitoring/metrics_token
+
 docs/
