@@ -42,6 +42,14 @@ public class WebSocketSessionManager {
         log.info("WebSocket Session Add: {}", session.getId());
     }
 
+    /**
+     * 현재 이 인스턴스에 붙어 있는 모든 소켓의 스냅샷(복사본)을 반환한다.
+     * 드레인(#106)처럼 "지금 있는 것 전부"에 작업하되 원본 맵의 동시 변경과 분리하고 싶을 때 쓴다.
+     */
+    public List<WebSocketSession> snapshot() {
+        return new ArrayList<>(socketMap.values());
+    }
+
     public void removeSession(WebSocketSession session) {
         socketMap.remove(session.getId());
         lastSeenMap.remove(session.getId());

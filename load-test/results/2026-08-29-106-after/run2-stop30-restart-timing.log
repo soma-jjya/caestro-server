@@ -1,0 +1,4 @@
+stop -t 30 issued at 22:00:59.611
+stopped at 22:01:02.799
+start issued at 22:01:02.879
+app ready again at 22:01:07.051

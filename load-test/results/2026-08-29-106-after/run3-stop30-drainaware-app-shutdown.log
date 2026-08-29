@@ -1,0 +1,22 @@
+# run3 — docker stop -t 30 + 드레인 전용 정리(handleDrainDisconnect) + k6 계약(1012: 0~1s jitter, 연속 2회 상한)
+# docker events:
+kill exit= signal=15 stop exit= signal= die exit=143 signal= destroy exit= signal= rename exit= signal= start exit= signal= kill exit= signal=15 stop exit= signal= die exit=143 signal= start exit= signal= 
+# 종료 순서:
+2026-08-29T13:08:01.520Z  INFO 1 --- [       ws-drain] c.c.s.d.s.service.SignalingService       : Drain disconnect: mapping removed, session WKMJ41 kept for takeover
+2026-08-29T13:08:01.521Z  INFO 1 --- [ionShutdownHook] c.c.s.d.s.s.SignalingDrainLifecycle      : Drain complete: closed 40/40 in 2902ms
+2026-08-29T13:08:01.522Z  INFO 1 --- [ionShutdownHook] o.s.boot.tomcat.GracefulShutdown         : Commencing graceful shutdown. Waiting for active requests to complete
+2026-08-29T13:08:01.524Z  INFO 1 --- [tomcat-shutdown] o.s.boot.tomcat.GracefulShutdown         : Graceful shutdown complete
+# ws-drain 스레드가 닫은 소켓(1012) 수 / 첫·마지막:
+40
+2026-08-29T13:07:58.655Z  INFO
+2026-08-29T13:08:01.519Z  INFO
+# 드레인 전용 정리(슬롯 유지) 수:
+40
+# 일반 이탈 처리(방장/참여자 disconnected) 수 — 드레인 스레드에서:
+0
+# 드레인 중 핸드셰이크 503 거절 수:
+33
+# LettuceConnectionFactory destroyed 예외:
+0
+# 재접속 takeover(Reconnected to session) 수 — 재기동 후:
+40

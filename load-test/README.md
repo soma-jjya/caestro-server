@@ -49,9 +49,16 @@ k6 run -e SCENARIO=ramp k6/signaling-session.js
 | `ICE_BURST` | 10 | 연결 수립 시 측당 ICE 후보 수 |
 | `SDP_KB` | 4 | OFFER/ANSWER 크기. **9 이상 → 톰캣 인바운드 한도(기본 8KB) 실험** |
 | `JITTER` | 1 | 0이면 시작·수명 지터 해제 → **전 VU 동시 몰림(스파이크) 조건 재현** |
+| `RECONNECT` | 1 | 예기치 않은 close 시 재연결 계약대로 재접속(#105). 0이면 close = 세션 실패(#90 당시 동작) |
+| `PROBE_SEC` | 0 | >0이면 수립 후 양쪽이 N초마다 ICE 1건 전송 → 재접속 공백 중 유실을 `sent−received`로 측정 |
+| `RESUME_TIMEOUT_SEC` | 15 | 최초 close부터 `SESSION_RESUMED`까지 허용 시간. 로컬 컨테이너 재기동 실험은 60 권장 |
 
 세션 흐름: 게스트 로그인(VU당 1회) → CREATE → JOIN → DEVICE_SPEC×2 → OFFER/ANSWER →
 ICE 버스트(양측) → PING 25s 유지 → END_SESSION.
+
+재연결 계약(k6가 앱 대신 수행): 1012(서버 재시작)는 0~1s 안에 즉시(연속 2회까지), 그 외 코드는
+`min(1s·2^n + random(0~1s), 30s)` backoff 후 **같은 토큰**으로 `JOIN_SESSION` → 서버 takeover →
+`SESSION_RESUMED`. 복귀 시 ANSWER를 못 받은 상태면 디렉터(owner)가 OFFER를 재발신한다.
 
 ## 지표 읽는 법
 
@@ -62,6 +69,35 @@ ICE 버스트(양측) → PING 25s 유지 → END_SESSION.
 | `create_session_ms` / `join_established_ms` | `ws_message_handle{type="CREATE\|JOIN..."}` + `hikaricp_connections_pending` | DB 동기 경로. pending 발생 = 풀(10) 포화 |
 | (서버) `lettuce_command` P95·건수 | — | 명령별 왕복. **건수/중계건수 비율 = 메시지당 Redis 왕복 수** |
 | `relay_msgs_sent` vs `relay_msgs_received` | `ws_relay_no_receiver_total` | 유실 감지 |
+| `ws_unexpected_close{code,phase}` | `ws_close_total{code}` | 예기치 않은 종료 — 코드별(1006 비정상 / 1001 going away / 1012 드레인)·단계별(수립 중/완료) |
+| `unexpected_close_epoch_ms` | `ws_connections_active` 절벽 | max−min = 종료가 흩어진 폭. 드레인 jitter의 증거 |
+| `reconnect_resume_ms` / `resume_success` | `ws_join_total{result="takeover_*"}` | 최초 close → `SESSION_RESUMED` = **복원 시간**, 복원 성공률 |
+| `reconnect_attempt_failed` | — | 재접속 시도 자체가 실패한 횟수(서버 부재). 로컬 재기동 실험에선 정상적으로 발생 |
+| `peer_disconnected_seen` / `peer_reconnected_seen` | — | 상대 화면이 본 이탈/복귀 통지 — 깜빡임 UX 판단 근거 |
+
+## 배포 중 세션 생존 측정 (#105)
+
+세션이 살아 있는 동안 서버를 죽이고, 재연결 계약을 따르는 k6가 얼마나 빨리·얼마나 많이 복원되는지 잰다.
+`SESSION_SEC`은 서버 교체 시간보다 충분히 길게(로컬 150s, 운영 300s) 잡아야 세션이 교체를 "겪는다".
+
+```bash
+# 로컬 — close 코드·재접속 동작 검증. 복원 시간엔 컨테이너 재기동(~20s)이 섞이므로 참고치.
+k6 run -e SCENARIO=fixed -e SESSIONS=20 -e DURATION=3m -e SESSION_SEC=150 -e PROBE_SEC=2 \
+  -e RESUME_TIMEOUT_SEC=60 --summary-export=results/<날짜>/local-restart.json k6/signaling-session.js
+# (1분 뒤, 세션이 전부 수립된 상태에서) — stop 타임아웃을 넉넉히: compose restart는 ~1초 만에 SIGKILL을
+# 보내 드레인(jitter 3s)을 중간에 끊는 것이 실측됨 (#106 1차 after). 운영의 docker --stop-timeout 30과 같은 조건
+docker stop -t 30 lt-app && docker start lt-app
+
+# 운영 — 진짜 롤링 교체. 알람 비활성(위 절차) 후 실행, 3분 뒤 같은 이미지로 refresh 재실행
+k6 run -e SCENARIO=fixed -e SESSIONS=50 -e DURATION=12m -e SESSION_SEC=300 -e PROBE_SEC=2 \
+  -e API=https://<운영 도메인> --summary-export=results/<날짜>/prod-rolling.json k6/signaling-session.js
+aws autoscaling start-instance-refresh --auto-scaling-group-name peakpic-asg \
+  --preferences '{"MinHealthyPercentage":100,"InstanceWarmup":120}'
+```
+
+읽는 순서: `ws_unexpected_close` 코드 분포(어떻게 죽었나) → `reconnect_resume_ms` p95(얼마나 빨리 돌아왔나)
+→ `resume_success`(다 돌아왔나) → `relay_msgs_sent−received`(공백 중 뭘 잃었나) → Grafana
+`ws_connections_active` 인스턴스별 절벽/복구 곡선.
 
 ## 스모크에서 이미 확인된 사실 (2026-08-24, 무부하 로컬 dev)
 

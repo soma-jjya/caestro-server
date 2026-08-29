@@ -20,11 +20,13 @@ public class WebSocketConfig implements WebSocketConfigurer {
 
     private final SignalingWebSocketHandler signalingWebSocketHandler;
     private final WebSocketAuthInterceptor authInterceptor;
+    private final WebSocketDrainInterceptor drainInterceptor;
 
     @Override
     public void registerWebSocketHandlers(WebSocketHandlerRegistry registry) {
         registry.addHandler(signalingWebSocketHandler, "/signaling")
-                .addInterceptors(authInterceptor)
+                .addInterceptors(drainInterceptor, authInterceptor) // 드레인 거절(503)을 인증보다 앞에
+
                 .setAllowedOrigins("*"); // 운영 환경에서는 실제 도메인으로 제한 필요
     }
 

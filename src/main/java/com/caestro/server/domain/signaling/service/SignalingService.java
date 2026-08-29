@@ -207,11 +207,13 @@ public class SignalingService {
             redisTemplate.expire("socket:" + peerSocketId, 10, TimeUnit.MINUTES);
         }
 
-        // 4. 재연결한 쪽에 현재 상태(디렉터 포인터)를 담아 SESSION_RESUMED 전송 (화면 복원용)
+        // 4. 재연결한 쪽에 현재 상태(디렉터 포인터 + 세션 상태)를 담아 SESSION_RESUMED 전송 (화면 복원용)
+        //    status는 공백 중 상대가 이탈했는지(WAITING)를 replay 없이 스냅샷으로 알려준다 (#106)
         SignalingResponse resumed = SignalingResponse.builder()
                 .type("SESSION_RESUMED")
                 .sessionCode(sessionCode)
                 .currentDirectorUserId(info.getCurrentDirectorUserId())
+                .status(info.getStatus())
                 .build();
         sessionManager.sendMessage(socket.getId(), resumed);
 
@@ -321,6 +323,24 @@ public class SignalingService {
                 : info.getOwnerSocketId();
 
         relaySender.send(targetSocketId, msg);
+    }
+
+    /**
+     * 드레인(#106)으로 서버가 직접 닫은 소켓의 정리. 사용자가 떠난 것이 아니라 서버가 재시작하는 것이므로
+     * 슬롯·상태·상대 통지는 건드리지 않고 소켓 매핑만 지운다. 클라이언트는 곧 같은 userId로 재접속해
+     * takeover(SESSION_RESUMED)로 돌아온다.
+     *
+     * 일반 이탈 처리(handleDisconnect)를 그대로 태우면 참여자 슬롯이 즉시 해제돼(유예 없음) 재접속이
+     * takeover가 아닌 신규 입장(PEER_JOINED)이 되는 것이 after 2차 실측에서 확인됐다(참여자 복원 0/20).
+     *
+     * @param socket 드레인으로 닫힌 소켓
+     */
+    public void handleDrainDisconnect(WebSocketSession socket) {
+        String sessionCode = redisTemplate.opsForValue().get("socket:" + socket.getId());
+        redisTemplate.delete("socket:" + socket.getId());
+        if (sessionCode != null) {
+            log.info("Drain disconnect: mapping removed, session {} kept for takeover", sessionCode);
+        }
     }
 
     /**

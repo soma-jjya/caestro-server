@@ -1,0 +1,23 @@
+# run2 — docker stop -t 30 (SIGTERM만, exit 143) + k6 계약(1012: 0~1s jitter, 연속 2회 상한)
+# docker events:
+kill exit= signal=15
+stop exit= signal=
+die exit=143 signal=
+start exit= signal=
+# 종료 순서:
+2026-08-29T13:00:59.658Z  INFO 1 --- [ionShutdownHook] c.c.s.d.s.s.SignalingDrainLifecycle      : Drain start: closing 40 session(s) with 1012, jitter=3000ms, maxWait=10000ms
+2026-08-29T13:01:02.608Z  INFO 1 --- [ionShutdownHook] c.c.s.d.s.s.SignalingDrainLifecycle      : Drain complete: closed 40/40 in 2950ms
+2026-08-29T13:01:02.609Z  INFO 1 --- [ionShutdownHook] o.s.boot.tomcat.GracefulShutdown         : Commencing graceful shutdown. Waiting for active requests to complete
+2026-08-29T13:01:02.610Z  INFO 1 --- [tomcat-shutdown] o.s.boot.tomcat.GracefulShutdown         : Graceful shutdown complete
+2026-08-29T13:01:02.631Z  INFO 1 --- [ionShutdownHook] j.LocalContainerEntityManagerFactoryBean : Closing JPA EntityManagerFactory for persistence unit 'default'
+2026-08-29T13:01:02.632Z  INFO 1 --- [ionShutdownHook] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Shutdown initiated...
+# ws-drain 스레드가 닫은 소켓(1012) 수 / 첫·마지막 시각:
+40
+2026-08-29T13:00:59.659Z  INFO
+2026-08-29T13:01:02.606Z  INFO
+# 드레인 중 핸드셰이크 503 거절 수:
+32
+# LettuceConnectionFactory destroyed 예외 수:
+0
+# 드레인 중 handleDisconnect 처리 로그(방장/참여자 이탈 처리) 수:
+80

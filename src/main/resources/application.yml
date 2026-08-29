@@ -5,6 +5,9 @@ spring:
     aws:
       region:
         static: ap-northeast-2
+  lifecycle:
+    # 종료 단계별 허용 시간. WS 드레인(jitter+대기)과 HTTP graceful이 끝날 여유 — docker stop-timeout(30s)과 맞춘다
+    timeout-per-shutdown-phase: 30s
 
 # 공통 Actuator 설정 (노출 범위/show-details는 프로파일에서 override)
 management:
@@ -37,6 +40,10 @@ signaling:
   heartbeat:
     max-idle-ms: 90000
     reaper-interval-ms: 30000
+  # 배포·종료 시 WS 드레인 (#106): 1012 close를 jitter 폭에 흩뿌려 재접속 몰림을 막고, 전부 닫히길 max-wait까지 기다린다
+  drain:
+    jitter-ms: 3000
+    max-wait-ms: 10000
 
 # 만료 데이터 정리 배치 설정
 cleanup:

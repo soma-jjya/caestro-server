@@ -60,6 +60,8 @@ aws ssm start-session --profile peakpic --region ap-northeast-2 \
    - Hikari: `hikaricp_connections_active`
    - 메시지 처리시간 P95(타입별): `histogram_quantile(0.95, sum by (le, type) (rate(ws_message_handle_seconds_bucket[5m])))`
    - Redis 명령 지연 P95(명령별): `histogram_quantile(0.95, sum by (le, command) (rate(lettuce_command_completion_seconds_bucket[5m])))`
+   - WS 종료 코드 분포: `sum by (code) (increase(ws_close_total[1m]))` (1000=클라 정상, 1006=비정상, 1012=드레인 정돈 종료)
+   - 드레인이 닫은 소켓 수(배포 1회당 영향 규모): `increase(ws_drain_closed_total[10m])`
 3. 대시보드 완성 후 JSON 내보내기 → `infra/monitoring/dashboards/`에 백업
 
 ## 주의

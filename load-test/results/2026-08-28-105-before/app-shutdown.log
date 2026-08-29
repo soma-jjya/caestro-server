@@ -1,0 +1,24 @@
+# lt-app 로그 발췌 — docker compose restart app (16:53:10.9 KST) 시점
+# 서버가 닫은 소켓 수(code=1001 'The web application is stopping'):
+40
+# 그 직후 handleDisconnect 실패 수(LettuceConnectionFactory destroyed):
+40
+
+2026-08-28T07:53:11.098Z  INFO 1 --- [ionShutdownHook] c.c.s.d.s.c.SignalingWebSocketHandler    : Client disconnected: f09b8c76-7d5c-4e1d-9776-dae431b4cf6b (status: CloseStatus[code=1001, reason=The web application is stopping])
+2026-08-28T07:53:11.100Z  INFO 1 --- [ionShutdownHook] c.c.s.d.s.c.SignalingWebSocketHandler    : Client disconnected: cfea64ac-525f-4e72-9652-5c94db0f009b (status: CloseStatus[code=1001, reason=The web application is stopping])
+2026-08-28T07:53:11.100Z  INFO 1 --- [ionShutdownHook] c.c.s.d.s.c.SignalingWebSocketHandler    : Client disconnected: 93a3674d-1774-4c8c-b1fd-cfa9b0e42180 (status: CloseStatus[code=1001, reason=The web application is stopping])
+...
+2026-08-28T07:53:11.098Z  WARN 1 --- [ionShutdownHook] w.s.h.ExceptionWebSocketHandlerDecorator : Unhandled exception after connection closed for ExceptionWebSocketHandlerDecorator [delegate=LoggingWebSocketHandlerDecorator [delegate=com.caestro.server.domain.signaling.controller.SignalingWebSocketHandler@2f6acdcc]]
+
+java.lang.IllegalStateException: LettuceConnectionFactory was destroyed and cannot be used anymore
+	at org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory.assertStarted(LettuceConnectionFactory.java:1462) ~[spring-data-redis-4.1.0.jar!/:4.1.0]
+	at org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory.getConnection(LettuceConnectionFactory.java:1050) ~[spring-data-redis-4.1.0.jar!/:4.1.0]
+	at org.springframework.data.redis.core.RedisConnectionUtils.fetchConnection(RedisConnectionUtils.java:195) ~[spring-data-redis-4.1.0.jar!/:4.1.0]
+--
+2026-08-28T07:53:11.100Z  WARN 1 --- [ionShutdownHook] w.s.h.ExceptionWebSocketHandlerDecorator : Unhandled exception after connection closed for ExceptionWebSocketHandlerDecorator [delegate=LoggingWebSocketHandlerDecorator [delegate=com.caestro.server.domain.signaling.controller.SignalingWebSocketHandler@2f6acdcc]]
+
+java.lang.IllegalStateException: LettuceConnectionFactory was destroyed and cannot be used anymore
+	at org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory.assertStarted(LettuceConnectionFactory.java:1462) ~[spring-data-redis-4.1.0.jar!/:4.1.0]
+	at org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory.getConnection(LettuceConnectionFactory.java:1050) ~[spring-data-redis-4.1.0.jar!/:4.1.0]
+...
+2026-08-28T07:53:15.473Z  INFO 1 --- [           main] com.caestro.server.ServerApplication     : Started ServerApplication in 3.902 seconds (process running for 4.152)

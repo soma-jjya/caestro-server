@@ -6,6 +6,8 @@ import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 
 import java.util.concurrent.TimeUnit;
 
@@ -87,5 +89,32 @@ class SignalingMetricsTest {
         metrics.recordHandled(null, 1_000_000L);
 
         assertThat(registry.get("ws.message.handle").tag("type", "other").timer().count()).isEqualTo(2);
+    }
+
+    @ParameterizedTest(name = "code {0} → label {1}")
+    @CsvSource({
+            "1000, 1000",   // 클라 정상 종료
+            "1006, 1006",   // 비정상(close 프레임 없음)
+            "1012, 1012",   // 서버 재시작(드레인)
+            "1015, 1015",   // 표준 범위 상한
+            "1016, other",  // 표준 범위 밖
+            "3500, 3xxx",   // 라이브러리/프레임워크 예약
+            "4999, 4xxx",   // 애플리케이션 커스텀
+            "999,  other",
+    })
+    @DisplayName("종료 코드는 표준/3xxx/4xxx/other 라벨로 정규화된다 (#105)")
+    void countClose_normalizesLabel(int code, String label) {
+        metrics.countClose(code);
+
+        assertThat(registry.get("ws.close").tag("code", label).counter().count()).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("같은 종료 코드 라벨은 하나의 시계열에 누적된다")
+    void countClose_accumulatesPerLabel() {
+        metrics.countClose(4001);
+        metrics.countClose(4500);
+
+        assertThat(registry.get("ws.close").tag("code", "4xxx").counter().count()).isEqualTo(2);
     }
 }

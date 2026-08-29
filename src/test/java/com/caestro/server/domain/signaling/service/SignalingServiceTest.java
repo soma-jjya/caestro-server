@@ -135,6 +135,20 @@ class SignalingServiceTest {
     }
 
     @Test
+    @DisplayName("드레인 종료(#106)는 슬롯·상태·상대 통지를 건드리지 않고 소켓 매핑만 지운다 → 재접속이 takeover가 된다")
+    void handleDrainDisconnect_keepsSessionForTakeover() throws Exception {
+        // 참여자 소켓이 드레인으로 닫힘 — 일반 이탈이면 participant 슬롯이 즉시 해제돼 재접속이 신규 입장이 된다
+        given(socket.getId()).willReturn(PARTICIPANT_SOCKET);
+        given(valueOperations.get("socket:" + PARTICIPANT_SOCKET)).willReturn(SESSION_CODE);
+
+        signalingService.handleDrainDisconnect(socket);
+
+        verify(redisTemplate).delete("socket:" + PARTICIPANT_SOCKET);                          // 매핑만 정리
+        verify(valueOperations, never()).set(startsWith("session:"), any(), anyLong(), any()); // 슬롯·상태 불변
+        verify(relaySender, never()).send(any(), any());                                       // PEER_DISCONNECTED 없음
+    }
+
+    @Test
     @DisplayName("JOIN: 스크립트가 CLAIMED를 반환하면 매핑 등록·DB 동기화·PEER_JOINED 알림을 수행한다")
     void joinSession_claimed_completesJoin() throws Exception {
         SessionInfo info = new SessionInfo();

@@ -1,0 +1,16 @@
+# run1 — docker compose restart (SIGKILL ~1s) + k6 '1012→즉시 재시도(지연 0)' 계약
+# docker events:
+1788008137 kill exit= signal=15
+1788008138 kill exit= signal=9
+1788008138 stop exit= signal=
+1788008138 die exit=137 signal=
+1788008138 start exit= signal=
+1788008138 restart exit= signal=
+# drain:
+2026-08-29T12:55:37.418Z  INFO 1 --- [ionShutdownHook] c.c.s.d.s.s.SignalingDrainLifecycle      : Drain start: closing 40 session(s) with 1012, jitter=3000ms, maxWait=10000ms
+# ws-drain 스레드가 닫은 소켓 수(1012):
+12
+# 드레인 중 신규 연결 거절 수:
+697
+# Lettuce destroyed 예외:
+0

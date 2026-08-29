@@ -95,6 +95,24 @@ public class SignalingMetrics {
                 .register(registry);
     }
 
+    /**
+     * WS 종료 코드 분포 (#105). 배포·장애 시 소켓이 "어떤 코드로" 죽는지의 증거.
+     * 3xxx/4xxx 커스텀 코드는 범위로 묶어 클라이언트가 임의 코드로 시계열을 늘리지 못하게 한다.
+     */
+    public void countClose(int code) {
+        String label;
+        if (code >= 1000 && code <= 1015) label = String.valueOf(code);   // RFC 6455 + IANA 표준 코드
+        else if (code >= 3000 && code <= 3999) label = "3xxx";
+        else if (code >= 4000 && code <= 4999) label = "4xxx";
+        else label = "other";
+        registry.counter("ws.close", "code", label).increment();
+    }
+
+    /** 드레인(#106)이 정돈 종료(1012)로 닫은 소켓 수. 배포 1회당 영향 세션 규모의 서버 측 기록. */
+    public void countDrainClosed(int closed) {
+        registry.counter("ws.drain.closed").increment(closed);
+    }
+
     public void countRelay(boolean local) {
         (local ? relayLocal : relayPubsub).increment();
     }

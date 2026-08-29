@@ -2,6 +2,7 @@ package com.caestro.server.domain.signaling.controller;
 
 import com.caestro.server.domain.signaling.dto.request.SignalingRequest;
 import com.caestro.server.domain.signaling.dto.response.SignalingResponse;
+import com.caestro.server.domain.signaling.service.SignalingDrainLifecycle;
 import com.caestro.server.domain.signaling.service.SignalingMetrics;
 import com.caestro.server.domain.signaling.service.SignalingService;
 import com.caestro.server.domain.signaling.service.WebSocketSessionManager;
@@ -24,9 +25,20 @@ public class SignalingWebSocketHandler extends TextWebSocketHandler {
     private final WebSocketSessionManager sessionManager;
     private final ObjectMapper objectMapper;
     private final SignalingMetrics metrics;
+    private final SignalingDrainLifecycle drainLifecycle;
 
     @Override
     public void afterConnectionEstablished(WebSocketSession session) {
+        // 드레인 중(#106): 이 인스턴스는 곧 내려간다 — 등록하지 않고 1012로 돌려보내 다른 인스턴스로 유도
+        if (drainLifecycle.isDraining()) {
+            log.info("Client connected during drain, redirecting with 1012: {}", session.getId());
+            try {
+                session.close(CloseStatus.SERVICE_RESTARTED);
+            } catch (Exception e) {
+                log.warn("Failed to close session {} during drain", session.getId(), e);
+            }
+            return;
+        }
         log.info("Client connected: {}", session.getId());
         sessionManager.addSession(session);
     }
@@ -69,8 +81,14 @@ public class SignalingWebSocketHandler extends TextWebSocketHandler {
     @Override
     public void afterConnectionClosed(WebSocketSession session, CloseStatus status) {
         log.info("Client disconnected: {} (status: {})", session.getId(), status);
+        metrics.countClose(status.getCode()); // 종료 코드 분포 (#105): 1006=비정상, 1012=드레인 정돈 종료
         sessionManager.removeSession(session);
 
+        // 드레인이 닫은 소켓(1012)은 이탈이 아니다 — 슬롯을 유지해 재접속이 takeover로 복원되게 한다 (#106)
+        if (drainLifecycle.isDraining() && status.getCode() == CloseStatus.SERVICE_RESTARTED.getCode()) {
+            signalingService.handleDrainDisconnect(session);
+            return;
+        }
         signalingService.handleDisconnect(session);
     }
 }
