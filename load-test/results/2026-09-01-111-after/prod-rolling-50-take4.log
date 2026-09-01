@@ -1,0 +1,2785 @@
+
+         /\      Grafana   /‾‾/  
+    /\  /  \     |\  __   /  /   
+   /  \/    \    | |/ /  /   ‾‾\ 
+  /          \   |   (  |  (‾)  |
+ / __________ \  |_|\_\  \_____/ 
+
+
+     execution: local
+        script: k6/signaling-session.js
+        output: -
+
+     scenarios: (100.00%) 1 scenario, 50 max VUs, 13m0s max duration (incl. graceful stop):
+              * fixed: 50 looping VUs for 12m0s (gracefulStop: 1m0s)
+
+
+running (00m01.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [   0% ] 50 VUs  00m01.0s/12m0s
+
+running (00m02.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [   0% ] 50 VUs  00m02.0s/12m0s
+
+running (00m03.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [   0% ] 50 VUs  00m03.0s/12m0s
+
+running (00m04.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [   1% ] 50 VUs  00m04.0s/12m0s
+
+running (00m05.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [   1% ] 50 VUs  00m05.0s/12m0s
+
+running (00m06.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [   1% ] 50 VUs  00m06.0s/12m0s
+
+running (00m07.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [   1% ] 50 VUs  00m07.0s/12m0s
+
+running (00m08.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [   1% ] 50 VUs  00m08.0s/12m0s
+
+running (00m09.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [   1% ] 50 VUs  00m09.0s/12m0s
+
+running (00m10.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [   1% ] 50 VUs  00m10.0s/12m0s
+
+running (00m11.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [   2% ] 50 VUs  00m11.0s/12m0s
+
+running (00m12.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [   2% ] 50 VUs  00m12.0s/12m0s
+
+running (00m13.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [   2% ] 50 VUs  00m13.0s/12m0s
+
+running (00m14.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [   2% ] 50 VUs  00m14.0s/12m0s
+
+running (00m15.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [   2% ] 50 VUs  00m15.0s/12m0s
+
+running (00m16.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [   2% ] 50 VUs  00m16.0s/12m0s
+
+running (00m17.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [   2% ] 50 VUs  00m17.0s/12m0s
+
+running (00m18.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [   2% ] 50 VUs  00m18.0s/12m0s
+
+running (00m19.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [   3% ] 50 VUs  00m19.0s/12m0s
+
+running (00m20.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [   3% ] 50 VUs  00m20.0s/12m0s
+
+running (00m21.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [   3% ] 50 VUs  00m21.0s/12m0s
+
+running (00m22.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [   3% ] 50 VUs  00m22.0s/12m0s
+
+running (00m23.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [   3% ] 50 VUs  00m23.0s/12m0s
+
+running (00m24.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [   3% ] 50 VUs  00m24.0s/12m0s
+
+running (00m25.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [   3% ] 50 VUs  00m25.0s/12m0s
+
+running (00m26.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [   4% ] 50 VUs  00m26.0s/12m0s
+
+running (00m27.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [   4% ] 50 VUs  00m27.0s/12m0s
+
+running (00m28.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [   4% ] 50 VUs  00m28.0s/12m0s
+
+running (00m29.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [   4% ] 50 VUs  00m29.0s/12m0s
+
+running (00m30.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [   4% ] 50 VUs  00m30.0s/12m0s
+
+running (00m31.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [   4% ] 50 VUs  00m31.0s/12m0s
+
+running (00m32.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [   4% ] 50 VUs  00m32.0s/12m0s
+
+running (00m33.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [   5% ] 50 VUs  00m33.0s/12m0s
+
+running (00m34.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [   5% ] 50 VUs  00m34.0s/12m0s
+
+running (00m35.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [   5% ] 50 VUs  00m35.0s/12m0s
+
+running (00m36.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [   5% ] 50 VUs  00m36.0s/12m0s
+
+running (00m37.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [   5% ] 50 VUs  00m37.0s/12m0s
+
+running (00m38.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [   5% ] 50 VUs  00m38.0s/12m0s
+
+running (00m39.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [   5% ] 50 VUs  00m39.0s/12m0s
+
+running (00m40.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [   6% ] 50 VUs  00m40.0s/12m0s
+
+running (00m41.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [   6% ] 50 VUs  00m41.0s/12m0s
+
+running (00m42.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [   6% ] 50 VUs  00m42.0s/12m0s
+
+running (00m43.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [   6% ] 50 VUs  00m43.0s/12m0s
+
+running (00m44.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [   6% ] 50 VUs  00m44.0s/12m0s
+
+running (00m45.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [   6% ] 50 VUs  00m45.0s/12m0s
+
+running (00m46.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [   6% ] 50 VUs  00m46.0s/12m0s
+
+running (00m47.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [   7% ] 50 VUs  00m47.0s/12m0s
+
+running (00m48.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [   7% ] 50 VUs  00m48.0s/12m0s
+
+running (00m49.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [   7% ] 50 VUs  00m49.0s/12m0s
+
+running (00m50.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [   7% ] 50 VUs  00m50.0s/12m0s
+
+running (00m51.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [   7% ] 50 VUs  00m51.0s/12m0s
+
+running (00m52.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [   7% ] 50 VUs  00m52.0s/12m0s
+
+running (00m53.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [   7% ] 50 VUs  00m53.0s/12m0s
+
+running (00m54.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [   7% ] 50 VUs  00m54.0s/12m0s
+
+running (00m55.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [   8% ] 50 VUs  00m55.0s/12m0s
+
+running (00m56.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [   8% ] 50 VUs  00m56.0s/12m0s
+
+running (00m57.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [   8% ] 50 VUs  00m57.0s/12m0s
+
+running (00m58.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [   8% ] 50 VUs  00m58.0s/12m0s
+
+running (00m59.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [   8% ] 50 VUs  00m59.0s/12m0s
+
+running (01m00.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [   8% ] 50 VUs  01m00.0s/12m0s
+
+running (01m01.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [   8% ] 50 VUs  01m01.0s/12m0s
+
+running (01m02.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [   9% ] 50 VUs  01m02.0s/12m0s
+
+running (01m03.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [   9% ] 50 VUs  01m03.0s/12m0s
+
+running (01m04.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [   9% ] 50 VUs  01m04.0s/12m0s
+
+running (01m05.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [   9% ] 50 VUs  01m05.0s/12m0s
+
+running (01m06.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [   9% ] 50 VUs  01m06.0s/12m0s
+
+running (01m07.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [   9% ] 50 VUs  01m07.0s/12m0s
+
+running (01m08.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [   9% ] 50 VUs  01m08.0s/12m0s
+
+running (01m09.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  10% ] 50 VUs  01m09.0s/12m0s
+
+running (01m10.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  10% ] 50 VUs  01m10.0s/12m0s
+
+running (01m11.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  10% ] 50 VUs  01m11.0s/12m0s
+
+running (01m12.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  10% ] 50 VUs  01m12.0s/12m0s
+
+running (01m13.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  10% ] 50 VUs  01m13.0s/12m0s
+
+running (01m14.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  10% ] 50 VUs  01m14.0s/12m0s
+
+running (01m15.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  10% ] 50 VUs  01m15.0s/12m0s
+
+running (01m16.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  11% ] 50 VUs  01m16.0s/12m0s
+
+running (01m17.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  11% ] 50 VUs  01m17.0s/12m0s
+
+running (01m18.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  11% ] 50 VUs  01m18.0s/12m0s
+
+running (01m19.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  11% ] 50 VUs  01m19.0s/12m0s
+
+running (01m20.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  11% ] 50 VUs  01m20.0s/12m0s
+
+running (01m21.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  11% ] 50 VUs  01m21.0s/12m0s
+
+running (01m22.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  11% ] 50 VUs  01m22.0s/12m0s
+
+running (01m23.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  12% ] 50 VUs  01m23.0s/12m0s
+
+running (01m24.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  12% ] 50 VUs  01m24.0s/12m0s
+
+running (01m25.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  12% ] 50 VUs  01m25.0s/12m0s
+
+running (01m26.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  12% ] 50 VUs  01m26.0s/12m0s
+
+running (01m27.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  12% ] 50 VUs  01m27.0s/12m0s
+
+running (01m28.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  12% ] 50 VUs  01m28.0s/12m0s
+
+running (01m29.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  12% ] 50 VUs  01m29.0s/12m0s
+
+running (01m30.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  12% ] 50 VUs  01m30.0s/12m0s
+
+running (01m31.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  13% ] 50 VUs  01m31.0s/12m0s
+
+running (01m32.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  13% ] 50 VUs  01m32.0s/12m0s
+
+running (01m33.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  13% ] 50 VUs  01m33.0s/12m0s
+
+running (01m34.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  13% ] 50 VUs  01m34.0s/12m0s
+
+running (01m35.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  13% ] 50 VUs  01m35.0s/12m0s
+
+running (01m36.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  13% ] 50 VUs  01m36.0s/12m0s
+
+running (01m37.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  13% ] 50 VUs  01m37.0s/12m0s
+
+running (01m38.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  14% ] 50 VUs  01m38.0s/12m0s
+
+running (01m39.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  14% ] 50 VUs  01m39.0s/12m0s
+
+running (01m40.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  14% ] 50 VUs  01m40.0s/12m0s
+
+running (01m41.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  14% ] 50 VUs  01m41.0s/12m0s
+
+running (01m42.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  14% ] 50 VUs  01m42.0s/12m0s
+
+running (01m43.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  14% ] 50 VUs  01m43.0s/12m0s
+
+running (01m44.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  14% ] 50 VUs  01m44.0s/12m0s
+
+running (01m45.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  15% ] 50 VUs  01m45.0s/12m0s
+
+running (01m46.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  15% ] 50 VUs  01m46.0s/12m0s
+
+running (01m47.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  15% ] 50 VUs  01m47.0s/12m0s
+
+running (01m48.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  15% ] 50 VUs  01m48.0s/12m0s
+
+running (01m49.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  15% ] 50 VUs  01m49.0s/12m0s
+
+running (01m50.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  15% ] 50 VUs  01m50.0s/12m0s
+
+running (01m51.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  15% ] 50 VUs  01m51.0s/12m0s
+
+running (01m52.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  16% ] 50 VUs  01m52.0s/12m0s
+
+running (01m53.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  16% ] 50 VUs  01m53.0s/12m0s
+
+running (01m54.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  16% ] 50 VUs  01m54.0s/12m0s
+
+running (01m55.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  16% ] 50 VUs  01m55.0s/12m0s
+
+running (01m56.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  16% ] 50 VUs  01m56.0s/12m0s
+
+running (01m57.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  16% ] 50 VUs  01m57.0s/12m0s
+
+running (01m58.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  16% ] 50 VUs  01m58.0s/12m0s
+
+running (01m59.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  17% ] 50 VUs  01m59.0s/12m0s
+
+running (02m00.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  17% ] 50 VUs  02m00.0s/12m0s
+
+running (02m01.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  17% ] 50 VUs  02m01.0s/12m0s
+
+running (02m02.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  17% ] 50 VUs  02m02.0s/12m0s
+
+running (02m03.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  17% ] 50 VUs  02m03.0s/12m0s
+
+running (02m04.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  17% ] 50 VUs  02m04.0s/12m0s
+
+running (02m05.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  17% ] 50 VUs  02m05.0s/12m0s
+
+running (02m06.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  17% ] 50 VUs  02m06.0s/12m0s
+
+running (02m07.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  18% ] 50 VUs  02m07.0s/12m0s
+
+running (02m08.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  18% ] 50 VUs  02m08.0s/12m0s
+
+running (02m09.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  18% ] 50 VUs  02m09.0s/12m0s
+
+running (02m10.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  18% ] 50 VUs  02m10.0s/12m0s
+
+running (02m11.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  18% ] 50 VUs  02m11.0s/12m0s
+
+running (02m12.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  18% ] 50 VUs  02m12.0s/12m0s
+
+running (02m13.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  18% ] 50 VUs  02m13.0s/12m0s
+
+running (02m14.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  19% ] 50 VUs  02m14.0s/12m0s
+
+running (02m15.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  19% ] 50 VUs  02m15.0s/12m0s
+
+running (02m16.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  19% ] 50 VUs  02m16.0s/12m0s
+
+running (02m17.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  19% ] 50 VUs  02m17.0s/12m0s
+
+running (02m18.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  19% ] 50 VUs  02m18.0s/12m0s
+
+running (02m19.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  19% ] 50 VUs  02m19.0s/12m0s
+
+running (02m20.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  19% ] 50 VUs  02m20.0s/12m0s
+
+running (02m21.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  20% ] 50 VUs  02m21.0s/12m0s
+
+running (02m22.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  20% ] 50 VUs  02m22.0s/12m0s
+
+running (02m23.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  20% ] 50 VUs  02m23.0s/12m0s
+
+running (02m24.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  20% ] 50 VUs  02m24.0s/12m0s
+
+running (02m25.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  20% ] 50 VUs  02m25.0s/12m0s
+
+running (02m26.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  20% ] 50 VUs  02m26.0s/12m0s
+
+running (02m27.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  20% ] 50 VUs  02m27.0s/12m0s
+
+running (02m28.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  21% ] 50 VUs  02m28.0s/12m0s
+
+running (02m29.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  21% ] 50 VUs  02m29.0s/12m0s
+
+running (02m30.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  21% ] 50 VUs  02m30.0s/12m0s
+
+running (02m31.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  21% ] 50 VUs  02m31.0s/12m0s
+
+running (02m32.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  21% ] 50 VUs  02m32.0s/12m0s
+
+running (02m33.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  21% ] 50 VUs  02m33.0s/12m0s
+
+running (02m34.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  21% ] 50 VUs  02m34.0s/12m0s
+
+running (02m35.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  22% ] 50 VUs  02m35.0s/12m0s
+
+running (02m36.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  22% ] 50 VUs  02m36.0s/12m0s
+
+running (02m37.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  22% ] 50 VUs  02m37.0s/12m0s
+
+running (02m38.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  22% ] 50 VUs  02m38.0s/12m0s
+
+running (02m39.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  22% ] 50 VUs  02m39.0s/12m0s
+
+running (02m40.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  22% ] 50 VUs  02m40.0s/12m0s
+
+running (02m41.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  22% ] 50 VUs  02m41.0s/12m0s
+
+running (02m42.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  22% ] 50 VUs  02m42.0s/12m0s
+
+running (02m43.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  23% ] 50 VUs  02m43.0s/12m0s
+
+running (02m44.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  23% ] 50 VUs  02m44.0s/12m0s
+
+running (02m45.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  23% ] 50 VUs  02m45.0s/12m0s
+
+running (02m46.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  23% ] 50 VUs  02m46.0s/12m0s
+
+running (02m47.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  23% ] 50 VUs  02m47.0s/12m0s
+
+running (02m48.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  23% ] 50 VUs  02m48.0s/12m0s
+
+running (02m49.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  23% ] 50 VUs  02m49.0s/12m0s
+
+running (02m50.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  24% ] 50 VUs  02m50.0s/12m0s
+
+running (02m51.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  24% ] 50 VUs  02m51.0s/12m0s
+
+running (02m52.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  24% ] 50 VUs  02m52.0s/12m0s
+
+running (02m53.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  24% ] 50 VUs  02m53.0s/12m0s
+
+running (02m54.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  24% ] 50 VUs  02m54.0s/12m0s
+
+running (02m55.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  24% ] 50 VUs  02m55.0s/12m0s
+
+running (02m56.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  24% ] 50 VUs  02m56.0s/12m0s
+
+running (02m57.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  25% ] 50 VUs  02m57.0s/12m0s
+
+running (02m58.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  25% ] 50 VUs  02m58.0s/12m0s
+
+running (02m59.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  25% ] 50 VUs  02m59.0s/12m0s
+
+running (03m00.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  25% ] 50 VUs  03m00.0s/12m0s
+
+running (03m01.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  25% ] 50 VUs  03m01.0s/12m0s
+
+running (03m02.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  25% ] 50 VUs  03m02.0s/12m0s
+
+running (03m03.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  25% ] 50 VUs  03m03.0s/12m0s
+
+running (03m04.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  26% ] 50 VUs  03m04.0s/12m0s
+
+running (03m05.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  26% ] 50 VUs  03m05.0s/12m0s
+
+running (03m06.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  26% ] 50 VUs  03m06.0s/12m0s
+
+running (03m07.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  26% ] 50 VUs  03m07.0s/12m0s
+
+running (03m08.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  26% ] 50 VUs  03m08.0s/12m0s
+
+running (03m09.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  26% ] 50 VUs  03m09.0s/12m0s
+
+running (03m10.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  26% ] 50 VUs  03m10.0s/12m0s
+
+running (03m11.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  27% ] 50 VUs  03m11.0s/12m0s
+
+running (03m12.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  27% ] 50 VUs  03m12.0s/12m0s
+
+running (03m13.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  27% ] 50 VUs  03m13.0s/12m0s
+
+running (03m14.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  27% ] 50 VUs  03m14.0s/12m0s
+
+running (03m15.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  27% ] 50 VUs  03m15.0s/12m0s
+
+running (03m16.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  27% ] 50 VUs  03m16.0s/12m0s
+
+running (03m17.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  27% ] 50 VUs  03m17.0s/12m0s
+
+running (03m18.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  27% ] 50 VUs  03m18.0s/12m0s
+
+running (03m19.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  28% ] 50 VUs  03m19.0s/12m0s
+
+running (03m20.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  28% ] 50 VUs  03m20.0s/12m0s
+
+running (03m21.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  28% ] 50 VUs  03m21.0s/12m0s
+
+running (03m22.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  28% ] 50 VUs  03m22.0s/12m0s
+
+running (03m23.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  28% ] 50 VUs  03m23.0s/12m0s
+
+running (03m24.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  28% ] 50 VUs  03m24.0s/12m0s
+
+running (03m25.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  28% ] 50 VUs  03m25.0s/12m0s
+
+running (03m26.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  29% ] 50 VUs  03m26.0s/12m0s
+
+running (03m27.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  29% ] 50 VUs  03m27.0s/12m0s
+
+running (03m28.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  29% ] 50 VUs  03m28.0s/12m0s
+
+running (03m29.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  29% ] 50 VUs  03m29.0s/12m0s
+
+running (03m30.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  29% ] 50 VUs  03m30.0s/12m0s
+
+running (03m31.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  29% ] 50 VUs  03m31.0s/12m0s
+
+running (03m32.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  29% ] 50 VUs  03m32.0s/12m0s
+
+running (03m33.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  30% ] 50 VUs  03m33.0s/12m0s
+
+running (03m34.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  30% ] 50 VUs  03m34.0s/12m0s
+
+running (03m35.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  30% ] 50 VUs  03m35.0s/12m0s
+
+running (03m36.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  30% ] 50 VUs  03m36.0s/12m0s
+
+running (03m37.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  30% ] 50 VUs  03m37.0s/12m0s
+
+running (03m38.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  30% ] 50 VUs  03m38.0s/12m0s
+
+running (03m39.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  30% ] 50 VUs  03m39.0s/12m0s
+
+running (03m40.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  31% ] 50 VUs  03m40.0s/12m0s
+
+running (03m41.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  31% ] 50 VUs  03m41.0s/12m0s
+
+running (03m42.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  31% ] 50 VUs  03m42.0s/12m0s
+
+running (03m43.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  31% ] 50 VUs  03m43.0s/12m0s
+
+running (03m44.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  31% ] 50 VUs  03m44.0s/12m0s
+
+running (03m45.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  31% ] 50 VUs  03m45.0s/12m0s
+
+running (03m46.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  31% ] 50 VUs  03m46.0s/12m0s
+
+running (03m47.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  32% ] 50 VUs  03m47.0s/12m0s
+
+running (03m48.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  32% ] 50 VUs  03m48.0s/12m0s
+
+running (03m49.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  32% ] 50 VUs  03m49.0s/12m0s
+
+running (03m50.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  32% ] 50 VUs  03m50.0s/12m0s
+
+running (03m51.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  32% ] 50 VUs  03m51.0s/12m0s
+
+running (03m52.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  32% ] 50 VUs  03m52.0s/12m0s
+
+running (03m53.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  32% ] 50 VUs  03m53.0s/12m0s
+
+running (03m54.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  32% ] 50 VUs  03m54.0s/12m0s
+
+running (03m55.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  33% ] 50 VUs  03m55.0s/12m0s
+
+running (03m56.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  33% ] 50 VUs  03m56.0s/12m0s
+
+running (03m57.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  33% ] 50 VUs  03m57.0s/12m0s
+
+running (03m58.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  33% ] 50 VUs  03m58.0s/12m0s
+
+running (03m59.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  33% ] 50 VUs  03m59.0s/12m0s
+
+running (04m00.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  33% ] 50 VUs  04m00.0s/12m0s
+
+running (04m01.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  33% ] 50 VUs  04m01.0s/12m0s
+
+running (04m02.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  34% ] 50 VUs  04m02.0s/12m0s
+
+running (04m03.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  34% ] 50 VUs  04m03.0s/12m0s
+
+running (04m04.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  34% ] 50 VUs  04m04.0s/12m0s
+
+running (04m05.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  34% ] 50 VUs  04m05.0s/12m0s
+
+running (04m06.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  34% ] 50 VUs  04m06.0s/12m0s
+
+running (04m07.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  34% ] 50 VUs  04m07.0s/12m0s
+
+running (04m08.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  34% ] 50 VUs  04m08.0s/12m0s
+
+running (04m09.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  35% ] 50 VUs  04m09.0s/12m0s
+
+running (04m10.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  35% ] 50 VUs  04m10.0s/12m0s
+
+running (04m11.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  35% ] 50 VUs  04m11.0s/12m0s
+
+running (04m12.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  35% ] 50 VUs  04m12.0s/12m0s
+
+running (04m13.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  35% ] 50 VUs  04m13.0s/12m0s
+
+running (04m14.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  35% ] 50 VUs  04m14.0s/12m0s
+
+running (04m15.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  35% ] 50 VUs  04m15.0s/12m0s
+
+running (04m16.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  36% ] 50 VUs  04m16.0s/12m0s
+
+running (04m17.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  36% ] 50 VUs  04m17.0s/12m0s
+
+running (04m18.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  36% ] 50 VUs  04m18.0s/12m0s
+
+running (04m19.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  36% ] 50 VUs  04m19.0s/12m0s
+
+running (04m20.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  36% ] 50 VUs  04m20.0s/12m0s
+
+running (04m21.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  36% ] 50 VUs  04m21.0s/12m0s
+
+running (04m22.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  36% ] 50 VUs  04m22.0s/12m0s
+
+running (04m23.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  37% ] 50 VUs  04m23.0s/12m0s
+
+running (04m24.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  37% ] 50 VUs  04m24.0s/12m0s
+
+running (04m25.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  37% ] 50 VUs  04m25.0s/12m0s
+
+running (04m26.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  37% ] 50 VUs  04m26.0s/12m0s
+
+running (04m27.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  37% ] 50 VUs  04m27.0s/12m0s
+
+running (04m28.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  37% ] 50 VUs  04m28.0s/12m0s
+
+running (04m29.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  37% ] 50 VUs  04m29.0s/12m0s
+
+running (04m30.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  37% ] 50 VUs  04m30.0s/12m0s
+
+running (04m31.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  38% ] 50 VUs  04m31.0s/12m0s
+
+running (04m32.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  38% ] 50 VUs  04m32.0s/12m0s
+
+running (04m33.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  38% ] 50 VUs  04m33.0s/12m0s
+
+running (04m34.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  38% ] 50 VUs  04m34.0s/12m0s
+
+running (04m35.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  38% ] 50 VUs  04m35.0s/12m0s
+
+running (04m36.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  38% ] 50 VUs  04m36.0s/12m0s
+
+running (04m37.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  38% ] 50 VUs  04m37.0s/12m0s
+
+running (04m38.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  39% ] 50 VUs  04m38.0s/12m0s
+
+running (04m39.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  39% ] 50 VUs  04m39.0s/12m0s
+
+running (04m40.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  39% ] 50 VUs  04m40.0s/12m0s
+
+running (04m41.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  39% ] 50 VUs  04m41.0s/12m0s
+
+running (04m42.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  39% ] 50 VUs  04m42.0s/12m0s
+
+running (04m43.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  39% ] 50 VUs  04m43.0s/12m0s
+
+running (04m44.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  39% ] 50 VUs  04m44.0s/12m0s
+
+running (04m45.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  40% ] 50 VUs  04m45.0s/12m0s
+
+running (04m46.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  40% ] 50 VUs  04m46.0s/12m0s
+
+running (04m47.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  40% ] 50 VUs  04m47.0s/12m0s
+
+running (04m48.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  40% ] 50 VUs  04m48.0s/12m0s
+
+running (04m49.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  40% ] 50 VUs  04m49.0s/12m0s
+
+running (04m50.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  40% ] 50 VUs  04m50.0s/12m0s
+
+running (04m51.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  40% ] 50 VUs  04m51.0s/12m0s
+
+running (04m52.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  41% ] 50 VUs  04m52.0s/12m0s
+
+running (04m53.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  41% ] 50 VUs  04m53.0s/12m0s
+
+running (04m54.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  41% ] 50 VUs  04m54.0s/12m0s
+
+running (04m55.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  41% ] 50 VUs  04m55.0s/12m0s
+
+running (04m56.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  41% ] 50 VUs  04m56.0s/12m0s
+
+running (04m57.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  41% ] 50 VUs  04m57.0s/12m0s
+
+running (04m58.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  41% ] 50 VUs  04m58.0s/12m0s
+
+running (04m59.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  42% ] 50 VUs  04m59.0s/12m0s
+
+running (05m00.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  42% ] 50 VUs  05m00.0s/12m0s
+
+running (05m01.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  42% ] 50 VUs  05m01.0s/12m0s
+
+running (05m02.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  42% ] 50 VUs  05m02.0s/12m0s
+
+running (05m03.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  42% ] 50 VUs  05m03.0s/12m0s
+
+running (05m04.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  42% ] 50 VUs  05m04.0s/12m0s
+
+running (05m05.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  42% ] 50 VUs  05m05.0s/12m0s
+
+running (05m06.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  42% ] 50 VUs  05m06.0s/12m0s
+
+running (05m07.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  43% ] 50 VUs  05m07.0s/12m0s
+
+running (05m08.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  43% ] 50 VUs  05m08.0s/12m0s
+
+running (05m09.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  43% ] 50 VUs  05m09.0s/12m0s
+
+running (05m10.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  43% ] 50 VUs  05m10.0s/12m0s
+
+running (05m11.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  43% ] 50 VUs  05m11.0s/12m0s
+
+running (05m12.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  43% ] 50 VUs  05m12.0s/12m0s
+
+running (05m13.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  43% ] 50 VUs  05m13.0s/12m0s
+
+running (05m14.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  44% ] 50 VUs  05m14.0s/12m0s
+
+running (05m15.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  44% ] 50 VUs  05m15.0s/12m0s
+
+running (05m16.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  44% ] 50 VUs  05m16.0s/12m0s
+
+running (05m17.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  44% ] 50 VUs  05m17.0s/12m0s
+
+running (05m18.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  44% ] 50 VUs  05m18.0s/12m0s
+
+running (05m19.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  44% ] 50 VUs  05m19.0s/12m0s
+
+running (05m20.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  44% ] 50 VUs  05m20.0s/12m0s
+
+running (05m21.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  45% ] 50 VUs  05m21.0s/12m0s
+
+running (05m22.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  45% ] 50 VUs  05m22.0s/12m0s
+
+running (05m23.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  45% ] 50 VUs  05m23.0s/12m0s
+
+running (05m24.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  45% ] 50 VUs  05m24.0s/12m0s
+
+running (05m25.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  45% ] 50 VUs  05m25.0s/12m0s
+
+running (05m26.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  45% ] 50 VUs  05m26.0s/12m0s
+
+running (05m27.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  45% ] 50 VUs  05m27.0s/12m0s
+
+running (05m28.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  46% ] 50 VUs  05m28.0s/12m0s
+
+running (05m29.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  46% ] 50 VUs  05m29.0s/12m0s
+
+running (05m30.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  46% ] 50 VUs  05m30.0s/12m0s
+
+running (05m31.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  46% ] 50 VUs  05m31.0s/12m0s
+
+running (05m32.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  46% ] 50 VUs  05m32.0s/12m0s
+
+running (05m33.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  46% ] 50 VUs  05m33.0s/12m0s
+
+running (05m34.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  46% ] 50 VUs  05m34.0s/12m0s
+
+running (05m35.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  47% ] 50 VUs  05m35.0s/12m0s
+
+running (05m36.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  47% ] 50 VUs  05m36.0s/12m0s
+
+running (05m37.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  47% ] 50 VUs  05m37.0s/12m0s
+
+running (05m38.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  47% ] 50 VUs  05m38.0s/12m0s
+
+running (05m39.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  47% ] 50 VUs  05m39.0s/12m0s
+
+running (05m40.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  47% ] 50 VUs  05m40.0s/12m0s
+
+running (05m41.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  47% ] 50 VUs  05m41.0s/12m0s
+
+running (05m42.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  47% ] 50 VUs  05m42.0s/12m0s
+
+running (05m43.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  48% ] 50 VUs  05m43.0s/12m0s
+
+running (05m44.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  48% ] 50 VUs  05m44.0s/12m0s
+
+running (05m45.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  48% ] 50 VUs  05m45.0s/12m0s
+
+running (05m46.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  48% ] 50 VUs  05m46.0s/12m0s
+
+running (05m47.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  48% ] 50 VUs  05m47.0s/12m0s
+
+running (05m48.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  48% ] 50 VUs  05m48.0s/12m0s
+
+running (05m49.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  48% ] 50 VUs  05m49.0s/12m0s
+
+running (05m50.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  49% ] 50 VUs  05m50.0s/12m0s
+
+running (05m51.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  49% ] 50 VUs  05m51.0s/12m0s
+
+running (05m52.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  49% ] 50 VUs  05m52.0s/12m0s
+
+running (05m53.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  49% ] 50 VUs  05m53.0s/12m0s
+
+running (05m54.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  49% ] 50 VUs  05m54.0s/12m0s
+
+running (05m55.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  49% ] 50 VUs  05m55.0s/12m0s
+
+running (05m56.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  49% ] 50 VUs  05m56.0s/12m0s
+
+running (05m57.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  50% ] 50 VUs  05m57.0s/12m0s
+
+running (05m58.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  50% ] 50 VUs  05m58.0s/12m0s
+
+running (05m59.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  50% ] 50 VUs  05m59.0s/12m0s
+
+running (06m00.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  50% ] 50 VUs  06m00.0s/12m0s
+
+running (06m01.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  50% ] 50 VUs  06m01.0s/12m0s
+
+running (06m02.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  50% ] 50 VUs  06m02.0s/12m0s
+
+running (06m03.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  50% ] 50 VUs  06m03.0s/12m0s
+
+running (06m04.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  51% ] 50 VUs  06m04.0s/12m0s
+
+running (06m05.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  51% ] 50 VUs  06m05.0s/12m0s
+
+running (06m06.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  51% ] 50 VUs  06m06.0s/12m0s
+
+running (06m07.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  51% ] 50 VUs  06m07.0s/12m0s
+
+running (06m08.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  51% ] 50 VUs  06m08.0s/12m0s
+
+running (06m09.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  51% ] 50 VUs  06m09.0s/12m0s
+
+running (06m10.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  51% ] 50 VUs  06m10.0s/12m0s
+
+running (06m11.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  52% ] 50 VUs  06m11.0s/12m0s
+
+running (06m12.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  52% ] 50 VUs  06m12.0s/12m0s
+
+running (06m13.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  52% ] 50 VUs  06m13.0s/12m0s
+
+running (06m14.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  52% ] 50 VUs  06m14.0s/12m0s
+
+running (06m15.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  52% ] 50 VUs  06m15.0s/12m0s
+
+running (06m16.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  52% ] 50 VUs  06m16.0s/12m0s
+
+running (06m17.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  52% ] 50 VUs  06m17.0s/12m0s
+
+running (06m18.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  52% ] 50 VUs  06m18.0s/12m0s
+
+running (06m19.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  53% ] 50 VUs  06m19.0s/12m0s
+
+running (06m20.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  53% ] 50 VUs  06m20.0s/12m0s
+
+running (06m21.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  53% ] 50 VUs  06m21.0s/12m0s
+
+running (06m22.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  53% ] 50 VUs  06m22.0s/12m0s
+
+running (06m23.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  53% ] 50 VUs  06m23.0s/12m0s
+
+running (06m24.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  53% ] 50 VUs  06m24.0s/12m0s
+
+running (06m25.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  53% ] 50 VUs  06m25.0s/12m0s
+
+running (06m26.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  54% ] 50 VUs  06m26.0s/12m0s
+
+running (06m27.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  54% ] 50 VUs  06m27.0s/12m0s
+
+running (06m28.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  54% ] 50 VUs  06m28.0s/12m0s
+
+running (06m29.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  54% ] 50 VUs  06m29.0s/12m0s
+
+running (06m30.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  54% ] 50 VUs  06m30.0s/12m0s
+
+running (06m31.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  54% ] 50 VUs  06m31.0s/12m0s
+
+running (06m32.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  54% ] 50 VUs  06m32.0s/12m0s
+
+running (06m33.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  55% ] 50 VUs  06m33.0s/12m0s
+
+running (06m34.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  55% ] 50 VUs  06m34.0s/12m0s
+
+running (06m35.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  55% ] 50 VUs  06m35.0s/12m0s
+
+running (06m36.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  55% ] 50 VUs  06m36.0s/12m0s
+
+running (06m37.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  55% ] 50 VUs  06m37.0s/12m0s
+
+running (06m38.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  55% ] 50 VUs  06m38.0s/12m0s
+
+running (06m39.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  55% ] 50 VUs  06m39.0s/12m0s
+
+running (06m40.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  56% ] 50 VUs  06m40.0s/12m0s
+
+running (06m41.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  56% ] 50 VUs  06m41.0s/12m0s
+
+running (06m42.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  56% ] 50 VUs  06m42.0s/12m0s
+
+running (06m43.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  56% ] 50 VUs  06m43.0s/12m0s
+
+running (06m44.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  56% ] 50 VUs  06m44.0s/12m0s
+
+running (06m45.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  56% ] 50 VUs  06m45.0s/12m0s
+
+running (06m46.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  56% ] 50 VUs  06m46.0s/12m0s
+
+running (06m47.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  57% ] 50 VUs  06m47.0s/12m0s
+
+running (06m48.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  57% ] 50 VUs  06m48.0s/12m0s
+
+running (06m49.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  57% ] 50 VUs  06m49.0s/12m0s
+
+running (06m50.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  57% ] 50 VUs  06m50.0s/12m0s
+
+running (06m51.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  57% ] 50 VUs  06m51.0s/12m0s
+
+running (06m52.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  57% ] 50 VUs  06m52.0s/12m0s
+
+running (06m53.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  57% ] 50 VUs  06m53.0s/12m0s
+
+running (06m54.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  57% ] 50 VUs  06m54.0s/12m0s
+
+running (06m55.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  58% ] 50 VUs  06m55.0s/12m0s
+
+running (06m56.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  58% ] 50 VUs  06m56.0s/12m0s
+
+running (06m57.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  58% ] 50 VUs  06m57.0s/12m0s
+
+running (06m58.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  58% ] 50 VUs  06m58.0s/12m0s
+
+running (06m59.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  58% ] 50 VUs  06m59.0s/12m0s
+
+running (07m00.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  58% ] 50 VUs  07m00.0s/12m0s
+
+running (07m01.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  58% ] 50 VUs  07m01.0s/12m0s
+
+running (07m02.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  59% ] 50 VUs  07m02.0s/12m0s
+
+running (07m03.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  59% ] 50 VUs  07m03.0s/12m0s
+
+running (07m04.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  59% ] 50 VUs  07m04.0s/12m0s
+
+running (07m05.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  59% ] 50 VUs  07m05.0s/12m0s
+
+running (07m06.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  59% ] 50 VUs  07m06.0s/12m0s
+
+running (07m07.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  59% ] 50 VUs  07m07.0s/12m0s
+
+running (07m08.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  59% ] 50 VUs  07m08.0s/12m0s
+
+running (07m09.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  60% ] 50 VUs  07m09.0s/12m0s
+
+running (07m10.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  60% ] 50 VUs  07m10.0s/12m0s
+
+running (07m11.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  60% ] 50 VUs  07m11.0s/12m0s
+
+running (07m12.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  60% ] 50 VUs  07m12.0s/12m0s
+
+running (07m13.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  60% ] 50 VUs  07m13.0s/12m0s
+
+running (07m14.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  60% ] 50 VUs  07m14.0s/12m0s
+
+running (07m15.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  60% ] 50 VUs  07m15.0s/12m0s
+
+running (07m16.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  61% ] 50 VUs  07m16.0s/12m0s
+
+running (07m17.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  61% ] 50 VUs  07m17.0s/12m0s
+
+running (07m18.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  61% ] 50 VUs  07m18.0s/12m0s
+
+running (07m19.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  61% ] 50 VUs  07m19.0s/12m0s
+
+running (07m20.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  61% ] 50 VUs  07m20.0s/12m0s
+
+running (07m21.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  61% ] 50 VUs  07m21.0s/12m0s
+
+running (07m22.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  61% ] 50 VUs  07m22.0s/12m0s
+
+running (07m23.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  62% ] 50 VUs  07m23.0s/12m0s
+
+running (07m24.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  62% ] 50 VUs  07m24.0s/12m0s
+
+running (07m25.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  62% ] 50 VUs  07m25.0s/12m0s
+
+running (07m26.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  62% ] 50 VUs  07m26.0s/12m0s
+
+running (07m27.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  62% ] 50 VUs  07m27.0s/12m0s
+
+running (07m28.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  62% ] 50 VUs  07m28.0s/12m0s
+
+running (07m29.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  62% ] 50 VUs  07m29.0s/12m0s
+
+running (07m30.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  62% ] 50 VUs  07m30.0s/12m0s
+
+running (07m31.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  63% ] 50 VUs  07m31.0s/12m0s
+
+running (07m32.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  63% ] 50 VUs  07m32.0s/12m0s
+
+running (07m33.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  63% ] 50 VUs  07m33.0s/12m0s
+
+running (07m34.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  63% ] 50 VUs  07m34.0s/12m0s
+
+running (07m35.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  63% ] 50 VUs  07m35.0s/12m0s
+
+running (07m36.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  63% ] 50 VUs  07m36.0s/12m0s
+
+running (07m37.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  63% ] 50 VUs  07m37.0s/12m0s
+
+running (07m38.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  64% ] 50 VUs  07m38.0s/12m0s
+
+running (07m39.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  64% ] 50 VUs  07m39.0s/12m0s
+
+running (07m40.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  64% ] 50 VUs  07m40.0s/12m0s
+
+running (07m41.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  64% ] 50 VUs  07m41.0s/12m0s
+
+running (07m42.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  64% ] 50 VUs  07m42.0s/12m0s
+
+running (07m43.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  64% ] 50 VUs  07m43.0s/12m0s
+
+running (07m44.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  64% ] 50 VUs  07m44.0s/12m0s
+
+running (07m45.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  65% ] 50 VUs  07m45.0s/12m0s
+
+running (07m46.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  65% ] 50 VUs  07m46.0s/12m0s
+
+running (07m47.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  65% ] 50 VUs  07m47.0s/12m0s
+
+running (07m48.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  65% ] 50 VUs  07m48.0s/12m0s
+
+running (07m49.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  65% ] 50 VUs  07m49.0s/12m0s
+
+running (07m50.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  65% ] 50 VUs  07m50.0s/12m0s
+
+running (07m51.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  65% ] 50 VUs  07m51.0s/12m0s
+
+running (07m52.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  66% ] 50 VUs  07m52.0s/12m0s
+
+running (07m53.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  66% ] 50 VUs  07m53.0s/12m0s
+
+running (07m54.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  66% ] 50 VUs  07m54.0s/12m0s
+
+running (07m55.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  66% ] 50 VUs  07m55.0s/12m0s
+
+running (07m56.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  66% ] 50 VUs  07m56.0s/12m0s
+
+running (07m57.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  66% ] 50 VUs  07m57.0s/12m0s
+
+running (07m58.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  66% ] 50 VUs  07m58.0s/12m0s
+
+running (07m59.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  67% ] 50 VUs  07m59.0s/12m0s
+
+running (08m00.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  67% ] 50 VUs  08m00.0s/12m0s
+
+running (08m01.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  67% ] 50 VUs  08m01.0s/12m0s
+
+running (08m02.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  67% ] 50 VUs  08m02.0s/12m0s
+
+running (08m03.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  67% ] 50 VUs  08m03.0s/12m0s
+
+running (08m04.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  67% ] 50 VUs  08m04.0s/12m0s
+
+running (08m05.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  67% ] 50 VUs  08m05.0s/12m0s
+
+running (08m06.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  67% ] 50 VUs  08m06.0s/12m0s
+
+running (08m07.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  68% ] 50 VUs  08m07.0s/12m0s
+
+running (08m08.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  68% ] 50 VUs  08m08.0s/12m0s
+
+running (08m09.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  68% ] 50 VUs  08m09.0s/12m0s
+
+running (08m10.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  68% ] 50 VUs  08m10.0s/12m0s
+
+running (08m11.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  68% ] 50 VUs  08m11.0s/12m0s
+
+running (08m12.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  68% ] 50 VUs  08m12.0s/12m0s
+
+running (08m13.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  68% ] 50 VUs  08m13.0s/12m0s
+
+running (08m14.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  69% ] 50 VUs  08m14.0s/12m0s
+
+running (08m15.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  69% ] 50 VUs  08m15.0s/12m0s
+
+running (08m16.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  69% ] 50 VUs  08m16.0s/12m0s
+
+running (08m17.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  69% ] 50 VUs  08m17.0s/12m0s
+
+running (08m18.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  69% ] 50 VUs  08m18.0s/12m0s
+
+running (08m19.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  69% ] 50 VUs  08m19.0s/12m0s
+
+running (08m20.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  69% ] 50 VUs  08m20.0s/12m0s
+
+running (08m21.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  70% ] 50 VUs  08m21.0s/12m0s
+
+running (08m22.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  70% ] 50 VUs  08m22.0s/12m0s
+
+running (08m23.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  70% ] 50 VUs  08m23.0s/12m0s
+
+running (08m24.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  70% ] 50 VUs  08m24.0s/12m0s
+
+running (08m25.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  70% ] 50 VUs  08m25.0s/12m0s
+
+running (08m26.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  70% ] 50 VUs  08m26.0s/12m0s
+
+running (08m27.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  70% ] 50 VUs  08m27.0s/12m0s
+
+running (08m28.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  71% ] 50 VUs  08m28.0s/12m0s
+
+running (08m29.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  71% ] 50 VUs  08m29.0s/12m0s
+
+running (08m30.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  71% ] 50 VUs  08m30.0s/12m0s
+
+running (08m31.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  71% ] 50 VUs  08m31.0s/12m0s
+
+running (08m32.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  71% ] 50 VUs  08m32.0s/12m0s
+
+running (08m33.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  71% ] 50 VUs  08m33.0s/12m0s
+
+running (08m34.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  71% ] 50 VUs  08m34.0s/12m0s
+
+running (08m35.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  72% ] 50 VUs  08m35.0s/12m0s
+
+running (08m36.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  72% ] 50 VUs  08m36.0s/12m0s
+
+running (08m37.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  72% ] 50 VUs  08m37.0s/12m0s
+
+running (08m38.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  72% ] 50 VUs  08m38.0s/12m0s
+
+running (08m39.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  72% ] 50 VUs  08m39.0s/12m0s
+
+running (08m40.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  72% ] 50 VUs  08m40.0s/12m0s
+
+running (08m41.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  72% ] 50 VUs  08m41.0s/12m0s
+
+running (08m42.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  72% ] 50 VUs  08m42.0s/12m0s
+
+running (08m43.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  73% ] 50 VUs  08m43.0s/12m0s
+
+running (08m44.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  73% ] 50 VUs  08m44.0s/12m0s
+
+running (08m45.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  73% ] 50 VUs  08m45.0s/12m0s
+
+running (08m46.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  73% ] 50 VUs  08m46.0s/12m0s
+
+running (08m47.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  73% ] 50 VUs  08m47.0s/12m0s
+
+running (08m48.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  73% ] 50 VUs  08m48.0s/12m0s
+
+running (08m49.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  73% ] 50 VUs  08m49.0s/12m0s
+
+running (08m50.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  74% ] 50 VUs  08m50.0s/12m0s
+
+running (08m51.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  74% ] 50 VUs  08m51.0s/12m0s
+
+running (08m52.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  74% ] 50 VUs  08m52.0s/12m0s
+
+running (08m53.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  74% ] 50 VUs  08m53.0s/12m0s
+
+running (08m54.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  74% ] 50 VUs  08m54.0s/12m0s
+
+running (08m55.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  74% ] 50 VUs  08m55.0s/12m0s
+
+running (08m56.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  74% ] 50 VUs  08m56.0s/12m0s
+
+running (08m57.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  75% ] 50 VUs  08m57.0s/12m0s
+
+running (08m58.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  75% ] 50 VUs  08m58.0s/12m0s
+
+running (08m59.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  75% ] 50 VUs  08m59.0s/12m0s
+
+running (09m00.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  75% ] 50 VUs  09m00.0s/12m0s
+
+running (09m01.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  75% ] 50 VUs  09m01.0s/12m0s
+
+running (09m02.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  75% ] 50 VUs  09m02.0s/12m0s
+
+running (09m03.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  75% ] 50 VUs  09m03.0s/12m0s
+
+running (09m04.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  76% ] 50 VUs  09m04.0s/12m0s
+
+running (09m05.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  76% ] 50 VUs  09m05.0s/12m0s
+
+running (09m06.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  76% ] 50 VUs  09m06.0s/12m0s
+
+running (09m07.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  76% ] 50 VUs  09m07.0s/12m0s
+
+running (09m08.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  76% ] 50 VUs  09m08.0s/12m0s
+
+running (09m09.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  76% ] 50 VUs  09m09.0s/12m0s
+
+running (09m10.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  76% ] 50 VUs  09m10.0s/12m0s
+
+running (09m11.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  77% ] 50 VUs  09m11.0s/12m0s
+
+running (09m12.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  77% ] 50 VUs  09m12.0s/12m0s
+
+running (09m13.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  77% ] 50 VUs  09m13.0s/12m0s
+
+running (09m14.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  77% ] 50 VUs  09m14.0s/12m0s
+
+running (09m15.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  77% ] 50 VUs  09m15.0s/12m0s
+
+running (09m16.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  77% ] 50 VUs  09m16.0s/12m0s
+
+running (09m17.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  77% ] 50 VUs  09m17.0s/12m0s
+
+running (09m18.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  77% ] 50 VUs  09m18.0s/12m0s
+
+running (09m19.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  78% ] 50 VUs  09m19.0s/12m0s
+
+running (09m20.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  78% ] 50 VUs  09m20.0s/12m0s
+
+running (09m21.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  78% ] 50 VUs  09m21.0s/12m0s
+
+running (09m22.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  78% ] 50 VUs  09m22.0s/12m0s
+
+running (09m23.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  78% ] 50 VUs  09m23.0s/12m0s
+
+running (09m24.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  78% ] 50 VUs  09m24.0s/12m0s
+
+running (09m25.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  78% ] 50 VUs  09m25.0s/12m0s
+
+running (09m26.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  79% ] 50 VUs  09m26.0s/12m0s
+
+running (09m27.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  79% ] 50 VUs  09m27.0s/12m0s
+
+running (09m28.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  79% ] 50 VUs  09m28.0s/12m0s
+
+running (09m29.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  79% ] 50 VUs  09m29.0s/12m0s
+
+running (09m30.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  79% ] 50 VUs  09m30.0s/12m0s
+
+running (09m31.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  79% ] 50 VUs  09m31.0s/12m0s
+
+running (09m32.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  79% ] 50 VUs  09m32.0s/12m0s
+
+running (09m33.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  80% ] 50 VUs  09m33.0s/12m0s
+
+running (09m34.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  80% ] 50 VUs  09m34.0s/12m0s
+
+running (09m35.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  80% ] 50 VUs  09m35.0s/12m0s
+
+running (09m36.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  80% ] 50 VUs  09m36.0s/12m0s
+
+running (09m37.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  80% ] 50 VUs  09m37.0s/12m0s
+
+running (09m38.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  80% ] 50 VUs  09m38.0s/12m0s
+
+running (09m39.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  80% ] 50 VUs  09m39.0s/12m0s
+
+running (09m40.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  81% ] 50 VUs  09m40.0s/12m0s
+
+running (09m41.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  81% ] 50 VUs  09m41.0s/12m0s
+
+running (09m42.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  81% ] 50 VUs  09m42.0s/12m0s
+
+running (09m43.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  81% ] 50 VUs  09m43.0s/12m0s
+
+running (09m44.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  81% ] 50 VUs  09m44.0s/12m0s
+
+running (09m45.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  81% ] 50 VUs  09m45.0s/12m0s
+
+running (09m46.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  81% ] 50 VUs  09m46.0s/12m0s
+
+running (09m47.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  82% ] 50 VUs  09m47.0s/12m0s
+
+running (09m48.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  82% ] 50 VUs  09m48.0s/12m0s
+
+running (09m49.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  82% ] 50 VUs  09m49.0s/12m0s
+
+running (09m50.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  82% ] 50 VUs  09m50.0s/12m0s
+
+running (09m51.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  82% ] 50 VUs  09m51.0s/12m0s
+
+running (09m52.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  82% ] 50 VUs  09m52.0s/12m0s
+
+running (09m53.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  82% ] 50 VUs  09m53.0s/12m0s
+
+running (09m54.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  82% ] 50 VUs  09m54.0s/12m0s
+
+running (09m55.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  83% ] 50 VUs  09m55.0s/12m0s
+
+running (09m56.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  83% ] 50 VUs  09m56.0s/12m0s
+
+running (09m57.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  83% ] 50 VUs  09m57.0s/12m0s
+
+running (09m58.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  83% ] 50 VUs  09m58.0s/12m0s
+
+running (09m59.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  83% ] 50 VUs  09m59.0s/12m0s
+
+running (10m00.0s), 50/50 VUs, 0 complete and 0 interrupted iterations
+fixed   [  83% ] 50 VUs  10m00.0s/12m0s
+
+running (10m01.0s), 50/50 VUs, 1 complete and 0 interrupted iterations
+fixed   [  83% ] 50 VUs  10m01.0s/12m0s
+
+running (10m02.0s), 50/50 VUs, 1 complete and 0 interrupted iterations
+fixed   [  84% ] 50 VUs  10m02.0s/12m0s
+
+running (10m03.0s), 50/50 VUs, 1 complete and 0 interrupted iterations
+fixed   [  84% ] 50 VUs  10m03.0s/12m0s
+
+running (10m04.0s), 50/50 VUs, 1 complete and 0 interrupted iterations
+fixed   [  84% ] 50 VUs  10m04.0s/12m0s
+
+running (10m05.0s), 50/50 VUs, 1 complete and 0 interrupted iterations
+fixed   [  84% ] 50 VUs  10m05.0s/12m0s
+
+running (10m06.0s), 50/50 VUs, 1 complete and 0 interrupted iterations
+fixed   [  84% ] 50 VUs  10m06.0s/12m0s
+
+running (10m07.0s), 50/50 VUs, 3 complete and 0 interrupted iterations
+fixed   [  84% ] 50 VUs  10m07.0s/12m0s
+
+running (10m08.0s), 50/50 VUs, 6 complete and 0 interrupted iterations
+fixed   [  84% ] 50 VUs  10m08.0s/12m0s
+
+running (10m09.0s), 50/50 VUs, 8 complete and 0 interrupted iterations
+fixed   [  85% ] 50 VUs  10m09.0s/12m0s
+
+running (10m10.0s), 50/50 VUs, 8 complete and 0 interrupted iterations
+fixed   [  85% ] 50 VUs  10m10.0s/12m0s
+
+running (10m11.0s), 50/50 VUs, 9 complete and 0 interrupted iterations
+fixed   [  85% ] 50 VUs  10m11.0s/12m0s
+
+running (10m12.0s), 50/50 VUs, 12 complete and 0 interrupted iterations
+fixed   [  85% ] 50 VUs  10m12.0s/12m0s
+
+running (10m13.0s), 50/50 VUs, 14 complete and 0 interrupted iterations
+fixed   [  85% ] 50 VUs  10m13.0s/12m0s
+
+running (10m14.0s), 50/50 VUs, 18 complete and 0 interrupted iterations
+fixed   [  85% ] 50 VUs  10m14.0s/12m0s
+
+running (10m15.0s), 50/50 VUs, 23 complete and 0 interrupted iterations
+fixed   [  85% ] 50 VUs  10m15.0s/12m0s
+
+running (10m16.0s), 50/50 VUs, 24 complete and 0 interrupted iterations
+fixed   [  86% ] 50 VUs  10m16.0s/12m0s
+
+running (10m17.0s), 50/50 VUs, 28 complete and 0 interrupted iterations
+fixed   [  86% ] 50 VUs  10m17.0s/12m0s
+
+running (10m18.0s), 50/50 VUs, 31 complete and 0 interrupted iterations
+fixed   [  86% ] 50 VUs  10m18.0s/12m0s
+
+running (10m19.0s), 50/50 VUs, 32 complete and 0 interrupted iterations
+fixed   [  86% ] 50 VUs  10m19.0s/12m0s
+
+running (10m20.0s), 50/50 VUs, 37 complete and 0 interrupted iterations
+fixed   [  86% ] 50 VUs  10m20.0s/12m0s
+
+running (10m21.0s), 50/50 VUs, 39 complete and 0 interrupted iterations
+fixed   [  86% ] 50 VUs  10m21.0s/12m0s
+
+running (10m22.0s), 50/50 VUs, 41 complete and 0 interrupted iterations
+fixed   [  86% ] 50 VUs  10m22.0s/12m0s
+
+running (10m23.0s), 50/50 VUs, 43 complete and 0 interrupted iterations
+fixed   [  87% ] 50 VUs  10m23.0s/12m0s
+
+running (10m24.0s), 50/50 VUs, 44 complete and 0 interrupted iterations
+fixed   [  87% ] 50 VUs  10m24.0s/12m0s
+
+running (10m25.0s), 50/50 VUs, 45 complete and 0 interrupted iterations
+fixed   [  87% ] 50 VUs  10m25.0s/12m0s
+
+running (10m26.0s), 50/50 VUs, 48 complete and 0 interrupted iterations
+fixed   [  87% ] 50 VUs  10m26.0s/12m0s
+
+running (10m27.0s), 50/50 VUs, 49 complete and 0 interrupted iterations
+fixed   [  87% ] 50 VUs  10m27.0s/12m0s
+
+running (10m28.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed   [  87% ] 50 VUs  10m28.0s/12m0s
+
+running (10m29.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed   [  87% ] 50 VUs  10m29.0s/12m0s
+
+running (10m30.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed   [  87% ] 50 VUs  10m30.0s/12m0s
+
+running (10m31.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed   [  88% ] 50 VUs  10m31.0s/12m0s
+
+running (10m32.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed   [  88% ] 50 VUs  10m32.0s/12m0s
+
+running (10m33.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed   [  88% ] 50 VUs  10m33.0s/12m0s
+
+running (10m34.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed   [  88% ] 50 VUs  10m34.0s/12m0s
+
+running (10m35.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed   [  88% ] 50 VUs  10m35.0s/12m0s
+
+running (10m36.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed   [  88% ] 50 VUs  10m36.0s/12m0s
+
+running (10m37.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed   [  88% ] 50 VUs  10m37.0s/12m0s
+
+running (10m38.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed   [  89% ] 50 VUs  10m38.0s/12m0s
+
+running (10m39.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed   [  89% ] 50 VUs  10m39.0s/12m0s
+
+running (10m40.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed   [  89% ] 50 VUs  10m40.0s/12m0s
+
+running (10m41.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed   [  89% ] 50 VUs  10m41.0s/12m0s
+
+running (10m42.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed   [  89% ] 50 VUs  10m42.0s/12m0s
+
+running (10m43.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed   [  89% ] 50 VUs  10m43.0s/12m0s
+
+running (10m44.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed   [  89% ] 50 VUs  10m44.0s/12m0s
+
+running (10m45.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed   [  90% ] 50 VUs  10m45.0s/12m0s
+
+running (10m46.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed   [  90% ] 50 VUs  10m46.0s/12m0s
+
+running (10m47.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed   [  90% ] 50 VUs  10m47.0s/12m0s
+
+running (10m48.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed   [  90% ] 50 VUs  10m48.0s/12m0s
+
+running (10m49.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed   [  90% ] 50 VUs  10m49.0s/12m0s
+
+running (10m50.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed   [  90% ] 50 VUs  10m50.0s/12m0s
+
+running (10m51.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed   [  90% ] 50 VUs  10m51.0s/12m0s
+
+running (10m52.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed   [  91% ] 50 VUs  10m52.0s/12m0s
+
+running (10m53.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed   [  91% ] 50 VUs  10m53.0s/12m0s
+
+running (10m54.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed   [  91% ] 50 VUs  10m54.0s/12m0s
+
+running (10m55.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed   [  91% ] 50 VUs  10m55.0s/12m0s
+
+running (10m56.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed   [  91% ] 50 VUs  10m56.0s/12m0s
+
+running (10m57.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed   [  91% ] 50 VUs  10m57.0s/12m0s
+
+running (10m58.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed   [  91% ] 50 VUs  10m58.0s/12m0s
+
+running (10m59.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed   [  92% ] 50 VUs  10m59.0s/12m0s
+
+running (11m00.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed   [  92% ] 50 VUs  11m00.0s/12m0s
+
+running (11m01.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed   [  92% ] 50 VUs  11m01.0s/12m0s
+
+running (11m02.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed   [  92% ] 50 VUs  11m02.0s/12m0s
+
+running (11m03.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed   [  92% ] 50 VUs  11m03.0s/12m0s
+
+running (11m04.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed   [  92% ] 50 VUs  11m04.0s/12m0s
+
+running (11m05.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed   [  92% ] 50 VUs  11m05.0s/12m0s
+
+running (11m06.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed   [  92% ] 50 VUs  11m06.0s/12m0s
+
+running (11m07.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed   [  93% ] 50 VUs  11m07.0s/12m0s
+
+running (11m08.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed   [  93% ] 50 VUs  11m08.0s/12m0s
+
+running (11m09.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed   [  93% ] 50 VUs  11m09.0s/12m0s
+
+running (11m10.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed   [  93% ] 50 VUs  11m10.0s/12m0s
+
+running (11m11.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed   [  93% ] 50 VUs  11m11.0s/12m0s
+
+running (11m12.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed   [  93% ] 50 VUs  11m12.0s/12m0s
+
+running (11m13.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed   [  93% ] 50 VUs  11m13.0s/12m0s
+
+running (11m14.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed   [  94% ] 50 VUs  11m14.0s/12m0s
+
+running (11m15.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed   [  94% ] 50 VUs  11m15.0s/12m0s
+
+running (11m16.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed   [  94% ] 50 VUs  11m16.0s/12m0s
+
+running (11m17.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed   [  94% ] 50 VUs  11m17.0s/12m0s
+
+running (11m18.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed   [  94% ] 50 VUs  11m18.0s/12m0s
+
+running (11m19.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed   [  94% ] 50 VUs  11m19.0s/12m0s
+
+running (11m20.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed   [  94% ] 50 VUs  11m20.0s/12m0s
+
+running (11m21.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed   [  95% ] 50 VUs  11m21.0s/12m0s
+
+running (11m22.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed   [  95% ] 50 VUs  11m22.0s/12m0s
+
+running (11m23.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed   [  95% ] 50 VUs  11m23.0s/12m0s
+
+running (11m24.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed   [  95% ] 50 VUs  11m24.0s/12m0s
+
+running (11m25.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed   [  95% ] 50 VUs  11m25.0s/12m0s
+
+running (11m26.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed   [  95% ] 50 VUs  11m26.0s/12m0s
+
+running (11m27.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed   [  95% ] 50 VUs  11m27.0s/12m0s
+
+running (11m28.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed   [  96% ] 50 VUs  11m28.0s/12m0s
+
+running (11m29.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed   [  96% ] 50 VUs  11m29.0s/12m0s
+
+running (11m30.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed   [  96% ] 50 VUs  11m30.0s/12m0s
+
+running (11m31.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed   [  96% ] 50 VUs  11m31.0s/12m0s
+
+running (11m32.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed   [  96% ] 50 VUs  11m32.0s/12m0s
+
+running (11m33.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed   [  96% ] 50 VUs  11m33.0s/12m0s
+
+running (11m34.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed   [  96% ] 50 VUs  11m34.0s/12m0s
+
+running (11m35.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed   [  97% ] 50 VUs  11m35.0s/12m0s
+
+running (11m36.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed   [  97% ] 50 VUs  11m36.0s/12m0s
+
+running (11m37.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed   [  97% ] 50 VUs  11m37.0s/12m0s
+
+running (11m38.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed   [  97% ] 50 VUs  11m38.0s/12m0s
+
+running (11m39.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed   [  97% ] 50 VUs  11m39.0s/12m0s
+
+running (11m40.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed   [  97% ] 50 VUs  11m40.0s/12m0s
+
+running (11m41.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed   [  97% ] 50 VUs  11m41.0s/12m0s
+
+running (11m42.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed   [  97% ] 50 VUs  11m42.0s/12m0s
+
+running (11m43.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed   [  98% ] 50 VUs  11m43.0s/12m0s
+
+running (11m44.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed   [  98% ] 50 VUs  11m44.0s/12m0s
+
+running (11m45.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed   [  98% ] 50 VUs  11m45.0s/12m0s
+
+running (11m46.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed   [  98% ] 50 VUs  11m46.0s/12m0s
+
+running (11m47.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed   [  98% ] 50 VUs  11m47.0s/12m0s
+
+running (11m48.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed   [  98% ] 50 VUs  11m48.0s/12m0s
+
+running (11m49.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed   [  98% ] 50 VUs  11m49.0s/12m0s
+
+running (11m50.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed   [  99% ] 50 VUs  11m50.0s/12m0s
+
+running (11m51.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed   [  99% ] 50 VUs  11m51.0s/12m0s
+
+running (11m52.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed   [  99% ] 50 VUs  11m52.0s/12m0s
+
+running (11m53.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed   [  99% ] 50 VUs  11m53.0s/12m0s
+
+running (11m54.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed   [  99% ] 50 VUs  11m54.0s/12m0s
+
+running (11m55.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed   [  99% ] 50 VUs  11m55.0s/12m0s
+
+running (11m56.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed   [  99% ] 50 VUs  11m56.0s/12m0s
+
+running (11m57.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed   [ 100% ] 50 VUs  11m57.0s/12m0s
+
+running (11m58.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed   [ 100% ] 50 VUs  11m58.0s/12m0s
+
+running (11m59.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed   [ 100% ] 50 VUs  11m59.0s/12m0s
+
+running (12m00.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed   [ 100% ] 50 VUs  12m00.0s/12m0s
+
+running (12m01.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed ↓ [ 100% ] 50 VUs  12m0s
+
+running (12m02.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed ↓ [ 100% ] 50 VUs  12m0s
+
+running (12m03.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed ↓ [ 100% ] 50 VUs  12m0s
+
+running (12m04.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed ↓ [ 100% ] 50 VUs  12m0s
+
+running (12m05.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed ↓ [ 100% ] 50 VUs  12m0s
+
+running (12m06.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed ↓ [ 100% ] 50 VUs  12m0s
+
+running (12m07.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed ↓ [ 100% ] 50 VUs  12m0s
+
+running (12m08.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed ↓ [ 100% ] 50 VUs  12m0s
+
+running (12m09.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed ↓ [ 100% ] 50 VUs  12m0s
+
+running (12m10.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed ↓ [ 100% ] 50 VUs  12m0s
+
+running (12m11.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed ↓ [ 100% ] 50 VUs  12m0s
+
+running (12m12.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed ↓ [ 100% ] 50 VUs  12m0s
+
+running (12m13.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed ↓ [ 100% ] 50 VUs  12m0s
+
+running (12m14.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed ↓ [ 100% ] 50 VUs  12m0s
+
+running (12m15.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed ↓ [ 100% ] 50 VUs  12m0s
+
+running (12m16.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed ↓ [ 100% ] 50 VUs  12m0s
+
+running (12m17.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed ↓ [ 100% ] 50 VUs  12m0s
+
+running (12m18.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed ↓ [ 100% ] 50 VUs  12m0s
+
+running (12m19.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed ↓ [ 100% ] 50 VUs  12m0s
+
+running (12m20.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed ↓ [ 100% ] 50 VUs  12m0s
+
+running (12m21.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed ↓ [ 100% ] 50 VUs  12m0s
+
+running (12m22.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed ↓ [ 100% ] 50 VUs  12m0s
+
+running (12m23.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed ↓ [ 100% ] 50 VUs  12m0s
+
+running (12m24.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed ↓ [ 100% ] 50 VUs  12m0s
+
+running (12m25.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed ↓ [ 100% ] 50 VUs  12m0s
+
+running (12m26.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed ↓ [ 100% ] 50 VUs  12m0s
+
+running (12m27.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed ↓ [ 100% ] 50 VUs  12m0s
+
+running (12m28.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed ↓ [ 100% ] 50 VUs  12m0s
+
+running (12m29.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed ↓ [ 100% ] 50 VUs  12m0s
+
+running (12m30.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed ↓ [ 100% ] 50 VUs  12m0s
+
+running (12m31.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed ↓ [ 100% ] 50 VUs  12m0s
+
+running (12m32.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed ↓ [ 100% ] 50 VUs  12m0s
+
+running (12m33.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed ↓ [ 100% ] 50 VUs  12m0s
+
+running (12m34.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed ↓ [ 100% ] 50 VUs  12m0s
+
+running (12m35.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed ↓ [ 100% ] 50 VUs  12m0s
+
+running (12m36.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed ↓ [ 100% ] 50 VUs  12m0s
+
+running (12m37.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed ↓ [ 100% ] 50 VUs  12m0s
+
+running (12m38.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed ↓ [ 100% ] 50 VUs  12m0s
+
+running (12m39.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed ↓ [ 100% ] 50 VUs  12m0s
+
+running (12m40.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed ↓ [ 100% ] 50 VUs  12m0s
+
+running (12m41.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed ↓ [ 100% ] 50 VUs  12m0s
+
+running (12m42.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed ↓ [ 100% ] 50 VUs  12m0s
+
+running (12m43.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed ↓ [ 100% ] 50 VUs  12m0s
+
+running (12m44.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed ↓ [ 100% ] 50 VUs  12m0s
+
+running (12m45.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed ↓ [ 100% ] 50 VUs  12m0s
+
+running (12m46.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed ↓ [ 100% ] 50 VUs  12m0s
+
+running (12m47.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed ↓ [ 100% ] 50 VUs  12m0s
+
+running (12m48.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed ↓ [ 100% ] 50 VUs  12m0s
+
+running (12m49.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed ↓ [ 100% ] 50 VUs  12m0s
+
+running (12m50.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed ↓ [ 100% ] 50 VUs  12m0s
+
+running (12m51.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed ↓ [ 100% ] 50 VUs  12m0s
+
+running (12m52.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed ↓ [ 100% ] 50 VUs  12m0s
+
+running (12m53.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed ↓ [ 100% ] 50 VUs  12m0s
+
+running (12m54.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed ↓ [ 100% ] 50 VUs  12m0s
+
+running (12m55.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed ↓ [ 100% ] 50 VUs  12m0s
+
+running (12m56.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed ↓ [ 100% ] 50 VUs  12m0s
+
+running (12m57.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed ↓ [ 100% ] 50 VUs  12m0s
+
+running (12m58.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed ↓ [ 100% ] 50 VUs  12m0s
+
+running (12m59.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed ↓ [ 100% ] 50 VUs  12m0s
+
+running (13m00.0s), 50/50 VUs, 50 complete and 0 interrupted iterations
+fixed ↓ [ 100% ] 50 VUs  12m0s
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 49 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 48 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 61 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 50 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 47 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 46 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 59 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 48 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 35 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 49 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 48 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 61 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 50 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 37 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 49 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 48 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 61 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 50 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 37 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 49 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 48 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 61 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 50 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 37 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 51 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 50 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 63 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 52 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 39 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 49 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 48 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 61 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 50 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 49 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 48 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 61 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 50 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 37 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 37 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 47 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 46 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 59 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 49 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 48 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 49 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 48 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 61 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 50 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 37 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 48 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 35 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 49 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 48 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 61 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 50 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 37 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 49 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 48 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 61 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 50 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 37 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 47 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 46 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 59 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 48 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 35 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 49 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 48 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 61 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 50 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 37 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 52 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 51 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 47 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 46 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 59 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 48 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 35 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 64 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 53 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 40 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 49 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 48 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 61 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 50 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 37 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 52 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 51 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 64 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 53 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 47 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 46 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 40 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 51 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 50 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 49 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 63 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 52 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 39 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 49 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 48 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 61 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 50 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 37 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 49 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 48 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 61 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 50 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 37 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 49 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 48 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 61 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 50 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 37 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 51 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 50 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 51 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 50 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 63 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 52 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 39 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 63 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 50 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 49 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 62 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 51 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 38 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 49 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 48 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 61 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 50 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 37 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 52 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 39 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 49 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 48 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 61 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 50 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 37 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 49 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 48 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 61 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 50 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 37 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 47 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 46 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 59 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 48 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 35 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 49 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 48 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 61 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 50 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 37 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 51 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 49 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 48 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 61 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 50 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 50 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 37 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 47 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 46 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 59 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 48 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 35 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 63 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 52 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 39 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 49 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 48 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 61 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 50 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 37 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 37 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 61 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 50 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 37 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 49 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 48 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 49 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 48 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 61 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 50 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 37 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 59 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 48 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 35 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 48 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 61 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 50 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 37 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 49 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 48 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 61 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 50 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 37 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 47 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 46 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 59 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 48 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 35 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 47 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 46 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 59 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 48 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 35 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 49 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 48 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 61 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 50 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 37 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 51 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 50 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 63 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 52 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 39 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 47 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 46 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 59 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 48 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 35 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 51 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 50 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 63 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 52 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 39 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 51 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 50 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 63 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 49 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 48 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 61 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 50 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 52 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 39 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 50 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 49 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 62 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 51 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 38 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 49 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 48 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 61 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 50 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 37 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setInterval 61 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 50 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 37 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 37 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 63 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 62 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 63 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 62 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 66 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 65 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 61 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 60 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 61 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 60 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 65 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 64 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 63 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 62 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 63 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 62 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 63 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 62 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 65 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 64 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 65 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 64 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 63 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 62 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 63 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 62 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 63 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 62 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 61 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 60 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 63 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 62 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 63 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 62 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 63 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 62 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 61 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 60 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 65 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 64 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 63 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 62 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 61 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 60 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 65 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 64 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 63 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 62 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 63 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 62 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 63 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 62 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 61 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 60 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 64 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 63 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 63 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 62 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 63 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 62 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 63 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 62 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 63 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 62 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 65 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 64 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 63 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 62 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 65 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 64 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 61 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 60 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 63 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 62 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 65 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 64 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 63 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 62 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 61 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 60 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 63 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 62 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 63 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 61 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 60 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 62 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 63 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 62 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 63 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 62 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 63 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 62 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 63 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 62 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 64 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 63 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 61 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 60 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 66 was stopped because the VU iteration was interrupted"
+time="2026-09-01T14:16:15+09:00" level=warning msg="setTimeout 65 was stopped because the VU iteration was interrupted"
+
+
+  █ THRESHOLDS 
+
+    relay_ice_e2e_ms
+    ✓ 'p(95)<200' p(95)=30
+
+    session_success
+    ✓ 'rate>0.99' rate=100.00%
+
+    ws_unexpected_close{code:1000}
+    ✓ 'count>=0' count=0
+
+    ws_unexpected_close{code:1001}
+    ✓ 'count>=0' count=0
+
+    ws_unexpected_close{code:1006}
+    ✓ 'count>=0' count=0
+
+    ws_unexpected_close{code:1012}
+    ✓ 'count>=0' count=150
+
+    ws_unexpected_close{phase:established}
+    ✓ 'count>=0' count=150
+
+    ws_unexpected_close{phase:establishing}
+    ✓ 'count>=0' count=0
+
+
+  █ TOTAL RESULTS 
+
+    CUSTOM
+    create_session_ms..............: avg=22.9               min=15            med=19            max=196           p(90)=30.1            p(95)=36.05          
+    join_established_ms............: avg=23.94              min=15            med=21            max=176           p(90)=28.2            p(95)=34.3           
+    peer_reconnected_seen..........: 124     0.158962/s
+    reconnect_attempt_failed.......: 4       0.005128/s
+    reconnect_resume_ms............: avg=670.486667         min=79            med=609           max=3561          p(90)=1038.2          p(95)=1067           
+    relay_ice_e2e_ms...............: avg=19.229776          min=12            med=17            max=681           p(90)=25              p(95)=30             
+    relay_msgs_received............: 40365   51.74585/s
+    relay_msgs_sent................: 40680   52.149664/s
+    relay_sdp_e2e_ms...............: avg=26.82              min=16            med=23            max=171           p(90)=35.1            p(95)=42.05          
+    resume_success.................: 100.00% 150 out of 150
+    session_success................: 100.00% 50 out of 50
+    unexpected_close_epoch_ms......: avg=1788239249915.1868 min=1788239063574 med=1788239341714 max=1788239343777 p(90)=1788239343257.1 p(95)=1788239343478.2
+
+    HTTP
+    http_req_duration..............: avg=52.84ms            min=25.58ms       med=47.58ms       max=88.56ms       p(90)=76.77ms         p(95)=82.01ms        
+      { expected_response:true }...: avg=52.84ms            min=25.58ms       med=47.58ms       max=88.56ms       p(90)=76.77ms         p(95)=82.01ms        
+    http_req_failed................: 0.00%   0 out of 100
+    http_reqs......................: 100     0.128195/s
+
+    EXECUTION
+    iteration_duration.............: avg=10m16s             min=10m0s         med=10m16s        max=10m27s        p(90)=10m24s          p(95)=10m25s         
+    iterations.....................: 50      0.064097/s
+    vus............................: 50      min=50         max=50
+    vus_max........................: 50      min=50         max=50
+
+    NETWORK
+    data_received..................: 10 MB   13 kB/s
+    data_sent......................: 8.9 MB  11 kB/s
+
+    WEBSOCKET
+    ws_connecting..................: avg=68.14ms            min=46.48ms       med=60.21ms       max=330.14ms      p(90)=86.57ms         p(95)=103.87ms       
+    ws_msgs_received...............: 43890   56.264718/s
+    ws_msgs_sent...................: 44182   56.639047/s
+    ws_session_duration............: avg=4m1s               min=48.65s        med=4m33s         max=5m46s         p(90)=5m36s           p(95)=5m40s          
+    ws_sessions....................: 354     0.45381/s
+    ws_unexpected_close............: 150     0.192292/s
+      { code:1000 }................: 0       0/s
+      { code:1001 }................: 0       0/s
+      { code:1006 }................: 0       0/s
+      { code:1012 }................: 150     0.192292/s
+      { phase:established }........: 150     0.192292/s
+      { phase:establishing }.......: 0       0/s
+
+
+
+
+running (13m00.1s), 00/50 VUs, 50 complete and 50 interrupted iterations
+fixed ✓ [ 100% ] 50 VUs  12m0s

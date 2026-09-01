@@ -58,12 +58,16 @@ jobs:
       # 새 인스턴스가 부팅하며 ECR에서 최신 이미지를 pull → 롤링 교체.
       # 완료까지 러너를 20분 붙잡지 않고, refresh를 시작만 시킨다.
       # (최종 성공 판정은 ALB 헬스체크가 하고, 진행률은 콘솔에서 확인)
+      # MaxHealthyPercentage 150(#112): Min 100만 주면 종료·기동이 동시에 시작돼(실측: Terminating이
+      # Launching보다 1.6s 먼저) 새 인스턴스가 ALB 헬시 전 ~2분간 실질 1대 서빙 + WS 재접속이 남은
+      # 1대로 전량 몰림. 150 = 잉여 1대(desired 2의 50%, ASG MaxSize 3와 일치)를 먼저 띄우고
+      # 헬시 확인 후 옛것을 정리하는 launch-before-terminate.
       - name: Trigger ASG instance refresh
         id: refresh
         run: |
           REFRESH_ID=$(aws autoscaling start-instance-refresh \
             --auto-scaling-group-name ${{ secrets.ASG_NAME }} \
-            --preferences '{"MinHealthyPercentage":100,"InstanceWarmup":120}' \
+            --preferences '{"MinHealthyPercentage":100,"MaxHealthyPercentage":150,"InstanceWarmup":120}' \
             --query InstanceRefreshId --output text)
           echo "refresh_id=$REFRESH_ID" >> "$GITHUB_OUTPUT"
           echo "instance refresh started: $REFRESH_ID"

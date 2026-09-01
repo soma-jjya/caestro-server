@@ -92,7 +92,7 @@ docker stop -t 30 lt-app && docker start lt-app
 k6 run -e SCENARIO=fixed -e SESSIONS=50 -e DURATION=12m -e SESSION_SEC=300 -e PROBE_SEC=2 \
   -e API=https://<운영 도메인> --summary-export=results/<날짜>/prod-rolling.json k6/signaling-session.js
 aws autoscaling start-instance-refresh --auto-scaling-group-name peakpic-asg \
-  --preferences '{"MinHealthyPercentage":100,"InstanceWarmup":120}'
+  --preferences '{"MinHealthyPercentage":100,"MaxHealthyPercentage":150,"InstanceWarmup":120}'
 ```
 
 운영에서 배운 것(2026-08-30, results/2026-08-30-107-prod/NOTES.md): 롤링 배포의 끊김은 SIGTERM이 아니라
