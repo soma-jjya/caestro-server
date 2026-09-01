@@ -1,6 +1,7 @@
 package com.caestro.server.domain.signaling.service;
 
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
@@ -41,6 +42,9 @@ public class TargetLifecycleWatcher {
     private final AtomicBoolean triggered = new AtomicBoolean(false);
     private volatile boolean unavailableLogged = false;
 
+    // 생성자가 둘이면 Spring이 어느 쪽을 쓸지 몰라 기본 생성자를 찾다 실패한다(2026-09-01 운영 기동 실패의 원인).
+    // @Autowired로 "이걸 써라"를 명시한다 — SessionRecordDispatcher(#99)와 동일한 함정.
+    @Autowired
     public TargetLifecycleWatcher(SignalingDrainLifecycle drainLifecycle,
                                   @Value("${signaling.drain.imds.base-url:http://169.254.169.254}") String baseUrl) {
         this(drainLifecycle, buildClient(baseUrl));

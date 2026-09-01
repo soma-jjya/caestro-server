@@ -67,6 +67,21 @@ class TargetLifecycleWatcherTest {
     }
 
     @Test
+    @DisplayName("[회귀] Spring이 이 빈을 생성할 수 있다 — @ConditionalOnProperty라 평소 컨텍스트 테스트가 못 잡는 구멍")
+    void springContext_canInstantiateWatcher() {
+        // 2026-09-01 운영 기동 실패 재현: 생성자 2개 + @Autowired 부재 → "No default constructor found".
+        // dev/CI에선 enabled=false로 빈이 아예 안 만들어져 contextLoads가 통과해버렸다.
+        new org.springframework.boot.test.context.runner.ApplicationContextRunner()
+                .withBean(SignalingDrainLifecycle.class, () -> drainLifecycle)
+                .withUserConfiguration(TargetLifecycleWatcher.class)
+                .withPropertyValues("signaling.drain.imds.enabled=true", // 운영과 같은 조건으로 조건부 빈을 실제 생성
+                        "signaling.drain.imds.base-url=http://127.0.0.1:1")
+                .run(ctx -> org.assertj.core.api.Assertions.assertThat(ctx)
+                        .hasNotFailed()
+                        .hasSingleBean(TargetLifecycleWatcher.class));
+    }
+
+    @Test
     @DisplayName("InService 동안은 아무것도 하지 않는다")
     void inService_noDrain() {
         watcher.poll();

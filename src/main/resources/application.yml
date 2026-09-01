@@ -51,9 +51,15 @@ signaling:
       poll-ms: 2000
       base-url: http://169.254.169.254
 
+# 만료 데이터 정리 배치 설정
+cleanup:
+  session:
+    retention-days: 30        # 생성 후 이 기간이 지난 세션을 정리
+    cron: "0 0 4 * * *"       # 매일 새벽 4시
+
 ---
 # prod 프로파일(ASG 인스턴스)에서만 IMDS 감지를 켠다. application-prod.yml은 저장소 밖(CI Secret)이라
-# 코드와 함께 추적돼야 하는 이 토글은 여기 프로파일 문서로 둔다.
+# 코드와 함께 추적돼야 하는 이 토글은 여기 프로파일 문서로 둔다. (반드시 파일 맨 끝에 둘 것 — 아래 키는 전부 이 문서 소속)
 spring:
   config:
     activate:
@@ -62,9 +68,3 @@ signaling:
   drain:
     imds:
       enabled: true
-
-# 만료 데이터 정리 배치 설정
-cleanup:
-  session:
-    retention-days: 30        # 생성 후 이 기간이 지난 세션을 정리
-    cron: "0 0 4 * * *"       # 매일 새벽 4시
