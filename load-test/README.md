@@ -95,6 +95,10 @@ aws autoscaling start-instance-refresh --auto-scaling-group-name peakpic-asg \
   --preferences '{"MinHealthyPercentage":100,"InstanceWarmup":120}'
 ```
 
+운영에서 배운 것(2026-08-30, results/2026-08-30-107-prod/NOTES.md): 롤링 배포의 끊김은 SIGTERM이 아니라
+**ALB 등록 해제 지연 만료**에서 일어난다(1006 일괄, SIGTERM은 그 뒤). 그래서 앱은 IMDS `target-lifecycle-state`를
+폴링해 등록 해제 시작 시점에 드레인한다(#111). 운영 측정은 이 경로가 동작하는지(1012 비율·분산)를 본다.
+
 읽는 순서: `ws_unexpected_close` 코드 분포(어떻게 죽었나) → `reconnect_resume_ms` p95(얼마나 빨리 돌아왔나)
 → `resume_success`(다 돌아왔나) → `relay_msgs_sent−received`(공백 중 뭘 잃었나) → Grafana
 `ws_connections_active` 인스턴스별 절벽/복구 곡선.

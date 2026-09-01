@@ -42,6 +42,8 @@ public class SignalingDrainLifecycle implements SmartLifecycle {
 
     private volatile boolean running = false;
     private final AtomicBoolean draining = new AtomicBoolean(false);
+    // 드레인은 한 번만 실행된다 — IMDS 감지(#111)와 SIGTERM 두 경로가 모두 부를 수 있으므로 멱등
+    private final AtomicBoolean drained = new AtomicBoolean(false);
 
     public SignalingDrainLifecycle(WebSocketSessionManager sessionManager,
                                    SignalingMetrics metrics,
@@ -81,11 +83,25 @@ public class SignalingDrainLifecycle implements SmartLifecycle {
     }
 
     /**
-     * 로컬 소켓 전부에 1012를 0~jitter-ms 무작위 지연으로 분산 전송하고, 전부 닫히거나 max-wait-ms까지 기다린다.
-     * 반환 후에야 Spring이 다음 종료 단계(HTTP graceful → 빈 파괴)로 넘어간다.
+     * SIGTERM 경로. 운영에선 보통 IMDS 감지(#111)가 먼저 드레인을 끝내 놓으므로 여기선 no-op가 되고,
+     * 로컬(docker stop)·하드 정지처럼 등록 해제 신호가 없는 경우의 안전망이다.
      */
     @Override
     public void stop() {
+        drain("sigterm");
+    }
+
+    /**
+     * 로컬 소켓 전부에 1012를 0~jitter-ms 무작위 지연으로 분산 전송하고, 전부 닫히거나 max-wait-ms까지 기다린다.
+     * 한 번만 실행된다(두 번째 호출은 무시). SIGTERM 경로에선 반환 후에야 Spring이 다음 종료 단계로 넘어간다.
+     *
+     * @param trigger 로그용 — "sigterm" 또는 "imds:Terminated"
+     */
+    public void drain(String trigger) {
+        if (!drained.compareAndSet(false, true)) {
+            log.info("Drain already done, ignoring trigger={}", trigger);
+            return;
+        }
         draining.set(true);
         // readiness → 503: LB가 아직 이 인스턴스를 보고 있더라도 새 트래픽을 받지 않겠다는 신호
         AvailabilityChangeEvent.publish(eventPublisher, this, ReadinessState.REFUSING_TRAFFIC);
@@ -93,13 +109,13 @@ public class SignalingDrainLifecycle implements SmartLifecycle {
         List<WebSocketSession> sockets = sessionManager.snapshot();
         running = false;
         if (sockets.isEmpty()) {
-            log.info("Drain: no active websocket session");
+            log.info("Drain({}): no active websocket session", trigger);
             return;
         }
 
         long startedAt = System.currentTimeMillis();
-        log.info("Drain start: closing {} session(s) with 1012, jitter={}ms, maxWait={}ms",
-                sockets.size(), jitterMs, maxWaitMs);
+        log.info("Drain start({}): closing {} session(s) with 1012, jitter={}ms, maxWait={}ms",
+                trigger, sockets.size(), jitterMs, maxWaitMs);
 
         // close → afterConnectionClosed → handleDisconnect(Redis)까지 호출 스레드에서 동기 실행되므로 스레드 2개로 분산한다
         ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(2, r -> {

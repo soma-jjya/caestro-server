@@ -44,6 +44,24 @@ signaling:
   drain:
     jitter-ms: 3000
     max-wait-ms: 10000
+    # ALB 등록 해제 감지 (#111): ASG 인스턴스는 IMDS target-lifecycle-state를 폴링해 Terminated면 SIGTERM보다 먼저 드레인.
+    # 운영 실측에서 ALB가 등록 해제 지연 만료 시 소켓을 먼저 끊어 SIGTERM 드레인이 무효였다. 로컬/CI엔 IMDS가 없어 기본 off.
+    imds:
+      enabled: false
+      poll-ms: 2000
+      base-url: http://169.254.169.254
+
+---
+# prod 프로파일(ASG 인스턴스)에서만 IMDS 감지를 켠다. application-prod.yml은 저장소 밖(CI Secret)이라
+# 코드와 함께 추적돼야 하는 이 토글은 여기 프로파일 문서로 둔다.
+spring:
+  config:
+    activate:
+      on-profile: prod
+signaling:
+  drain:
+    imds:
+      enabled: true
 
 # 만료 데이터 정리 배치 설정
 cleanup:

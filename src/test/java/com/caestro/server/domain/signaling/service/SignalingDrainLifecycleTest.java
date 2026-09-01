@@ -5,6 +5,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -117,6 +118,23 @@ class SignalingDrainLifecycleTest {
 
         assertThat(lifecycle.isDraining()).isTrue();
         assertThat(lifecycle.isRunning()).isFalse();
+    }
+
+    @Test
+    @DisplayName("드레인은 한 번만 실행된다 — IMDS 감지로 먼저 닫힌 뒤 오는 SIGTERM(stop)은 no-op (#111)")
+    void drain_isIdempotentAcrossTriggers() throws Exception {
+        List<WebSocketSession> sockets = sessions(5);
+        when(sessionManager.snapshot()).thenReturn(sockets);
+        SignalingDrainLifecycle lifecycle = drain(0, 2000);
+
+        lifecycle.drain("imds:Terminated");   // 등록 해제 감지 → 즉시 드레인
+        lifecycle.stop();                     // 30초 뒤 SIGTERM → 이미 끝났으므로 아무것도 안 함
+
+        for (WebSocketSession s : sockets) {
+            verify(s, times(1)).close(CloseStatus.SERVICE_RESTARTED);
+        }
+        verify(sessionManager, times(1)).snapshot();
+        assertThat(registry.get("ws.drain.closed").counter().count()).isEqualTo(5);
     }
 
     @Test
