@@ -8,6 +8,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 import com.caestro.server.domain.auth.dto.response.TokenResponse;
+import com.caestro.server.domain.auth.oauth.AppleTokenService;
 import com.caestro.server.domain.auth.oauth.OAuthProvider;
 import com.caestro.server.domain.auth.oauth.OAuthProvider.OAuthProfile;
 import com.caestro.server.domain.auth.oauth.OAuthProviderRegistry;
@@ -47,6 +48,9 @@ class AuthServiceTest {
 
     @Mock
     private OAuthProvider oAuthProvider;
+
+    @Mock
+    private AppleTokenService appleTokenService;
 
     @InjectMocks
     private AuthService authService;
@@ -213,6 +217,58 @@ class AuthServiceTest {
 
         // then: 게스트 조회·신규 저장 없이 기존 계정으로 로그인
         verify(userRepository, never()).findById(anyLong());
+        verify(userRepository, never()).save(any(User.class));
+    }
+
+    @Test
+    @DisplayName("애플 로그인: authorizationCode가 오면 refresh token으로 교환해 유저에 저장한다 (탈퇴 revoke 대비)")
+    void socialLoginByToken_apple_storesRefreshToken() {
+        // given
+        String identityToken = "apple-identity-token";
+        OAuthProfile profile = new OAuthProfile("apple-sub-1", null, null);
+        User user = User.builder().oauthProvider("apple").oauthId("apple-sub-1").role(User.Role.USER).build();
+        ReflectionTestUtils.setField(user, "id", 40L);
+
+        given(oAuthProviderRegistry.getProvider("apple")).willReturn(oAuthProvider);
+        given(oAuthProvider.getProfileByToken(identityToken)).willReturn(profile);
+        given(userRepository.findByOauthProviderAndOauthId("apple", "apple-sub-1")).willReturn(Optional.of(user));
+        given(appleTokenService.exchangeRefreshToken("auth-code-1")).willReturn(Optional.of("apple-rt-9"));
+        given(userRepository.save(user)).willReturn(user);
+        given(jwtProvider.generateAccessToken(40L, User.Role.USER)).willReturn("a");
+        given(jwtProvider.generateRefreshToken(40L)).willReturn("r");
+        given(redisTemplate.opsForValue()).willReturn(valueOperations);
+
+        // when
+        authService.socialLoginByToken("apple", identityToken, null, "auth-code-1");
+
+        // then: 탈퇴 시 revoke에 쓸 애플 refresh token이 유저에 저장된다
+        assertThat(user.getAppleRefreshToken()).isEqualTo("apple-rt-9");
+        verify(userRepository).save(user);
+    }
+
+    @Test
+    @DisplayName("애플 로그인: refresh token 교환이 실패해도 로그인은 성공한다 (best-effort)")
+    void socialLoginByToken_apple_exchangeFailure_stillLogsIn() {
+        // given
+        String identityToken = "apple-identity-token";
+        OAuthProfile profile = new OAuthProfile("apple-sub-2", null, null);
+        User user = User.builder().oauthProvider("apple").oauthId("apple-sub-2").role(User.Role.USER).build();
+        ReflectionTestUtils.setField(user, "id", 41L);
+
+        given(oAuthProviderRegistry.getProvider("apple")).willReturn(oAuthProvider);
+        given(oAuthProvider.getProfileByToken(identityToken)).willReturn(profile);
+        given(userRepository.findByOauthProviderAndOauthId("apple", "apple-sub-2")).willReturn(Optional.of(user));
+        given(appleTokenService.exchangeRefreshToken("auth-code-2")).willReturn(Optional.empty());
+        given(jwtProvider.generateAccessToken(41L, User.Role.USER)).willReturn("a");
+        given(jwtProvider.generateRefreshToken(41L)).willReturn("r");
+        given(redisTemplate.opsForValue()).willReturn(valueOperations);
+
+        // when
+        TokenResponse response = authService.socialLoginByToken("apple", identityToken, null, "auth-code-2");
+
+        // then: 교환 실패는 로그인 결과에 영향 없음, 토큰 저장도 없음
+        assertThat(response.accessToken()).isEqualTo("a");
+        assertThat(user.getAppleRefreshToken()).isNull();
         verify(userRepository, never()).save(any(User.class));
     }
 }

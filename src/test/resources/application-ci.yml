@@ -29,6 +29,9 @@ google:
   client-secret: ci-dummy
   redirect-uri: http://localhost:8080/auth/google/callback
 
+apple:
+  bundle-id: ci-dummy
+
 jwt:
   access-secret: ci_dummy_access_secret_for_ci_only_min_32_chars
   refresh-secret: ci_dummy_refresh_secret_for_ci_only_min_32_chars

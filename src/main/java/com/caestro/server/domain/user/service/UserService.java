@@ -1,5 +1,6 @@
 package com.caestro.server.domain.user.service;
 
+import com.caestro.server.domain.auth.oauth.AppleTokenService;
 import com.caestro.server.domain.user.entity.User;
 import com.caestro.server.domain.user.repository.UserRepository;
 import com.caestro.server.global.exception.CustomException;
@@ -23,6 +24,7 @@ public class UserService {
 
     private final UserRepository userRepository;
     private final RedisTemplate<String, String> redisTemplate;
+    private final AppleTokenService appleTokenService;
 
     @Value("${jwt.access-expiration}")
     private long accessExpiration;
@@ -30,6 +32,7 @@ public class UserService {
     /**
      * 회원 탈퇴 처리.
      * 개인정보를 즉시 익명화(soft delete)하고 토큰을 무효화한다.
+     * 애플 로그인 유저는 애플에 연결 해제(revoke)를 먼저 통보한다(앱스토어 심사 요건).
      * row 자체의 완전 파기는 하지 않고 익명 상태로 보존하며(FK 정합성·통계 유지),
      * 만료 데이터 정리는 별도 배치가 담당한다.
      *
@@ -44,7 +47,12 @@ public class UserService {
             throw new CustomException(ErrorCode.USER_NOT_FOUND);
         }
 
-        // 개인정보 즉시 익명화 + soft delete
+        // 애플 로그인 유저면 애플에 연결 해제 통보 — 실패해도 탈퇴는 진행한다 (best-effort, 3s 타임아웃)
+        if (user.getAppleRefreshToken() != null) {
+            appleTokenService.revoke(user.getAppleRefreshToken());
+        }
+
+        // 개인정보 즉시 익명화 + soft delete (appleRefreshToken도 여기서 함께 파기)
         user.withdraw(LocalDateTime.now());
 
         // RefreshToken 무효화 → 토큰 재발급 차단

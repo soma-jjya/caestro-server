@@ -61,7 +61,8 @@ public class AuthController implements AuthApi {
             @Valid @RequestBody SocialTokenLoginRequest request,
             @AuthenticationPrincipal CustomUserDetails userDetails) {
         Long guestUserId = (userDetails != null) ? userDetails.getUserId() : null;
-        return ResponseEntity.ok(authService.socialLoginByToken(provider, request.accessToken(), guestUserId));
+        return ResponseEntity.ok(
+                authService.socialLoginByToken(provider, request.accessToken(), guestUserId, request.authorizationCode()));
     }
 
     @PostMapping("/refresh")

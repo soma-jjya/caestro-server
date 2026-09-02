@@ -51,10 +51,12 @@ public interface AuthApi {
 
     @Operation(
             summary = "소셜 로그인 (모바일 SDK 토큰)",
-            description = "모바일 네이티브 SDK가 발급받은 소셜 access token으로 JWT를 발급합니다. "
-                    + "authorization code 교환 단계가 없어 redirect_uri에 의존하지 않으며 Android·iOS 공통으로 사용됩니다."
+            description = "모바일 네이티브 SDK가 발급받은 토큰으로 JWT를 발급합니다. "
+                    + "(카카오=access token, 구글=ID token, 애플=identity token — 모두 accessToken 필드로 전달) "
+                    + "authorization code 교환 단계가 없어 redirect_uri에 의존하지 않으며 Android·iOS 공통으로 사용됩니다. "
+                    + "애플은 authorizationCode를 함께 보내면 탈퇴 시 애플 연결 해제(revoke)용 토큰을 확보합니다."
     )
-    @Parameter(name = "provider", description = "소셜 로그인 provider (예: kakao, google)", in = ParameterIn.PATH, required = true)
+    @Parameter(name = "provider", description = "소셜 로그인 provider (예: kakao, google, apple)", in = ParameterIn.PATH, required = true)
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "토큰 발급 성공",
                     content = @Content(schema = @Schema(implementation = TokenResponse.class))),

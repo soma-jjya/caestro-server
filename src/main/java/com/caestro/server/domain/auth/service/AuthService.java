@@ -1,6 +1,7 @@
 package com.caestro.server.domain.auth.service;
 
 import com.caestro.server.domain.auth.dto.response.TokenResponse;
+import com.caestro.server.domain.auth.oauth.AppleTokenService;
 import com.caestro.server.domain.auth.oauth.OAuthProvider;
 import com.caestro.server.domain.auth.oauth.OAuthProvider.OAuthProfile;
 import com.caestro.server.domain.auth.oauth.OAuthProviderRegistry;
@@ -26,6 +27,7 @@ public class AuthService {
     private final JwtProvider jwtProvider;
     private final RedisTemplate<String, String> redisTemplate;
     private final OAuthProviderRegistry oAuthProviderRegistry;
+    private final AppleTokenService appleTokenService;
 
     @Value("${jwt.refresh-expiration}")
     private long refreshExpiration;
@@ -65,19 +67,26 @@ public class AuthService {
         return generateTokens(user);
     }
 
-    /**
-     * 모바일(네이티브 SDK) 소셜 로그인.
-     * SDK가 발급받은 access token으로 프로필을 조회해 JWT를 발급한다. (Android·iOS 공통)
-     *
-     * @param providerName OAuth provider 이름 (kakao, google)
-     * @param accessToken  소셜 플랫폼 access token (모바일 SDK 발급)
-     * @return accessToken + refreshToken 쌍
-     */
     public TokenResponse socialLoginByToken(String providerName, String accessToken) {
-        return socialLoginByToken(providerName, accessToken, null);
+        return socialLoginByToken(providerName, accessToken, null, null);
     }
 
     public TokenResponse socialLoginByToken(String providerName, String accessToken, Long guestUserId) {
+        return socialLoginByToken(providerName, accessToken, guestUserId, null);
+    }
+
+    /**
+     * 모바일(네이티브 SDK) 소셜 로그인.
+     * SDK가 발급받은 토큰으로 프로필을 조회해 JWT를 발급한다. (Android·iOS 공통)
+     *
+     * @param providerName      OAuth provider 이름 (kakao, google, apple)
+     * @param accessToken       소셜 플랫폼 토큰 (카카오=access token, 구글=ID token, 애플=identity token)
+     * @param guestUserId       게스트 JWT로 접근한 경우의 userId (없으면 null)
+     * @param authorizationCode 애플 전용(선택) — 탈퇴 시 revoke에 쓸 refresh token 교환용 1회성 코드
+     * @return accessToken + refreshToken 쌍
+     */
+    public TokenResponse socialLoginByToken(String providerName, String accessToken, Long guestUserId,
+            String authorizationCode) {
         // 1. provider 조회
         OAuthProvider provider = oAuthProviderRegistry.getProvider(providerName);
 
@@ -87,7 +96,16 @@ public class AuthService {
         // 3. 유저 조회/생성 또는 게스트 계정 연동
         User user = findOrCreateOrUpgrade(profile, providerName, guestUserId);
 
-        // 4. JWT 발급
+        // 4. 애플: 탈퇴 revoke용 refresh token 확보 — 교환 실패해도 로그인은 진행한다 (best-effort)
+        if ("apple".equals(providerName) && authorizationCode != null && !authorizationCode.isBlank()) {
+            appleTokenService.exchangeRefreshToken(authorizationCode)
+                    .ifPresent(refreshToken -> {
+                        user.updateAppleRefreshToken(refreshToken);
+                        userRepository.save(user);
+                    });
+        }
+
+        // 5. JWT 발급
         return generateTokens(user);
     }
 

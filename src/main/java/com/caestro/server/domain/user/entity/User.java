@@ -45,6 +45,10 @@ public class User {
     @Column
     private String profileImage;
 
+    // 애플 로그인 연결 해제(revoke)용 refresh token. 애플 로그인 유저만 값이 있고, 탈퇴 시 통보 후 파기된다.
+    @Column(length = 1024)
+    private String appleRefreshToken;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private Role role;
@@ -95,6 +99,13 @@ public class User {
     }
 
     /**
+     * 애플 refresh token 저장 — 탈퇴 시 애플에 연결 해제(revoke)를 통보하기 위해 보관한다.
+     */
+    public void updateAppleRefreshToken(String appleRefreshToken) {
+        this.appleRefreshToken = appleRefreshToken;
+    }
+
+    /**
      * 이미 탈퇴한(soft delete) 계정인지 여부.
      */
     public boolean isDeleted() {
@@ -106,6 +117,7 @@ public class User {
      * 개인정보 필드를 즉시 익명화(파기)하고 탈퇴 시각을 기록한다.
      * userId(참조 무결성용 뼈대)는 유지되며, 완전 파기(row 삭제)는 유예 후 배치가 수행한다.
      * oauthId를 제거하므로 같은 소셜 계정으로 재로그인하면 신규 유저로 취급된다.
+     * appleRefreshToken은 호출 전에 revoke 통보를 마친 뒤 여기서 함께 파기된다.
      *
      * @param deletedAt 탈퇴 시각
      */
@@ -115,6 +127,7 @@ public class User {
         this.deviceId = null;
         this.nickname = null;
         this.profileImage = null;
+        this.appleRefreshToken = null;
         this.deletedAt = deletedAt;
     }
 
