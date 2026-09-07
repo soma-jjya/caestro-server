@@ -87,6 +87,11 @@ public class SignalingMetrics {
         registry.counter("ws.record.dropped", "task", task).increment();
     }
 
+    /** DB 기록 재시도 횟수 (#124 — 일시 오류·upsert 동시 생성 경합이 흡수된 흔적) */
+    public void countRecordRetried(String task) {
+        registry.counter("ws.record.retried", "task", task).increment();
+    }
+
     /** 활성 WS 연결 수 gauge 등록. (호출 시점의 값을 읽어가는 방식이라 supplier로 받는다) */
     public void bindActiveConnections(Supplier<Number> activeCount) {
         this.activeConnections = activeCount;

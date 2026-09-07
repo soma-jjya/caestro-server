@@ -2,10 +2,12 @@ package com.caestro.server.domain.auth.oauth;
 
 import com.caestro.server.global.exception.CustomException;
 import com.caestro.server.global.exception.error.ErrorCode;
+import com.caestro.server.global.resilience.ExternalApiGuard;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken;
 import com.google.api.client.googleapis.auth.oauth2.GoogleIdTokenVerifier;
+import io.github.resilience4j.circuitbreaker.CallNotPermittedException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
@@ -24,6 +26,7 @@ public class GoogleOAuthProvider implements OAuthProvider {
     private static final String USER_INFO_URI = "https://www.googleapis.com/oauth2/v2/userinfo";
 
     private final WebClient webClient;
+    private final ExternalApiGuard externalApiGuard;
     private final GoogleIdTokenVerifier idTokenVerifier;
     private final String clientId;
     private final String clientSecret;
@@ -31,11 +34,13 @@ public class GoogleOAuthProvider implements OAuthProvider {
 
     public GoogleOAuthProvider(
             WebClient.Builder webClientBuilder,
+            ExternalApiGuard externalApiGuard,
             GoogleIdTokenVerifier idTokenVerifier,
             @Value("${google.client-id}") String clientId,
             @Value("${google.client-secret}") String clientSecret,
             @Value("${google.redirect-uri}") String redirectUri) {
         this.webClient = webClientBuilder.build();
+        this.externalApiGuard = externalApiGuard;
         this.idTokenVerifier = idTokenVerifier;
         this.clientId = clientId;
         this.clientSecret = clientSecret;
@@ -93,13 +98,17 @@ public class GoogleOAuthProvider implements OAuthProvider {
             formData.add("redirect_uri", redirectUri);
             formData.add("code", code);
 
-            return webClient.post()
+            // 인가코드 교환은 1회성 자원 소비 — 서킷브레이커만 적용, 재시도 금지 (#125)
+            return externalApiGuard.oneShot(PROVIDER_NAME, () -> webClient.post()
                     .uri(TOKEN_URI)
                     .contentType(MediaType.APPLICATION_FORM_URLENCODED)
                     .bodyValue(formData)
                     .retrieve()
                     .bodyToMono(GoogleTokenResponse.class)
-                    .block();
+                    .block());
+        } catch (CallNotPermittedException e) {
+            log.warn("구글 토큰 요청 차단: 서킷 open (외부 장애 감지, 즉시 실패)");
+            throw new CustomException(ErrorCode.OAUTH_TEMPORARILY_UNAVAILABLE);
         } catch (WebClientResponseException e) {
             log.warn("구글 토큰 요청 실패: status={}, body={}", e.getStatusCode(), e.getResponseBodyAsString());
             throw new CustomException(ErrorCode.OAUTH_LOGIN_FAILED);
@@ -111,12 +120,16 @@ public class GoogleOAuthProvider implements OAuthProvider {
 
     private GoogleUserResponse requestUserInfo(String accessToken) {
         try {
-            return webClient.get()
+            // 사용자 정보 조회는 멱등(GET) — 서킷브레이커 + 인프라 장애 1회 재시도 (#125)
+            return externalApiGuard.idempotent(PROVIDER_NAME, () -> webClient.get()
                     .uri(USER_INFO_URI)
                     .headers(headers -> headers.setBearerAuth(accessToken))
                     .retrieve()
                     .bodyToMono(GoogleUserResponse.class)
-                    .block();
+                    .block());
+        } catch (CallNotPermittedException e) {
+            log.warn("구글 사용자 정보 요청 차단: 서킷 open (외부 장애 감지, 즉시 실패)");
+            throw new CustomException(ErrorCode.OAUTH_TEMPORARILY_UNAVAILABLE);
         } catch (WebClientResponseException e) {
             log.warn("구글 사용자 정보 요청 실패: status={}, body={}", e.getStatusCode(), e.getResponseBodyAsString());
             throw new CustomException(ErrorCode.OAUTH_LOGIN_FAILED);

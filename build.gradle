@@ -66,6 +66,15 @@ dependencies {
 	// ShedLock — 다중 인스턴스 스케줄러 중복 실행 방지 (기존 Redis를 락 저장소로 사용)
 	implementation "net.javacrumbs.shedlock:shedlock-spring:6.6.0"
 	implementation "net.javacrumbs.shedlock:shedlock-provider-redis-spring:6.6.0"
+
+	// resilience4j — 세션 기록 워커의 일시 오류 재시도 (#124). 프로그래매틱 사용이라 스타터/AOP 불필요
+	implementation "io.github.resilience4j:resilience4j-retry:2.2.0"
+	// resilience4j — 외부 API 서킷브레이커 + 상태 지표 Micrometer 노출 (#125)
+	implementation "io.github.resilience4j:resilience4j-circuitbreaker:2.2.0"
+	implementation "io.github.resilience4j:resilience4j-micrometer:2.2.0"
+
+	// 구조화(JSON) 로그 인코더 — prod 프로파일 전용, CloudWatch Logs Insights 필드 질의용 (#131)
+	implementation "net.logstash.logback:logstash-logback-encoder:8.1"
 }
 
 // /actuator/info 에 버전·빌드시각 노출 (META-INF/build-info.properties 생성)

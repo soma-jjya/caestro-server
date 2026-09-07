@@ -1,6 +1,7 @@
 package com.caestro.server.domain.devicespec.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.never;
@@ -97,13 +98,13 @@ class DeviceSpecServiceTest {
     }
 
     @Test
-    @DisplayName("존재하지 않는 세션 코드로 수신 시 저장하지 않는다")
-    void saveDeviceSpec_sessionNotFound_skipsSave() {
+    @DisplayName("세션 행이 아직 없으면 SESSION_NOT_FOUND를 던진다 — 조용한 유실 대신 디스패처 재시도로 (#124)")
+    void saveDeviceSpec_sessionNotFound_throwsForRetry() {
         given(sessionRepository.findBySessionCode(SESSION_CODE)).willReturn(Optional.empty());
 
-        deviceSpecService.saveDeviceSpec(SESSION_CODE, USER_ID,
-                new BigDecimal("10.00"), null, null, null, "AOS");
-
+        assertThatThrownBy(() -> deviceSpecService.saveDeviceSpec(SESSION_CODE, USER_ID,
+                new BigDecimal("10.00"), null, null, null, "AOS"))
+                .isInstanceOf(com.caestro.server.global.exception.CustomException.class);
         verify(deviceSpecRepository, never()).save(any());
     }
 

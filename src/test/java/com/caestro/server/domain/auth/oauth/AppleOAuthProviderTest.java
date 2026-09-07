@@ -62,7 +62,10 @@ class AppleOAuthProviderTest {
         });
         jwksServer.start();
 
-        provider = new AppleOAuthProvider(WebClient.builder(), BUNDLE_ID,
+        provider = new AppleOAuthProvider(WebClient.builder(),
+                new com.caestro.server.global.resilience.ExternalApiGuard(
+                        io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry.ofDefaults()),
+                BUNDLE_ID,
                 "http://127.0.0.1:" + jwksServer.getAddress().getPort() + "/auth/keys");
     }
 

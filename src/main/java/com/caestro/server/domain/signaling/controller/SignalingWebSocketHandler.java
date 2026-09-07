@@ -10,6 +10,7 @@ import com.caestro.server.global.exception.error.ErrorCode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.slf4j.MDC;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.TextMessage;
@@ -51,6 +52,17 @@ public class SignalingWebSocketHandler extends TextWebSocketHandler {
         try {
             SignalingRequest msg = objectMapper.readValue(message.getPayload(), SignalingRequest.class);
             metricType = msg.type();
+
+            // MDC (#131): 이 메시지를 처리하는 동안의 모든 하위 로그(서비스·디스패처 포함)에
+            // 세션·유저 문맥을 자동 동봉 — 로그를 "세션 단위 스토리"로 검색 가능하게 한다
+            if (msg.sessionCode() != null) {
+                MDC.put("sessionCode", msg.sessionCode());
+            }
+            Object userId = session.getAttributes().get("userId");
+            if (userId != null) {
+                MDC.put("userId", String.valueOf(userId));
+            }
+
             log.info("Received message: type={}, sessionCode={}", msg.type(), msg.sessionCode());
 
             // 모든 수신 메시지는 "살아있음"의 증거 → 마지막 활동 시각 갱신 (유휴 정리 대상에서 제외)
@@ -74,21 +86,33 @@ public class SignalingWebSocketHandler extends TextWebSocketHandler {
                     .build();
             sessionManager.sendMessage(session.getId(), errorResponse);
         } finally {
+            // 톰캣 스레드는 재사용되므로 문맥을 반드시 비운다 — 다음 요청의 로그가 남의 세션을 달고 나오면 안 된다
+            MDC.remove("sessionCode");
+            MDC.remove("userId");
             metrics.recordHandled(metricType, System.nanoTime() - startNanos);
         }
     }
 
     @Override
     public void afterConnectionClosed(WebSocketSession session, CloseStatus status) {
-        log.info("Client disconnected: {} (status: {})", session.getId(), status);
-        metrics.countClose(status.getCode()); // 종료 코드 분포 (#105): 1006=비정상, 1012=드레인 정돈 종료
-        sessionManager.removeSession(session);
-
-        // 드레인이 닫은 소켓(1012)은 이탈이 아니다 — 슬롯을 유지해 재접속이 takeover로 복원되게 한다 (#106)
-        if (drainLifecycle.isDraining() && status.getCode() == CloseStatus.SERVICE_RESTARTED.getCode()) {
-            signalingService.handleDrainDisconnect(session);
-            return;
+        // 종료 경로의 로그(이탈 처리·슬롯 정리)에도 유저 문맥을 동봉한다 (#131)
+        Object userId = session.getAttributes().get("userId");
+        if (userId != null) {
+            MDC.put("userId", String.valueOf(userId));
         }
-        signalingService.handleDisconnect(session);
+        try {
+            log.info("Client disconnected: {} (status: {})", session.getId(), status);
+            metrics.countClose(status.getCode()); // 종료 코드 분포 (#105): 1006=비정상, 1012=드레인 정돈 종료
+            sessionManager.removeSession(session);
+
+            // 드레인이 닫은 소켓(1012)은 이탈이 아니다 — 슬롯을 유지해 재접속이 takeover로 복원되게 한다 (#106)
+            if (drainLifecycle.isDraining() && status.getCode() == CloseStatus.SERVICE_RESTARTED.getCode()) {
+                signalingService.handleDrainDisconnect(session);
+                return;
+            }
+            signalingService.handleDisconnect(session);
+        } finally {
+            MDC.remove("userId");
+        }
     }
 }

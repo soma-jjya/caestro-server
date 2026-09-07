@@ -2,8 +2,10 @@ package com.caestro.server.domain.auth.oauth;
 
 import com.caestro.server.global.exception.CustomException;
 import com.caestro.server.global.exception.error.ErrorCode;
+import com.caestro.server.global.resilience.ExternalApiGuard;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import io.github.resilience4j.circuitbreaker.CallNotPermittedException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
@@ -19,22 +21,28 @@ public class KakaoOAuthProvider implements OAuthProvider {
 
     private static final String PROVIDER_NAME = "kakao";
     private static final String TOKEN_URI = "https://kauth.kakao.com/oauth/token";
-    private static final String USER_INFO_URI = "https://kapi.kakao.com/v2/user/me";
 
     private final WebClient webClient;
+    private final ExternalApiGuard externalApiGuard;
     private final String clientId;
     private final String clientSecret;
     private final String redirectUri;
+    // 주입 가능(기본값 = 실제 카카오): 장애 주입 실험(#125)에서 가짜 카카오로 바꿔치기하는 시금.
+    private final String userInfoUri;
 
     public KakaoOAuthProvider(
             WebClient.Builder webClientBuilder,
+            ExternalApiGuard externalApiGuard,
             @Value("${kakao.client-id}") String clientId,
             @Value("${kakao.client-secret}") String clientSecret,
-            @Value("${kakao.redirect-uri}") String redirectUri) {
+            @Value("${kakao.redirect-uri}") String redirectUri,
+            @Value("${kakao.user-info-uri:https://kapi.kakao.com/v2/user/me}") String userInfoUri) {
         this.webClient = webClientBuilder.build();
+        this.externalApiGuard = externalApiGuard;
         this.clientId = clientId;
         this.clientSecret = clientSecret;
         this.redirectUri = redirectUri;
+        this.userInfoUri = userInfoUri;
     }
 
     @Override
@@ -65,13 +73,17 @@ public class KakaoOAuthProvider implements OAuthProvider {
             formData.add("redirect_uri", redirectUri);
             formData.add("code", code);
 
-            return webClient.post()
+            // 인가코드 교환은 1회성 자원 소비 — 서킷브레이커만 적용, 재시도 금지 (#125)
+            return externalApiGuard.oneShot(PROVIDER_NAME, () -> webClient.post()
                     .uri(TOKEN_URI)
                     .contentType(MediaType.APPLICATION_FORM_URLENCODED)
                     .bodyValue(formData)
                     .retrieve()
                     .bodyToMono(KakaoTokenResponse.class)
-                    .block();
+                    .block());
+        } catch (CallNotPermittedException e) {
+            log.warn("카카오 토큰 요청 차단: 서킷 open (외부 장애 감지, 즉시 실패)");
+            throw new CustomException(ErrorCode.OAUTH_TEMPORARILY_UNAVAILABLE);
         } catch (WebClientResponseException e) {
             log.warn("카카오 토큰 요청 실패: status={}, body={}", e.getStatusCode(), e.getResponseBodyAsString());
             throw new CustomException(ErrorCode.OAUTH_LOGIN_FAILED);
@@ -83,12 +95,16 @@ public class KakaoOAuthProvider implements OAuthProvider {
 
     private KakaoUserResponse requestUserInfo(String accessToken) {
         try {
-            return webClient.get()
-                    .uri(USER_INFO_URI)
+            // 사용자 정보 조회는 멱등(GET) — 서킷브레이커 + 인프라 장애 1회 재시도 (#125)
+            return externalApiGuard.idempotent(PROVIDER_NAME, () -> webClient.get()
+                    .uri(userInfoUri)
                     .headers(headers -> headers.setBearerAuth(accessToken))
                     .retrieve()
                     .bodyToMono(KakaoUserResponse.class)
-                    .block();
+                    .block());
+        } catch (CallNotPermittedException e) {
+            log.warn("카카오 사용자 정보 요청 차단: 서킷 open (외부 장애 감지, 즉시 실패)");
+            throw new CustomException(ErrorCode.OAUTH_TEMPORARILY_UNAVAILABLE);
         } catch (WebClientResponseException e) {
             log.warn("카카오 사용자 정보 요청 실패: status={}, body={}", e.getStatusCode(), e.getResponseBodyAsString());
             throw new CustomException(ErrorCode.OAUTH_LOGIN_FAILED);

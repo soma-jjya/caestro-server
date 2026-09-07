@@ -52,6 +52,7 @@ k6 run -e SCENARIO=ramp k6/signaling-session.js
 | `RECONNECT` | 1 | 예기치 않은 close 시 재연결 계약대로 재접속(#105). 0이면 close = 세션 실패(#90 당시 동작) |
 | `PROBE_SEC` | 0 | >0이면 수립 후 양쪽이 N초마다 ICE 1건 전송 → 재접속 공백 중 유실을 `sent−received`로 측정 |
 | `RESUME_TIMEOUT_SEC` | 15 | 최초 close부터 `SESSION_RESUMED`까지 허용 시간. 로컬 컨테이너 재기동 실험은 60 권장 |
+| `GUEST_LIMIT` | 30 | 서버의 게스트 발급 리밋(IP당 N/분, #129)에 맞춘 토큰 발급 페이싱 — VU를 창당 N/2명씩 나눠 발급. k6는 한 IP라 이 준수 없이는 대량 세션이 429로 무산됨. 서버 한도를 env로 풀었다면 같은 값 전달(페이싱 해제) |
 
 세션 흐름: 게스트 로그인(VU당 1회) → CREATE → JOIN → DEVICE_SPEC×2 → OFFER/ANSWER →
 ICE 버스트(양측) → PING 25s 유지 → END_SESSION.
@@ -79,6 +80,8 @@ ICE 버스트(양측) → PING 25s 유지 → END_SESSION.
 
 세션이 살아 있는 동안 서버를 죽이고, 재연결 계약을 따르는 k6가 얼마나 빨리·얼마나 많이 복원되는지 잰다.
 `SESSION_SEC`은 서버 교체 시간보다 충분히 길게(로컬 150s, 운영 300s) 잡아야 세션이 교체를 "겪는다".
+⚠️ 운영은 게스트 발급 리밋(30/분) 때문에 토큰 페이싱이 걸린다 — SESSIONS=50이면 전 세션 수립까지
+~4분 소요. refresh는 **전 VU 수립 후**(활성 연결 그래프가 목표치 도달) 트리거할 것.
 
 ```bash
 # 로컬 — close 코드·재접속 동작 검증. 복원 시간엔 컨테이너 재기동(~20s)이 섞이므로 참고치.
@@ -102,6 +105,27 @@ aws autoscaling start-instance-refresh --auto-scaling-group-name peakpic-asg \
 읽는 순서: `ws_unexpected_close` 코드 분포(어떻게 죽었나) → `reconnect_resume_ms` p95(얼마나 빨리 돌아왔나)
 → `resume_success`(다 돌아왔나) → `relay_msgs_sent−received`(공백 중 뭘 잃었나) → Grafana
 `ws_connections_active` 인스턴스별 절벽/복구 곡선.
+
+## 외부 인증 서버 장애 전염 실험 (#125)
+
+카카오가 침묵할 때 무관한 경로(게스트 로그인)로 전염되는 크기와, 타임아웃+서킷브레이커의
+차단 효과를 잰다. 가짜 침묵 서버(120s 슬립)에 user-info URI를 겨냥한다.
+
+```bash
+python3 fake-kakao.py                          # 터미널 A: :9999 침묵 서버
+# 터미널 B — before(타임아웃 60s 근사) ↔ after(기본 3s)는 EXTERNAL_... 유무만 다름
+KAKAO_USERINFOURI=http://host.docker.internal:9999/v2/user/me \
+EXTERNAL_HTTP_RESPONSETIMEOUTMS=60000 \
+AUTH_RATELIMIT_GUESTLIMIT=100000 \
+docker compose -f docker-compose.loadtest.yml up -d --build
+k6 run -e DURATION=3m k6/oauth-outage.js
+```
+
+읽는 법: 방관자(`bystander_guest_ms`)는 **avg·max**로 본다 — 구간 장애는 전체 분위수(p95)에
+가려진다. `attack_503_circuit_open`이 서킷의 흡수량. 실측(2026-09-03, results/2026-09-03-125-outage/):
+인질 회수가 60s→3s로 줄며 방관자 avg 26×(1s→38.5ms)·max 42×(58.2s→1.37s) 개선,
+서킷은 초당 ~920건을 med 5ms에 거절. 교훈: 서킷은 새 호출만 막고, 이미 스레드를 쥔 호출은
+타임아웃만이 회수한다 — 둘은 세트다.
 
 ## 스모크에서 이미 확인된 사실 (2026-08-24, 무부하 로컬 dev)
 

@@ -48,6 +48,10 @@ services:
       SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/caestro?serverTimezone=UTC&characterEncoding=UTF-8
       # dev yml이 host/port가 아니라 url 방식이므로 url을 덮어써야 한다 (url이 host/port보다 우선)
       SPRING_DATA_REDIS_URL: redis://redis:6379
+      # ↓ 장애 주입 실험용 (#125) — 셸 env 미지정 시 기본값이라 평소 실행은 동작 불변
+      KAKAO_USERINFOURI: ${KAKAO_USERINFOURI:-https://kapi.kakao.com/v2/user/me}
+      EXTERNAL_HTTP_RESPONSETIMEOUTMS: ${EXTERNAL_HTTP_RESPONSETIMEOUTMS:-3000}
+      AUTH_RATELIMIT_GUESTLIMIT: ${AUTH_RATELIMIT_GUESTLIMIT:-30}
     # t3.micro 근사: 2 vCPU(버스트 상태) + 1GB. CPU 크레딧 고갈(기준선 강등)은 로컬에서 재현 불가 —
     # 절대값 비교는 운영 최종 검증에서, 로컬은 개선 전/후 "상대 비교"에 쓴다.
     cpus: 2.0

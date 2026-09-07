@@ -6,6 +6,8 @@ import com.caestro.server.domain.session.entity.Session;
 import com.caestro.server.domain.session.repository.SessionRepository;
 import com.caestro.server.domain.user.entity.User;
 import com.caestro.server.domain.user.repository.UserRepository;
+import com.caestro.server.global.exception.CustomException;
+import com.caestro.server.global.exception.error.ErrorCode;
 import java.math.BigDecimal;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -26,7 +28,8 @@ public class DeviceSpecService {
      * DEVICE_SPEC 메시지로 수신한 기기의 카메라 스펙을 device_specs 테이블에 저장한다.
      * 스펙은 기기(사람)의 속성이므로 클라이언트가 보낸 role이 아니라 인증된 userId를 키로 사용한다.
      * 동일 session + user의 스펙이 이미 있으면 값을 갱신(update)하고, 없으면 새로 저장(insert)하는 Upsert로 동작한다.
-     * 저장 조건을 만족하지 못하면 예외를 던지지 않고 로그만 남긴 뒤 저장을 생략한다(relay 흐름을 막지 않기 위함).
+     * 유저 결측은 로그만 남기고 생략하지만(영구 결측), 세션 행 부재는 create 기록이 아직 도착 전일 수
+     * 있으므로(#124) 예외를 던져 디스패처 재시도가 구제하게 한다.
      *
      * @param sessionCode   스펙이 속한 세션 코드
      * @param userId        스펙을 보낸 기기(인증된 유저)의 ID
@@ -35,16 +38,14 @@ public class DeviceSpecService {
      * @param screenRatio   화면 비율 (nullable)
      * @param maxResolution 지원 최대 해상도 (nullable)
      * @param osType        OS 종류 (nullable)
+     * @throws CustomException SESSION_NOT_FOUND - 세션 행이 아직 없음 (재시도 대상)
      */
     @Transactional
     public void saveDeviceSpec(String sessionCode, Long userId, BigDecimal maxZoom, BigDecimal minZoom,
                                BigDecimal screenRatio, String maxResolution, String osType) {
-        // 1. 세션 존재 확인 (없으면 저장 생략, relay는 기존 정책대로 처리)
-        Session session = sessionRepository.findBySessionCode(sessionCode).orElse(null);
-        if (session == null) {
-            log.error("DeviceSpec save skipped: session not found. sessionCode={}", sessionCode);
-            return;
-        }
+        // 1. 세션 행 확보 — 없으면 조용한 생략 대신 예외로 재시도에 넘긴다 (#124: 크로스 인스턴스 순서 역전)
+        Session session = sessionRepository.findBySessionCode(sessionCode)
+                .orElseThrow(() -> new CustomException(ErrorCode.SESSION_NOT_FOUND));
 
         // 2. 인증 유저 확인 (userId 없거나 존재하지 않으면 저장 생략)
         if (userId == null) {

@@ -11,6 +11,12 @@ end
 local s = cjson.decode(raw)
 local uid = tonumber(ARGV[1])
 
+-- 종료된 세션은 종착역 (#124) — 묘비(ENDED 키)는 늦은 disconnect 방어용이지 재입장 통로가 아니다.
+-- 이 가드가 없으면 재연결 backoff가 END와 경합할 때 takeover가 세션을 CONNECTED로 부활시킨다.
+if s.status == 'ENDED' then
+    return 'ENDED'
+end
+
 if s.ownerUserId == uid then
     return 'TAKEOVER_OWNER'
 end

@@ -1,5 +1,6 @@
 package com.caestro.server.domain.auth.oauth;
 
+import com.caestro.server.global.resilience.ExternalApiGuard;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import io.jsonwebtoken.Jwts;
@@ -24,7 +25,8 @@ import org.springframework.web.reactive.function.client.WebClient;
  * 애플 서버 API(토큰 교환·revoke) 클라이언트.
  * 로그인 검증(AppleOAuthProvider)과 달리 우리가 애플을 "호출"하는 쪽이라 client secret이 필요한데,
  * 애플은 고정 문자열 대신 .p8 개인키로 매번 서명한 단명 JWT(ES256)를 요구한다.
- * 모든 호출은 best-effort — 실패가 로그인·탈퇴 흐름을 막지 않는다.
+ * 모든 호출은 best-effort — 실패가 로그인·탈퇴 흐름을 막지 않고, 서킷 open(#125) 시에는
+ * 기다림 없이 즉시 생략으로 강등된다 (CallNotPermittedException도 기존 catch가 흡수).
  */
 @Slf4j
 @Component
@@ -36,6 +38,7 @@ public class AppleTokenService {
     private static final Duration API_TIMEOUT = Duration.ofSeconds(3);
 
     private final WebClient webClient;
+    private final ExternalApiGuard externalApiGuard;
     private final String bundleId;
     private final String teamId;
     private final String keyId;
@@ -48,6 +51,7 @@ public class AppleTokenService {
 
     public AppleTokenService(
             WebClient.Builder webClientBuilder,
+            ExternalApiGuard externalApiGuard,
             @Value("${apple.bundle-id}") String bundleId,
             @Value("${apple.team-id:}") String teamId,
             @Value("${apple.key-id:}") String keyId,
@@ -55,6 +59,7 @@ public class AppleTokenService {
             @Value("${apple.token-uri:https://appleid.apple.com/auth/token}") String tokenUri,
             @Value("${apple.revoke-uri:https://appleid.apple.com/auth/revoke}") String revokeUri) {
         this.webClient = webClientBuilder.build();
+        this.externalApiGuard = externalApiGuard;
         this.bundleId = bundleId;
         this.teamId = teamId;
         this.keyId = keyId;
@@ -97,12 +102,13 @@ public class AppleTokenService {
             form.add("grant_type", "authorization_code");
             form.add("code", authorizationCode);
 
-            AppleTokenResponse response = webClient.post()
+            // 인가코드는 1회성 — 재시도 금지, 서킷브레이커만 (#125)
+            AppleTokenResponse response = externalApiGuard.oneShot("apple", () -> webClient.post()
                     .uri(tokenUri)
                     .body(BodyInserters.fromFormData(form))
                     .retrieve()
                     .bodyToMono(AppleTokenResponse.class)
-                    .block(API_TIMEOUT);
+                    .block(API_TIMEOUT));
             return Optional.ofNullable(response).map(AppleTokenResponse::refreshToken);
         } catch (Exception e) {
             log.warn("애플 refresh token 교환 실패 — 로그인은 계속 진행", e);
@@ -129,12 +135,12 @@ public class AppleTokenService {
             form.add("token", refreshToken);
             form.add("token_type_hint", "refresh_token");
 
-            webClient.post()
+            externalApiGuard.oneShot("apple", () -> webClient.post()
                     .uri(revokeUri)
                     .body(BodyInserters.fromFormData(form))
                     .retrieve()
                     .toBodilessEntity()
-                    .block(API_TIMEOUT);
+                    .block(API_TIMEOUT));
             return true;
         } catch (Exception e) {
             log.warn("애플 토큰 revoke 실패 — 탈퇴는 계속 진행", e);

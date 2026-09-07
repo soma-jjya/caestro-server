@@ -23,6 +23,11 @@ public class GlobalExceptionHandler{
     @ExceptionHandler(CustomException.class)
     protected ResponseEntity<?> customExceptionHandler(CustomException e) {
         ErrorCode errorCode = e.getErrorCode();
+        // 5xx 계열은 서버 측 이상 — 응답만 나가고 흔적이 없으면 조사가 불가능하므로 로그를 남긴다 (#131).
+        // 4xx는 클라이언트 원인의 정상 흐름이라 로그 소음을 만들지 않는다.
+        if (errorCode.getStatus() >= 500) {
+            log.warn("Server-side CustomException: {} ({})", errorCode.name(), errorCode.getStatus());
+        }
         ErrorDto errorDto = new ErrorDto(errorCode.getStatus(), errorCode.getMessage());
         return new ResponseEntity<>(errorDto, HttpStatusCode.valueOf(errorCode.getStatus()));
     }

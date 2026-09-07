@@ -28,7 +28,10 @@ class GoogleOAuthProviderTest {
 
     @BeforeEach
     void setUp() {
-        provider = new GoogleOAuthProvider(WebClient.builder(), idTokenVerifier, "cid", "secret", "uri");
+        provider = new GoogleOAuthProvider(WebClient.builder(),
+                new com.caestro.server.global.resilience.ExternalApiGuard(
+                        io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry.ofDefaults()),
+                idTokenVerifier, "cid", "secret", "uri");
     }
 
     @Test

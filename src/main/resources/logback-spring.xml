@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- 로그 출력 형식 (#131): dev·CI는 사람이 읽는 평문(부트 기본 유지), prod만 구조화 JSON.
+     JSON의 각 필드(level·logger·message + MDC의 sessionCode·userId)는 CloudWatch Logs Insights에서
+     질의 가능한 데이터가 된다 — 평문 grep이 아니라 "level·세션·시간" 필드 필터로 검색한다. -->
+<configuration>
+    <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
+
+    <springProfile name="prod">
+        <appender name="JSON" class="ch.qos.logback.core.ConsoleAppender">
+            <!-- MDC는 기본으로 최상위 필드에 포함된다 -->
+            <encoder class="net.logstash.logback.encoder.LogstashEncoder"/>
+        </appender>
+        <root level="INFO">
+            <appender-ref ref="JSON"/>
+        </root>
+    </springProfile>
+
+    <springProfile name="!prod">
+        <include resource="org/springframework/boot/logging/logback/console-appender.xml"/>
+        <root level="INFO">
+            <appender-ref ref="CONSOLE"/>
+        </root>
+    </springProfile>
+</configuration>

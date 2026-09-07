@@ -7,10 +7,12 @@ import com.caestro.server.domain.signaling.dto.response.SignalingResponse;
 import com.caestro.server.domain.signaling.entity.SessionInfo;
 import com.caestro.server.global.exception.CustomException;
 import com.caestro.server.global.exception.error.ErrorCode;
+import com.caestro.server.global.ratelimit.RedisRateLimiter;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.script.RedisScript;
@@ -18,6 +20,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.socket.WebSocketSession;
 
 import java.security.SecureRandom;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -36,6 +39,14 @@ public class SignalingService {
     private final SignalingRelaySender relaySender;
     private final SignalingMetrics metrics;
     private final SessionRecordDispatcher recordDispatcher;
+    private final RedisRateLimiter rateLimiter;
+
+    // JOIN 레이트리밋 (#125) — 6자 코드 무차별 대입을 비경제적으로 만드는 사용자당 상한
+    @Value("${signaling.ratelimit.join-limit:15}")
+    private int joinRateLimit;
+
+    @Value("${signaling.ratelimit.join-window-seconds:60}")
+    private int joinRateWindowSeconds;
 
     private static final char[] CODE_ALPHABET =
             "0123456789ABCDEFGHJKMNPQRSTVWXYZ".toCharArray();
@@ -114,15 +125,25 @@ public class SignalingService {
             return;
         }
 
-        // 2. 참여자 슬롯 획득 — 검사와 기록을 Lua로 원자화해 동시 JOIN 경합을 차단(#73)
+        // 2. JOIN 시도 레이트리밋 (#125) — 6자 코드 무차별 대입과 재시도 폭주(실측 1.2초 697회)의 서버측 강제.
+        //    backoff 계약은 클라이언트의 협조일 뿐이므로 상한은 서버가 강제한다.
+        if (!rateLimiter.tryAcquire("rl:join:" + userId, joinRateLimit, Duration.ofSeconds(joinRateWindowSeconds))) {
+            metrics.countJoin("rate_limited");
+            sendError(socket, sessionCode, ErrorCode.TOO_MANY_REQUESTS);
+            return;
+        }
+
+        // 3. 참여자 슬롯 획득 — 검사와 기록을 Lua로 원자화해 동시 JOIN 경합을 차단(#73)
         String result = redisTemplate.execute(JOIN_SLOT_CLAIM_SCRIPT,
                 List.of("session:" + sessionCode),
                 String.valueOf(userId), socket.getId(), String.valueOf(SESSION_TTL_SECONDS));
 
-        // 3. 스크립트 판정 결과를 지표로 기록 후 분기 (Lua 반환값이 그대로 라벨이 된다)
+        // 4. 스크립트 판정 결과를 지표로 기록 후 분기 (Lua 반환값이 그대로 라벨이 된다)
         metrics.countJoin(result == null ? "invalid" : result.toLowerCase());
         switch (result == null ? "" : result) {
             case "NOT_FOUND" -> sendError(socket, sessionCode, ErrorCode.SESSION_NOT_FOUND);
+            // 종료된 세션 재입장 — 클라 입장에선 소멸한 세션과 동일하므로 같은 에러 (계약 변경 없음, #124)
+            case "ENDED" -> sendError(socket, sessionCode, ErrorCode.SESSION_NOT_FOUND);
             case "OCCUPIED" -> sendError(socket, sessionCode, ErrorCode.SESSION_ALREADY_CONNECTED);
             case "TAKEOVER_OWNER", "TAKEOVER_PARTICIPANT" -> {
                 // 재연결(takeover): 본인 슬롯이면 소켓만 교체하고 복귀 처리
@@ -157,9 +178,12 @@ public class SignalingService {
             redisTemplate.expire("socket:" + ownerSocketId, 10, TimeUnit.MINUTES);
         }
 
-        // 3. DB 세션 상태 동기화는 실시간 경로에서 분리 (#99) — 같은 세션은 같은 워커라 create보다 늦게 실행됨이 보장된다
+        // 3. DB 기록은 실시간 경로에서 분리 (#99). 도착 순서는 멱등 upsert가 흡수하므로(#124) 보장하지 않되,
+        //    create 기록보다 먼저 도착해도 스스로 행을 만들 수 있게 이 시점의 스냅샷을 동봉한다
+        Long snapshotOwnerId = info != null ? info.getOwnerUserId() : null;
+        LocalDateTime snapshotExpiresAt = info != null ? info.getExpiresAt() : null;
         recordDispatcher.dispatch(sessionCode, "join",
-                () -> sessionService.joinSession(sessionCode, userId, "APP"));
+                () -> sessionService.joinSession(sessionCode, userId, "APP", snapshotOwnerId, snapshotExpiresAt));
 
         // 4. owner에게 참여자 입장 알림
         SignalingResponse notifyOwner = SignalingResponse.builder()
@@ -424,8 +448,9 @@ public class SignalingService {
             info.setStatus("ENDED");
             saveSessionInfo(sessionCode, info);
 
-            // 3. DB 종료 기록은 실시간 경로에서 분리 (#99)
-            recordDispatcher.dispatch(sessionCode, "end", () -> sessionService.endSession(sessionCode));
+            // 3. DB 종료 기록은 실시간 경로에서 분리 (#99) — 순서 무관 처리를 위해 스냅샷 동봉 (#124)
+            recordDispatcher.dispatch(sessionCode, "end",
+                    () -> sessionService.endSession(sessionCode, info.getOwnerUserId(), info.getExpiresAt()));
 
             // 4. 상대방에게 세션 종료 알림 전송
             String targetSocketId = socket.getId().equals(info.getOwnerSocketId())

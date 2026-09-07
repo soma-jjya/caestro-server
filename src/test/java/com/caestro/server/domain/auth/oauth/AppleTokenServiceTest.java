@@ -2,8 +2,10 @@ package com.caestro.server.domain.auth.oauth;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.caestro.server.global.resilience.ExternalApiGuard;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
+import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jws;
 import io.jsonwebtoken.Jwts;
@@ -44,6 +46,7 @@ class AppleTokenServiceTest {
     private final AtomicReference<String> revokeRequestBody = new AtomicReference<>();
     private final AtomicInteger tokenStatus = new AtomicInteger(200);
     private final AtomicInteger revokeStatus = new AtomicInteger(200);
+    private ExternalApiGuard guard;
     private AppleTokenService service;
 
     @BeforeEach
@@ -63,8 +66,9 @@ class AppleTokenServiceTest {
         });
         apple.start();
 
+        guard = new ExternalApiGuard(CircuitBreakerRegistry.ofDefaults());
         String base = "http://127.0.0.1:" + apple.getAddress().getPort();
-        service = new AppleTokenService(WebClient.builder(), BUNDLE_ID, TEAM_ID, KEY_ID,
+        service = new AppleTokenService(WebClient.builder(), guard, BUNDLE_ID, TEAM_ID, KEY_ID,
                 pem(signKeys.getPrivate()), base + "/auth/token", base + "/auth/revoke");
     }
 
@@ -133,7 +137,7 @@ class AppleTokenServiceTest {
     @Test
     @DisplayName("미설정(team-id/key-id/private-key 없음)이면 HTTP 호출 없이 조용히 생략한다")
     void unconfigured_skipsQuietly() {
-        AppleTokenService unconfigured = new AppleTokenService(WebClient.builder(), BUNDLE_ID,
+        AppleTokenService unconfigured = new AppleTokenService(WebClient.builder(), guard, BUNDLE_ID,
                 "", "", "", "http://127.0.0.1:1/auth/token", "http://127.0.0.1:1/auth/revoke");
 
         assertThat(unconfigured.exchangeRefreshToken("code")).isEmpty();

@@ -62,6 +62,9 @@ class SignalingServiceTest {
     private SessionRecordDispatcher recordDispatcher;
 
     @Mock
+    private com.caestro.server.global.ratelimit.RedisRateLimiter rateLimiter;
+
+    @Mock
     private WebSocketSession socket;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -76,9 +79,13 @@ class SignalingServiceTest {
     void setUp() {
         signalingService = new SignalingService(
                 redisTemplate, sessionManager, objectMapper,
-                sessionService, deviceSpecService, diagnosticLogger, relaySender, metrics, recordDispatcher);
+                sessionService, deviceSpecService, diagnosticLogger, relaySender, metrics, recordDispatcher,
+                rateLimiter);
         // 일부 경로(OCCUPIED 등)는 opsForValue를 쓰지 않으므로 lenient로 스텁
         lenient().when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+        // 레이트리밋은 기본 허용으로 스텁 — 제한 동작은 전용 테스트에서 검증 (#125)
+        lenient().when(rateLimiter.tryAcquire(any(), org.mockito.ArgumentMatchers.anyInt(), any()))
+                .thenReturn(true);
         // 기록 디스패처는 단위 테스트에서 동기 실행으로 대체 — 기존 DB 호출 검증(verify)을 그대로 유지한다
         lenient().doAnswer(inv -> {
             inv.getArgument(2, Runnable.class).run();
@@ -167,7 +174,8 @@ class SignalingServiceTest {
 
         verify(valueOperations).set(eq("socket:p-sock"), eq(SESSION_CODE), anyLong(), any(TimeUnit.class));
         verify(redisTemplate).expire(eq("socket:" + OWNER_SOCKET), anyLong(), any(TimeUnit.class));
-        verify(sessionService).joinSession(SESSION_CODE, 2L, "APP");
+        // 기록 태스크에 스냅샷(ownerUserId, expiresAt)이 동봉된다 (#124 — 순서 무관 upsert 재료)
+        verify(sessionService).joinSession(SESSION_CODE, 2L, "APP", 1L, null);
         verify(relaySender).send(eq(OWNER_SOCKET), any());
         verify(metrics).countJoin("claimed");
     }
@@ -184,8 +192,41 @@ class SignalingServiceTest {
 
         verify(sessionManager).sendMessage(eq("late-sock"), any()); // ERROR 응답
         verify(metrics).countJoin("occupied");
-        verify(sessionService, never()).joinSession(any(), any(), any());
+        verify(sessionService, never()).joinSession(any(), any(), any(), any(), any());
         verify(valueOperations, never()).set(any(), any(), anyLong(), any());
+    }
+
+    @Test
+    @DisplayName("JOIN: 종료된 세션(ENDED)이면 부활 없이 에러만 보낸다 — 묘비 가드 (#124)")
+    void joinSession_endedSession_rejectedWithoutResurrection() {
+        given(socket.getId()).willReturn("revive-sock");
+        given(socket.getAttributes()).willReturn(java.util.Map.of("userId", 2L));
+        given(redisTemplate.execute(org.mockito.ArgumentMatchers.<org.springframework.data.redis.core.script.RedisScript<String>>any(),
+                org.mockito.ArgumentMatchers.anyList(), any(), any(), any())).willReturn("ENDED");
+
+        signalingService.joinSession(socket, joinRequest(SESSION_CODE));
+
+        verify(sessionManager).sendMessage(eq("revive-sock"), any());          // SESSION_NOT_FOUND 에러 응답
+        verify(metrics).countJoin("ended");                                    // 부활 시도가 지표로 관측된다
+        verify(valueOperations, never()).set(any(), any(), anyLong(), any()); // 매핑 등록 없음 = 부활 없음
+        verify(relaySender, never()).send(any(), any());                       // PEER_RECONNECTED 없음
+    }
+
+    @Test
+    @DisplayName("JOIN: 레이트리밋 초과 시 클레임 스크립트 실행 없이 에러만 보낸다 (#125)")
+    void joinSession_rateLimited_rejectedBeforeClaim() {
+        given(socket.getId()).willReturn("burst-sock");
+        given(socket.getAttributes()).willReturn(java.util.Map.of("userId", 2L));
+        given(rateLimiter.tryAcquire(startsWith("rl:join:"), org.mockito.ArgumentMatchers.anyInt(), any()))
+                .willReturn(false);
+
+        signalingService.joinSession(socket, joinRequest(SESSION_CODE));
+
+        verify(metrics).countJoin("rate_limited");                     // 폭주가 지표로 관측된다
+        verify(sessionManager).sendMessage(eq("burst-sock"), any());   // TOO_MANY_REQUESTS 에러 응답
+        verify(redisTemplate, never()).execute(
+                org.mockito.ArgumentMatchers.<org.springframework.data.redis.core.script.RedisScript<String>>any(),
+                org.mockito.ArgumentMatchers.anyList(), any(), any(), any());
     }
 
     private com.caestro.server.domain.signaling.dto.request.SignalingRequest joinRequest(String code) {

@@ -2,6 +2,7 @@ package com.caestro.server.domain.auth.oauth;
 
 import com.caestro.server.global.exception.CustomException;
 import com.caestro.server.global.exception.error.ErrorCode;
+import com.caestro.server.global.resilience.ExternalApiGuard;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Header;
 import io.jsonwebtoken.Jwts;
@@ -26,6 +27,7 @@ public class AppleOAuthProvider implements OAuthProvider {
     static final String ISSUER = "https://appleid.apple.com";
 
     private final WebClient webClient;
+    private final ExternalApiGuard externalApiGuard;
     private final String bundleId;
     private final String jwksUri;
 
@@ -34,9 +36,11 @@ public class AppleOAuthProvider implements OAuthProvider {
 
     public AppleOAuthProvider(
             WebClient.Builder webClientBuilder,
+            ExternalApiGuard externalApiGuard,
             @Value("${apple.bundle-id}") String bundleId,
             @Value("${apple.jwks-uri:https://appleid.apple.com/auth/keys}") String jwksUri) {
         this.webClient = webClientBuilder.build();
+        this.externalApiGuard = externalApiGuard;
         this.bundleId = bundleId;
         this.jwksUri = jwksUri;
     }
@@ -105,13 +109,14 @@ public class AppleOAuthProvider implements OAuthProvider {
 
     /**
      * 애플 JWKS 엔드포인트에서 공개키 목록을 받아 kid 캐시를 통째로 교체한다.
+     * 서킷+1회 재시도(#125) — 캐시 히트 경로는 애플 장애 중에도 이 호출 없이 계속 동작한다.
      */
     private synchronized void refreshKeys() {
-        String json = webClient.get()
+        String json = externalApiGuard.idempotent("apple-jwks", () -> webClient.get()
                 .uri(jwksUri)
                 .retrieve()
                 .bodyToMono(String.class)
-                .block();
+                .block());
         JwkSet jwkSet = Jwks.setParser().build().parse(json);
 
         Map<String, Key> next = new HashMap<>();

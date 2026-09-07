@@ -34,6 +34,8 @@ public enum ErrorCode {
     INVALID_SUBSCRIPTION_PLAN(400, "유효하지 않은 구독 플랜입니다"),
     INVALID_SIGNALING_MESSAGE(400, "유효하지 않은 시그널링 메시지입니다"),
     TURN_CREDENTIAL_FAILED(500, "TURN 자격증명 생성에 실패했습니다"),
+    OAUTH_TEMPORARILY_UNAVAILABLE(503, "외부 인증 서버가 일시적으로 불안정합니다. 잠시 후 다시 시도해주세요"),
+    TOO_MANY_REQUESTS(429, "요청이 너무 잦습니다. 잠시 후 다시 시도해주세요"),
     INTERNAL_SERVER_ERROR(500, "서버 오류가 발생했습니다");
 
     private final int status;

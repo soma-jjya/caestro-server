@@ -66,25 +66,47 @@ public class Session {
     private LocalDateTime createdAt;
 
     /**
-     * 참여자(participant)가 세션에 입장했을 때 세션 상태를 연결됨(CONNECTED)으로 전환한다.
-     * 참여자 유저, 카메라 모드, 연결 시각을 함께 갱신한다.
+     * 참여자 입장 마일스톤을 기록한다. 참여자·카메라 모드를 갱신하고 상태를 CONNECTED로 올린다.
+     * 기록은 비동기 워커로 순서 없이 도착할 수 있으므로(#124) 상태는 단조 전이만 허용한다 —
+     * end 기록 뒤에 늦게 도착해도 ENDED를 되살리지 않고, connectedAt은 최초 도달 시각을 유지한다.
      *
-     * @param participantUser 입장한 참여자 유저
+     * @param participantUser 입장한 참여자 유저 (null이면 기존 값 유지)
      * @param mode            카메라 모드 (APP)
      */
     public void connect(User participantUser, String mode) {
-        this.participant = participantUser;
-        this.cameraMode = mode;
-        this.status = "CONNECTED";
-        this.connectedAt = LocalDateTime.now();
+        if (participantUser != null) {
+            this.participant = participantUser;
+        }
+        if (mode != null) {
+            this.cameraMode = mode;
+        }
+        if (rank(this.status) < rank("CONNECTED")) {
+            this.status = "CONNECTED";
+        }
+        if (this.connectedAt == null) {
+            this.connectedAt = LocalDateTime.now();
+        }
     }
 
     /**
-     * 세션을 종료(ENDED) 상태로 전환하고 종료 시각을 기록한다.
+     * 종료 마일스톤을 기록한다. 중복 도착에도 endedAt은 최초 종료 시각을 유지한다 (#124).
      */
     public void end() {
-        this.status = "ENDED";
-        this.endedAt = LocalDateTime.now();
+        if (rank(this.status) < rank("ENDED")) {
+            this.status = "ENDED";
+        }
+        if (this.endedAt == null) {
+            this.endedAt = LocalDateTime.now();
+        }
+    }
+
+    // DB status는 실시간 상태가 아니라 도달 마일스톤 — 늦게 도착한 기록이 단계를 되돌리지 못한다 (#124)
+    private static int rank(String status) {
+        return switch (status) {
+            case "ENDED" -> 2;
+            case "CONNECTED" -> 1;
+            default -> 0; // WAITING 및 그 외
+        };
     }
 
     /**

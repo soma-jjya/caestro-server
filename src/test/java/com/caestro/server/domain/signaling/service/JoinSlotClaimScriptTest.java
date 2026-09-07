@@ -147,6 +147,24 @@ class JoinSlotClaimScriptTest {
         assertThat(saved.getParticipantSocketId()).isEqualTo("sock-A");
     }
 
+    @Test
+    @DisplayName("[재현→방어] 종료(ENDED)된 세션은 재입장이 거절된다 — 묘비는 부활 통로가 아니다 (#124)")
+    void endedSession_rejectsRejoin() throws Exception {
+        // 참여자까지 찼다가 명시적으로 종료된 세션 (endSession은 키를 지우지 않고 묘비로 남긴다)
+        executeClaim(2L, "sock-A");
+        SessionInfo ended = currentSession();
+        ended.setStatus("ENDED");
+        redisTemplate.opsForValue().set(KEY, objectMapper.writeValueAsString(ended), Duration.ofMinutes(10));
+
+        // 원래 멤버(참여자·방장)든 제3자든 전부 거절 — takeover로 CONNECTED 부활하면 안 된다
+        assertThat(executeClaim(2L, "sock-A2")).isEqualTo("ENDED");
+        assertThat(executeClaim(1L, "owner-sock2")).isEqualTo("ENDED");
+        assertThat(executeClaim(3L, "sock-B")).isEqualTo("ENDED");
+
+        // 상태는 그대로 ENDED (스크립트가 아무것도 쓰지 않았다)
+        assertThat(currentSession().getStatus()).isEqualTo("ENDED");
+    }
+
     private String executeClaim(long userId, String socketId) {
         return executeClaimOnKey(KEY, userId, socketId);
     }

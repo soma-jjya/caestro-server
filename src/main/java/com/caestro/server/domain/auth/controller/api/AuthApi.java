@@ -15,9 +15,10 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.RequestBody;
-import jakarta.validation.Valid;
 
 @Tag(name = "Auth", description = "인증 API")
 public interface AuthApi {
@@ -32,7 +33,8 @@ public interface AuthApi {
             @ApiResponse(responseCode = "200", description = "토큰 발급 성공",
                     content = @Content(schema = @Schema(implementation = TokenResponse.class))),
             @ApiResponse(responseCode = "400", description = "인가코드가 없음"),
-            @ApiResponse(responseCode = "502", description = "외부 인증 서버 오류")
+            @ApiResponse(responseCode = "502", description = "외부 인증 서버 오류"),
+            @ApiResponse(responseCode = "503", description = "외부 인증 서버 일시 불안정 (서킷 open — 잠시 후 재시도)")
     })
     ResponseEntity<TokenResponse> socialCallback(String provider, String code,
             @Parameter(hidden = true) CustomUserDetails userDetails);
@@ -40,14 +42,17 @@ public interface AuthApi {
     @Operation(
             summary = "게스트(익명) 로그인",
             description = "디바이스 ID로 익명 유저를 생성/조회해 JWT를 발급합니다. 로그인 없이 세션 생성·TURN·촬영 등 "
-                    + "대부분의 기능을 사용할 수 있으며, 이후 소셜 로그인 시 이 게스트 계정이 정식 계정으로 연동됩니다."
+                    + "대부분의 기능을 사용할 수 있으며, 이후 소셜 로그인 시 이 게스트 계정이 정식 계정으로 연동됩니다. "
+                    + "IP당 발급 속도가 제한됩니다."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "토큰 발급 성공",
                     content = @Content(schema = @Schema(implementation = TokenResponse.class))),
-            @ApiResponse(responseCode = "400", description = "디바이스 ID가 없음")
+            @ApiResponse(responseCode = "400", description = "디바이스 ID가 없음"),
+            @ApiResponse(responseCode = "429", description = "발급 속도 제한 초과 (잠시 후 재시도)")
     })
-    ResponseEntity<TokenResponse> guestLogin(@Valid @RequestBody GuestLoginRequest request);
+    ResponseEntity<TokenResponse> guestLogin(@Valid @RequestBody GuestLoginRequest request,
+            @Parameter(hidden = true) HttpServletRequest httpRequest);
 
     @Operation(
             summary = "소셜 로그인 (모바일 SDK 토큰)",
@@ -61,7 +66,8 @@ public interface AuthApi {
             @ApiResponse(responseCode = "200", description = "토큰 발급 성공",
                     content = @Content(schema = @Schema(implementation = TokenResponse.class))),
             @ApiResponse(responseCode = "400", description = "액세스토큰이 없음"),
-            @ApiResponse(responseCode = "502", description = "외부 인증 서버 오류")
+            @ApiResponse(responseCode = "502", description = "외부 인증 서버 오류"),
+            @ApiResponse(responseCode = "503", description = "외부 인증 서버 일시 불안정 (서킷 open — 잠시 후 재시도)")
     })
     ResponseEntity<TokenResponse> socialLoginByToken(String provider, @Valid @RequestBody SocialTokenLoginRequest request,
             @Parameter(hidden = true) CustomUserDetails userDetails);

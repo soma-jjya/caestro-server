@@ -22,6 +22,7 @@
  *   k6 run -e RECONNECT=0 ...                                         # close = 실패로 취급 (#90 당시 동작)
  */
 import http from 'k6/http';
+import { sleep } from 'k6';
 import { WebSocket } from 'k6/websockets';
 import { Counter, Rate, Trend } from 'k6/metrics';
 import { buildCandidate, buildSdp, candidateTs, sdpTs } from './payloads.js';
@@ -44,6 +45,9 @@ const PROBE_SEC = Number(__ENV.PROBE_SEC || 0);      // >0: 수립 후 양쪽이
 const RESUME_TIMEOUT_MS = Number(__ENV.RESUME_TIMEOUT_SEC || 15) * 1000; // 최초 close부터 복원까지 허용 시간
 const MAX_BACKOFF_MS = 30000;
 const MAX_IMMEDIATE_1012 = 2;                        // 연속 1012에 즉시 재시도하는 상한 — 넘으면 backoff (드레인 중 인스턴스에 재착지 시 루프 방지)
+// 서버의 게스트 발급 리밋(IP당 N/분, #129)을 도구가 준수한다 — k6는 한 IP에서 VU당 토큰 2개를
+// 발급하므로 초과분 VU는 다음 창까지 대기한다. 로컬에서 한도를 env로 풀었다면 같은 값을 넘길 것.
+const GUEST_LIMIT = Number(__ENV.GUEST_LIMIT || 30);
 
 // ═══ 커스텀 지표 ═══
 const relayIceE2e = new Trend('relay_ice_e2e_ms');       // ICE 편도 지연 (소형 페이로드)
@@ -117,7 +121,14 @@ function guestLogin(role) {
 let firstIteration = true;
 
 export default function () {
-    if (!tokens) tokens = { owner: guestLogin('owner'), participant: guestLogin('part') };
+    if (!tokens) {
+        // 발급 페이싱 (#129): VU를 창 단위 그룹(창당 GUEST_LIMIT/2명)으로 나눠, 뒷 그룹은
+        // 자기 창이 열릴 때까지 대기 — 한 IP 100회 버스트가 서버 리밋(429)에 걸리지 않게 한다
+        const vusPerWindow = Math.max(1, Math.floor(GUEST_LIMIT / 2));
+        const windowIdx = Math.floor((__VU - 1) / vusPerWindow);
+        if (windowIdx > 0) sleep(windowIdx * 61);
+        tokens = { owner: guestLogin('owner'), participant: guestLogin('part') };
+    }
 
     // 파도 동기화 방지(1차 측정에서 관측): VU 전원이 같은 주기로 시작·종료하면
     // 실사용에 없는 동시 수립 스파이크가 생긴다 → 시작 시점과 세션 수명을 무작위로 흩뜨린다.
