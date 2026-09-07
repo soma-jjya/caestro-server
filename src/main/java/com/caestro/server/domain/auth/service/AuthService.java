@@ -68,11 +68,11 @@ public class AuthService {
     }
 
     public TokenResponse socialLoginByToken(String providerName, String accessToken) {
-        return socialLoginByToken(providerName, accessToken, null, null);
+        return socialLoginByToken(providerName, accessToken, null, null, null);
     }
 
     public TokenResponse socialLoginByToken(String providerName, String accessToken, Long guestUserId) {
-        return socialLoginByToken(providerName, accessToken, guestUserId, null);
+        return socialLoginByToken(providerName, accessToken, guestUserId, null, null);
     }
 
     /**
@@ -83,20 +83,27 @@ public class AuthService {
      * @param accessToken       소셜 플랫폼 토큰 (카카오=access token, 구글=ID token, 애플=identity token)
      * @param guestUserId       게스트 JWT로 접근한 경우의 userId (없으면 null)
      * @param authorizationCode 애플 전용(선택) — 탈퇴 시 revoke에 쓸 refresh token 교환용 1회성 코드
+     * @param clientNickname    애플 전용(선택, #134) — 애플이 앱에만 최초 1회 주는 이름을 클라이언트가 전달
      * @return accessToken + refreshToken 쌍
      */
     public TokenResponse socialLoginByToken(String providerName, String accessToken, Long guestUserId,
-            String authorizationCode) {
+            String authorizationCode, String clientNickname) {
         // 1. provider 조회
         OAuthProvider provider = oAuthProviderRegistry.getProvider(providerName);
 
         // 2. access token으로 소셜 프로필 조회 (code 교환 생략)
         OAuthProfile profile = provider.getProfileByToken(accessToken);
 
-        // 3. 유저 조회/생성 또는 게스트 계정 연동
+        // 3. 이름 결정 — provider가 준 이름이 항상 우선. 클라이언트 주장 값(서버 검증 불가)은
+        //    provider가 이름을 안 주는 경우(=애플)에만 후보가 된다 (#134, 카카오/구글 오남용 무해화)
+        if (profile.nickname() == null) {
+            profile = new OAuthProfile(profile.oauthId(), normalizeNickname(clientNickname), profile.profileImage());
+        }
+
+        // 4. 유저 조회/생성 또는 게스트 계정 연동
         User user = findOrCreateOrUpgrade(profile, providerName, guestUserId);
 
-        // 4. 애플: 탈퇴 revoke용 refresh token 확보 — 교환 실패해도 로그인은 진행한다 (best-effort)
+        // 5. 애플: 탈퇴 revoke용 refresh token 확보 — 교환 실패해도 로그인은 진행한다 (best-effort)
         if ("apple".equals(providerName) && authorizationCode != null && !authorizationCode.isBlank()) {
             appleTokenService.exchangeRefreshToken(authorizationCode)
                     .ifPresent(refreshToken -> {
@@ -105,22 +112,37 @@ public class AuthService {
                     });
         }
 
-        // 5. JWT 발급
+        // 6. JWT 발급
         return generateTokens(user);
+    }
+
+    /** 클라이언트 전달 닉네임 정규화 (#134) — 공백-only가 "이름 있음"으로 저장되지 않게 null로 강등 */
+    private static String normalizeNickname(String nickname) {
+        if (nickname == null) {
+            return null;
+        }
+        String trimmed = nickname.trim();
+        return trimmed.isEmpty() ? null : trimmed;
     }
 
     /**
      * 소셜 프로필로 유저를 조회/생성하되, 호출자가 게스트면 계정 연동(업그레이드)을 처리한다.
      *
-     * - 해당 소셜 계정이 이미 존재하면 그 계정으로 로그인한다.
+     * - 해당 소셜 계정이 이미 존재하면 그 계정으로 로그인한다. 닉네임이 비어 있으면 이번에 온
+     *   이름으로 채운다(fill-if-null, #134 — 필드 추가 전 가입한 애플 사용자 구제).
      * - 없고 호출자가 게스트면, 게스트 User를 제자리 승격해 userId를 유지한다.
      * - 없고 게스트도 아니면 신규 유저를 생성한다.
      */
     private User findOrCreateOrUpgrade(OAuthProfile profile, String provider, Long guestUserId) {
-        // 이미 가입된 소셜 계정이면 그 계정으로 로그인
+        // 이미 가입된 소셜 계정이면 그 계정으로 로그인 (비어 있는 닉네임만 이번 값으로 보충)
         Optional<User> existing = userRepository.findByOauthProviderAndOauthId(provider, profile.oauthId());
         if (existing.isPresent()) {
-            return existing.get();
+            User user = existing.get();
+            if (user.getNickname() == null && profile.nickname() != null) {
+                user.fillNicknameIfAbsent(profile.nickname());
+                return userRepository.save(user);
+            }
+            return user;
         }
 
         // 호출자가 게스트면 제자리 승격 (userId 유지 → 그동안의 데이터 이관)

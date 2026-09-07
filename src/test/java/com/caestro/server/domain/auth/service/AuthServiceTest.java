@@ -202,7 +202,9 @@ class AuthServiceTest {
         // given
         String token = "kakao-token";
         OAuthProfile profile = new OAuthProfile("kakao-600", "카카오", "img");
-        User existingSocial = User.builder().oauthProvider("kakao").oauthId("kakao-600").role(User.Role.USER).build();
+        // nickname을 채워둔다 — 비어 있으면 fill-if-null(#134)이 save를 유발해 이 테스트의 관심사(게스트 불간섭)와 섞인다
+        User existingSocial = User.builder().oauthProvider("kakao").oauthId("kakao-600")
+                .nickname("기존닉").role(User.Role.USER).build();
         ReflectionTestUtils.setField(existingSocial, "id", 30L);
 
         given(oAuthProviderRegistry.getProvider("kakao")).willReturn(oAuthProvider);
@@ -239,7 +241,7 @@ class AuthServiceTest {
         given(redisTemplate.opsForValue()).willReturn(valueOperations);
 
         // when
-        authService.socialLoginByToken("apple", identityToken, null, "auth-code-1");
+        authService.socialLoginByToken("apple", identityToken, null, "auth-code-1", null);
 
         // then: 탈퇴 시 revoke에 쓸 애플 refresh token이 유저에 저장된다
         assertThat(user.getAppleRefreshToken()).isEqualTo("apple-rt-9");
@@ -264,11 +266,124 @@ class AuthServiceTest {
         given(redisTemplate.opsForValue()).willReturn(valueOperations);
 
         // when
-        TokenResponse response = authService.socialLoginByToken("apple", identityToken, null, "auth-code-2");
+        TokenResponse response = authService.socialLoginByToken("apple", identityToken, null, "auth-code-2", null);
 
         // then: 교환 실패는 로그인 결과에 영향 없음, 토큰 저장도 없음
         assertThat(response.accessToken()).isEqualTo("a");
         assertThat(user.getAppleRefreshToken()).isNull();
         verify(userRepository, never()).save(any(User.class));
+    }
+
+    @Test
+    @DisplayName("애플 신규 가입: 클라이언트 전달 nickname이 저장된다 (#134 — 애플은 이름을 앱에만 제공)")
+    void appleSignup_clientNickname_saved() {
+        OAuthProfile profile = new OAuthProfile("apple-sub-3", null, null); // 애플 프로필엔 이름 없음
+        given(oAuthProviderRegistry.getProvider("apple")).willReturn(oAuthProvider);
+        given(oAuthProvider.getProfileByToken("t")).willReturn(profile);
+        given(userRepository.findByOauthProviderAndOauthId("apple", "apple-sub-3")).willReturn(Optional.empty());
+        given(userRepository.save(any(User.class))).willAnswer(inv -> inv.getArgument(0));
+        given(jwtProvider.generateAccessToken(any(), any())).willReturn("a");
+        given(jwtProvider.generateRefreshToken(any())).willReturn("r");
+        given(redisTemplate.opsForValue()).willReturn(valueOperations);
+
+        authService.socialLoginByToken("apple", "t", null, null, "진동현");
+
+        org.mockito.ArgumentCaptor<User> captor = org.mockito.ArgumentCaptor.forClass(User.class);
+        verify(userRepository).save(captor.capture());
+        assertThat(captor.getValue().getNickname()).isEqualTo("진동현");
+    }
+
+    @Test
+    @DisplayName("기존 애플 가입자(nickname=null) 재로그인: 늦게 온 이름으로 채워진다 (기존 사용자 구제)")
+    void appleRelogin_nullNickname_filled() {
+        User existing = User.builder().oauthProvider("apple").oauthId("apple-sub-4").role(User.Role.USER).build();
+        ReflectionTestUtils.setField(existing, "id", 50L);
+        given(oAuthProviderRegistry.getProvider("apple")).willReturn(oAuthProvider);
+        given(oAuthProvider.getProfileByToken("t")).willReturn(new OAuthProfile("apple-sub-4", null, null));
+        given(userRepository.findByOauthProviderAndOauthId("apple", "apple-sub-4")).willReturn(Optional.of(existing));
+        given(userRepository.save(existing)).willReturn(existing);
+        given(jwtProvider.generateAccessToken(50L, User.Role.USER)).willReturn("a");
+        given(jwtProvider.generateRefreshToken(50L)).willReturn("r");
+        given(redisTemplate.opsForValue()).willReturn(valueOperations);
+
+        authService.socialLoginByToken("apple", "t", null, null, "진동현");
+
+        assertThat(existing.getNickname()).isEqualTo("진동현");
+        verify(userRepository).save(existing);
+    }
+
+    @Test
+    @DisplayName("nickname이 이미 있는 사용자: 덮어쓰지 않고 저장도 없다 (재로그인 시 null·다른 값 모두)")
+    void appleRelogin_existingNickname_neverOverwritten() {
+        User existing = User.builder().oauthProvider("apple").oauthId("apple-sub-5")
+                .nickname("원래이름").role(User.Role.USER).build();
+        ReflectionTestUtils.setField(existing, "id", 51L);
+        given(oAuthProviderRegistry.getProvider("apple")).willReturn(oAuthProvider);
+        given(oAuthProvider.getProfileByToken("t")).willReturn(new OAuthProfile("apple-sub-5", null, null));
+        given(userRepository.findByOauthProviderAndOauthId("apple", "apple-sub-5")).willReturn(Optional.of(existing));
+        given(jwtProvider.generateAccessToken(51L, User.Role.USER)).willReturn("a");
+        given(jwtProvider.generateRefreshToken(51L)).willReturn("r");
+        given(redisTemplate.opsForValue()).willReturn(valueOperations);
+
+        authService.socialLoginByToken("apple", "t", null, null, "다른이름");
+
+        assertThat(existing.getNickname()).isEqualTo("원래이름");
+        verify(userRepository, never()).save(any(User.class));
+    }
+
+    @Test
+    @DisplayName("카카오 요청에 nickname이 실려 와도 provider 프로필 이름이 우선한다 (필드 오남용 무해화)")
+    void kakaoLogin_clientNickname_ignoredWhenProfileHasName() {
+        given(oAuthProviderRegistry.getProvider("kakao")).willReturn(oAuthProvider);
+        given(oAuthProvider.getProfileByToken("t")).willReturn(new OAuthProfile("kakao-700", "카카오이름", "img"));
+        given(userRepository.findByOauthProviderAndOauthId("kakao", "kakao-700")).willReturn(Optional.empty());
+        given(userRepository.save(any(User.class))).willAnswer(inv -> inv.getArgument(0));
+        given(jwtProvider.generateAccessToken(any(), any())).willReturn("a");
+        given(jwtProvider.generateRefreshToken(any())).willReturn("r");
+        given(redisTemplate.opsForValue()).willReturn(valueOperations);
+
+        authService.socialLoginByToken("kakao", "t", null, null, "위조시도");
+
+        org.mockito.ArgumentCaptor<User> captor = org.mockito.ArgumentCaptor.forClass(User.class);
+        verify(userRepository).save(captor.capture());
+        assertThat(captor.getValue().getNickname()).isEqualTo("카카오이름");
+    }
+
+    @Test
+    @DisplayName("공백-only nickname은 null 취급 — '이름 있음'으로 저장돼 이후 채움을 막지 않는다")
+    void blankNickname_treatedAsNull() {
+        given(oAuthProviderRegistry.getProvider("apple")).willReturn(oAuthProvider);
+        given(oAuthProvider.getProfileByToken("t")).willReturn(new OAuthProfile("apple-sub-6", null, null));
+        given(userRepository.findByOauthProviderAndOauthId("apple", "apple-sub-6")).willReturn(Optional.empty());
+        given(userRepository.save(any(User.class))).willAnswer(inv -> inv.getArgument(0));
+        given(jwtProvider.generateAccessToken(any(), any())).willReturn("a");
+        given(jwtProvider.generateRefreshToken(any())).willReturn("r");
+        given(redisTemplate.opsForValue()).willReturn(valueOperations);
+
+        authService.socialLoginByToken("apple", "t", null, null, "   ");
+
+        org.mockito.ArgumentCaptor<User> captor = org.mockito.ArgumentCaptor.forClass(User.class);
+        verify(userRepository).save(captor.capture());
+        assertThat(captor.getValue().getNickname()).isNull();
+    }
+
+    @Test
+    @DisplayName("게스트 → 애플 승격 시에도 클라이언트 nickname이 채워진다 (linkOAuth 경로)")
+    void guestUpgradeToApple_clientNickname_applied() {
+        User guest = User.builder().deviceId("dev-a").role(User.Role.USER).build();
+        ReflectionTestUtils.setField(guest, "id", 60L);
+        given(oAuthProviderRegistry.getProvider("apple")).willReturn(oAuthProvider);
+        given(oAuthProvider.getProfileByToken("t")).willReturn(new OAuthProfile("apple-sub-7", null, null));
+        given(userRepository.findByOauthProviderAndOauthId("apple", "apple-sub-7")).willReturn(Optional.empty());
+        given(userRepository.findById(60L)).willReturn(Optional.of(guest));
+        given(userRepository.save(guest)).willReturn(guest);
+        given(jwtProvider.generateAccessToken(60L, User.Role.USER)).willReturn("a");
+        given(jwtProvider.generateRefreshToken(60L)).willReturn("r");
+        given(redisTemplate.opsForValue()).willReturn(valueOperations);
+
+        authService.socialLoginByToken("apple", "t", 60L, null, "진동현");
+
+        assertThat(guest.getNickname()).isEqualTo("진동현");
+        assertThat(guest.getOauthProvider()).isEqualTo("apple");
     }
 }

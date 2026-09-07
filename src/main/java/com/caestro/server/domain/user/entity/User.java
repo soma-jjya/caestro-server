@@ -106,6 +106,16 @@ public class User {
     }
 
     /**
+     * 닉네임이 비어 있을 때만 채운다 (#134).
+     * 애플은 이름을 최초 1회만 제공하므로, 늦게 도착한 값이 기존 이름을 덮지 않아야 한다.
+     */
+    public void fillNicknameIfAbsent(String nickname) {
+        if (this.nickname == null && nickname != null) {
+            this.nickname = nickname;
+        }
+    }
+
+    /**
      * 이미 탈퇴한(soft delete) 계정인지 여부.
      */
     public boolean isDeleted() {

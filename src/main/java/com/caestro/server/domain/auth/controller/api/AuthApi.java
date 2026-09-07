@@ -59,7 +59,9 @@ public interface AuthApi {
             description = "모바일 네이티브 SDK가 발급받은 토큰으로 JWT를 발급합니다. "
                     + "(카카오=access token, 구글=ID token, 애플=identity token — 모두 accessToken 필드로 전달) "
                     + "authorization code 교환 단계가 없어 redirect_uri에 의존하지 않으며 Android·iOS 공통으로 사용됩니다. "
-                    + "애플은 authorizationCode를 함께 보내면 탈퇴 시 애플 연결 해제(revoke)용 토큰을 확보합니다."
+                    + "애플은 authorizationCode를 함께 보내면 탈퇴 시 애플 연결 해제(revoke)용 토큰을 확보하고, "
+                    + "nickname(선택, 50자 이하)을 보내면 서버 닉네임이 비어 있을 때만 채웁니다(덮어쓰기 없음 — "
+                    + "애플이 이름을 앱에만 최초 1회 제공하므로 매 로그인 시 로컬 보관값을 보내면 됩니다)."
     )
     @Parameter(name = "provider", description = "소셜 로그인 provider (예: kakao, google, apple)", in = ParameterIn.PATH, required = true)
     @ApiResponses({
