@@ -36,6 +36,16 @@ public enum ErrorCode {
     TURN_CREDENTIAL_FAILED(500, "TURN 자격증명 생성에 실패했습니다"),
     OAUTH_TEMPORARILY_UNAVAILABLE(503, "외부 인증 서버가 일시적으로 불안정합니다. 잠시 후 다시 시도해주세요"),
     TOO_MANY_REQUESTS(429, "요청이 너무 잦습니다. 잠시 후 다시 시도해주세요"),
+    FILL_NOT_FOUND(404, "함께 채우기 세션을 찾을 수 없습니다"),
+    FILL_EXPIRED(410, "만료된 함께 채우기 세션입니다"),
+    FILL_SLOT_TAKEN(409, "다른 사람이 먼저 채운 칸입니다"),
+    FILL_ACCESS_DENIED(403, "이 함께 채우기 세션을 바꿀 권한이 없습니다"),
+    FILL_INVALID_SLOT(400, "칸 번호가 올바르지 않습니다"),
+    FILL_INVALID_FRAME(400, "프레임 또는 배치 값이 올바르지 않습니다"),
+    FILL_INVALID_IMAGE(400, "이미지 파일(JPEG/PNG)이 아닙니다"),
+    FILL_IMAGE_TOO_LARGE(413, "이미지가 너무 큽니다 (최대 3MB)"),
+    FILL_IMAGE_NOT_FOUND(404, "이미지를 찾을 수 없습니다"),
+    FILL_CODE_GENERATION_FAILED(500, "함께 채우기 코드 생성에 실패했습니다"),
     INTERNAL_SERVER_ERROR(500, "서버 오류가 발생했습니다");
 
     private final int status;

@@ -57,6 +57,19 @@ cleanup:
     retention-days: 30        # 생성 후 이 기간이 지난 세션을 정리
     cron: "0 0 4 * * *"       # 매일 새벽 4시
 
+# 함께 채우기 (#fill-together): 사진은 DB(fill_images)에 두고 만료 뒤 배치가 지운다
+fill:
+  public-base-url: https://api.peakpic.app   # 이미지 URL의 호스트 (ALB 뒤에서는 요청 스킴을 믿을 수 없어 고정)
+  ttl-days: 7
+  max-image-bytes: 3145728
+cleanup:
+  fill:
+    cron: "0 30 4 * * *"
+
+# 브라우저 클라이언트(peakpic.app 웹에서 채우기) 허용 출처. 로컬 개발은 프로파일에서 http://localhost:포트 를 덧붙인다
+cors:
+  allowed-origins: https://peakpic.app,https://www.peakpic.app
+
 ---
 # prod 프로파일(ASG 인스턴스)에서만 IMDS 감지를 켠다. application-prod.yml은 저장소 밖(CI Secret)이라
 # 코드와 함께 추적돼야 하는 이 토글은 여기 프로파일 문서로 둔다. (반드시 파일 맨 끝에 둘 것 — 아래 키는 전부 이 문서 소속)
