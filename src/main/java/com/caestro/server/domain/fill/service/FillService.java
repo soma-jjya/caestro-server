@@ -144,7 +144,7 @@ public class FillService {
         String url = imageUrl(session.getCode(), image.getId());
         List<FillLayerDto> layers = new ArrayList<>(custom.layers());
         layers.set(k, layers.get(k).withUrl(url));
-        session.updateCustomFrameJson(toJson(new FillCustomFrameDto(custom.base(), layers)));
+        session.updateCustomFrameJson(toJson(new FillCustomFrameDto(custom.base(), layers, custom.borderless())));
         return url;
     }
 

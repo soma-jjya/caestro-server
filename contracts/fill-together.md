@@ -20,7 +20,7 @@
 FillResponse = {
   "code": "K7X2MQ", "ownerMe": true,
   "frame": "Black" | "White", "layout": "Strip" | "Grid", "artFrameId": "gyaru" | null,
-  "customFrame": {"base": "White", "layers": [{"cx":0.5,"cy":0.9,"w":0.3,"rot":0,"url":"https://…/images/…"}]} | null,
+  "customFrame": {"base": "White", "borderless": false, "layers": [{"cx":0.5,"cy":0.9,"w":0.3,"rot":0,"url":"https://…/images/…"}]} | null,
   "slots": [{"index":0,"imageUrl":"https://…"|null,"filledByMe":false,"filledByName":"민지"|null,"filledAt":"2026-09-26T03:00:00Z"|null}, …4개],
   "expiresAt": "2026-10-03T03:00:00Z", "createdAt": "2026-09-26T03:00:00Z"
 }
