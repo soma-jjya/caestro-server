@@ -12,6 +12,7 @@ public record FillResponse(
         String layout,
         String artFrameId,
         FillCustomFrameDto customFrame,
+        String title,
         List<FillSlotResponse> slots,
         Instant expiresAt,
         Instant createdAt

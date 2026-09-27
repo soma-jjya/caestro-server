@@ -8,6 +8,8 @@ public record CreateFillRequest(
         @NotBlank(message = "frame은 필수입니다") @Size(max = 20) String frame,
         @NotBlank(message = "layout은 필수입니다") @Size(max = 20) String layout,
         @Size(max = 40) String artFrameId,
-        FillCustomFrameDto customFrame
+        FillCustomFrameDto customFrame,
+        /** 주인이 붙인 제목(선택). 공백만이면 없는 것으로 본다. */
+        @Size(max = 30) String title
 ) {
 }

@@ -75,6 +75,7 @@ public class FillService {
                 .layout(request.layout())
                 .artFrameId(request.artFrameId())
                 .customFrameJson(request.customFrame() == null ? null : toJson(request.customFrame()))
+                .title(normalizeTitle(request.title()))
                 .expiresAt(now.plusDays(ttlDays))
                 .build());
         List<FillSlot> slots = new ArrayList<>(SLOTS);
@@ -272,9 +273,18 @@ public class FillService {
                 session.getLayout(),
                 session.getArtFrameId(),
                 parseCustom(session.getCustomFrameJson()),
+                session.getTitle(),
                 slotResponses,
                 toInstant(session.getExpiresAt()),
                 toInstant(session.getCreatedAt()));
+    }
+
+    /** 앞뒤 공백을 지우고 연속 공백을 하나로, 30자까지. 비면 null. */
+    static String normalizeTitle(String raw) {
+        if (raw == null) return null;
+        String t = raw.trim().replaceAll("\\s+", " ");
+        if (t.length() > 30) t = t.substring(0, 30);
+        return t.isEmpty() ? null : t;
     }
 
     private Instant toInstant(LocalDateTime t) {

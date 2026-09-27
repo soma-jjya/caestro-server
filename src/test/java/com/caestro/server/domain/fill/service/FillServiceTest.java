@@ -96,10 +96,11 @@ class FillServiceTest {
         });
         given(slotRepository.save(any(FillSlot.class))).willAnswer(inv -> inv.getArgument(0));
 
-        FillResponse r = service.create(1L, new CreateFillRequest("Black", "Strip", null, null));
+        FillResponse r = service.create(1L, new CreateFillRequest("Black", "Strip", null, null, " 제주   여행 "));
 
         assertThat(r.code()).isEqualTo("K7X2MQ");
         assertThat(r.ownerMe()).isTrue();
+        assertThat(r.title()).isEqualTo("제주 여행");
         assertThat(r.slots()).hasSize(4).allMatch(s -> s.imageUrl() == null);
         assertThat(r.expiresAt()).isEqualTo(Instant.parse("2026-10-03T03:00:00Z"));
         verify(slotRepository, org.mockito.Mockito.times(4)).save(any(FillSlot.class));
@@ -108,7 +109,7 @@ class FillServiceTest {
     @Test
     @DisplayName("생성: frame/layout 값이 앱의 enum 이름이 아니면 400")
     void create_rejectsUnknownFrame() {
-        assertThatThrownBy(() -> service.create(1L, new CreateFillRequest("Pink", "Strip", null, null)))
+        assertThatThrownBy(() -> service.create(1L, new CreateFillRequest("Pink", "Strip", null, null, null)))
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode()).isEqualTo(ErrorCode.FILL_INVALID_FRAME);
         verify(sessionRepository, never()).save(any());

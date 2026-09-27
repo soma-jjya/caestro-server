@@ -64,6 +64,10 @@ public class FillSession {
     @Column(columnDefinition = "TEXT")
     private String customFrameJson;
 
+    // 주인이 붙인 제목. 없으면 클라이언트가 코드를 보여 준다.
+    @Column(length = 30)
+    private String title;
+
     @Column(nullable = false)
     private LocalDateTime expiresAt;
 
