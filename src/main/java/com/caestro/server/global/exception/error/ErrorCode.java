@@ -36,6 +36,11 @@ public enum ErrorCode {
     TURN_CREDENTIAL_FAILED(500, "TURN 자격증명 생성에 실패했습니다"),
     OAUTH_TEMPORARILY_UNAVAILABLE(503, "외부 인증 서버가 일시적으로 불안정합니다. 잠시 후 다시 시도해주세요"),
     TOO_MANY_REQUESTS(429, "요청이 너무 잦습니다. 잠시 후 다시 시도해주세요"),
+    BAD_REQUEST(400, "잘못된 요청입니다"),
+    RESOURCE_NOT_FOUND(404, "요청한 경로를 찾을 수 없습니다"),
+    METHOD_NOT_ALLOWED(405, "지원하지 않는 HTTP 메서드입니다"),
+    PAYLOAD_TOO_LARGE(413, "요청 크기가 허용 범위를 초과했습니다"),
+    UNSUPPORTED_MEDIA_TYPE(415, "지원하지 않는 미디어 타입입니다"),
     INTERNAL_SERVER_ERROR(500, "서버 오류가 발생했습니다");
 
     private final int status;
