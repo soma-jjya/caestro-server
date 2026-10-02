@@ -56,15 +56,14 @@ cleanup:
   session:
     retention-days: 30        # 생성 후 이 기간이 지난 세션을 정리
     cron: "0 0 4 * * *"       # 매일 새벽 4시
+  fill:
+    cron: "0 30 4 * * *"      # 만료된 함께 채우기 세션(사진 포함) 정리
 
 # 함께 채우기 (#fill-together): 사진은 DB(fill_images)에 두고 만료 뒤 배치가 지운다
 fill:
   public-base-url: https://api.peakpic.app   # 이미지 URL의 호스트 (ALB 뒤에서는 요청 스킴을 믿을 수 없어 고정)
   ttl-days: 7
   max-image-bytes: 3145728
-cleanup:
-  fill:
-    cron: "0 30 4 * * *"
 
 # 브라우저 클라이언트(peakpic.app 웹에서 채우기) 허용 출처. 로컬 개발은 프로파일에서 http://localhost:포트 를 덧붙인다
 cors:
