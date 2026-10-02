@@ -8,7 +8,8 @@
 
 | 메서드 | 경로 | 본문 | 응답 |
 |---|---|---|---|
-| POST | `/fills` | `{frame, layout, artFrameId?, customFrame?, title?}` | 201 FillResponse |
+| POST | `/fills` | `{frame, layout, artFrameId?, customFrame?, title?, borderless?}` | 201 FillResponse |
+| PUT | `/fills/{code}/frame` | `{frame, layout, artFrameId?, customFrame?, borderless?}` 주인만 | 200 FillResponse · 403 주인 아님 (이전 커스텀 요소는 삭제, 새 요소는 frame-assets 로 재업로드) |
 | GET | `/fills/{code}` | | 200 FillResponse · 404 없음 · 410 만료 |
 | PUT | `/fills/{code}/slots/{i}?name=` | image/jpeg 또는 image/png 바이트 (≤3MB) | 200 FillResponse · 409 남이 채운 칸 · 400 이미지 아님 · 413 초과 |
 | DELETE | `/fills/{code}/slots/{i}` | | 200 FillResponse · 403 (본인 칸·주인 아님) |
@@ -21,7 +22,7 @@ FillResponse = {
   "code": "K7X2MQ", "ownerMe": true,
   "frame": "Black" | "White", "layout": "Strip" | "Grid", "artFrameId": "gyaru" | null,
   "customFrame": {"base": "White", "borderless": false, "layers": [{"cx":0.5,"cy":0.9,"w":0.3,"rot":0,"url":"https://…/images/…"}]} | null,
-  "title": "제주 여행" | null,
+  "title": "제주 여행" | null, "borderless": false,
   "slots": [{"index":0,"imageUrl":"https://…"|null,"filledByMe":false,"filledByName":"민지"|null,"filledAt":"2026-09-26T03:00:00Z"|null}, …4개],
   "expiresAt": "2026-10-03T03:00:00Z", "createdAt": "2026-09-26T03:00:00Z"
 }
@@ -51,6 +52,7 @@ CREATE TABLE fill_sessions (
   art_frame_id VARCHAR(40) NULL,
   custom_frame_json TEXT NULL,
   title VARCHAR(30) NULL,
+  borderless TINYINT(1) NOT NULL DEFAULT 0,
   expires_at DATETIME(6) NOT NULL,
   created_at DATETIME(6) NULL,
   CONSTRAINT fk_fill_sessions_owner FOREIGN KEY (owner_id) REFERENCES users(id)

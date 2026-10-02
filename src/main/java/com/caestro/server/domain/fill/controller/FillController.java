@@ -2,6 +2,7 @@ package com.caestro.server.domain.fill.controller;
 
 import com.caestro.server.domain.fill.controller.api.FillApi;
 import com.caestro.server.domain.fill.dto.request.CreateFillRequest;
+import com.caestro.server.domain.fill.dto.request.UpdateFrameRequest;
 import com.caestro.server.domain.fill.dto.response.AssetUrlResponse;
 import com.caestro.server.domain.fill.dto.response.FillResponse;
 import com.caestro.server.domain.fill.entity.FillImage;
@@ -48,6 +49,15 @@ public class FillController implements FillApi {
             @PathVariable String code,
             @AuthenticationPrincipal CustomUserDetails userDetails) {
         return ResponseEntity.ok(fillService.get(code, userDetails.getUserId()));
+    }
+
+    @PutMapping("/{code}/frame")
+    @Override
+    public ResponseEntity<FillResponse> updateFrame(
+            @PathVariable String code,
+            @Valid @RequestBody UpdateFrameRequest request,
+            @AuthenticationPrincipal CustomUserDetails userDetails) {
+        return ResponseEntity.ok(fillService.updateFrame(code, userDetails.getUserId(), request));
     }
 
     @PutMapping(value = "/{code}/slots/{index}", consumes = {MediaType.IMAGE_JPEG_VALUE, MediaType.IMAGE_PNG_VALUE, MediaType.APPLICATION_OCTET_STREAM_VALUE})

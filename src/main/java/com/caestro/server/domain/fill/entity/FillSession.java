@@ -68,6 +68,10 @@ public class FillSession {
     @Column(length = 30)
     private String title;
 
+    // 무테: 여백·간격·하단 없이 사진이 맞닿는다. 커스텀 프레임의 무테 여부도 여기에 맞춰 둔다.
+    @Column(nullable = false)
+    private boolean borderless;
+
     @Column(nullable = false)
     private LocalDateTime expiresAt;
 
@@ -85,5 +89,14 @@ public class FillSession {
 
     public void updateCustomFrameJson(String json) {
         this.customFrameJson = json;
+    }
+
+    /** 주인이 프레임을 바꿀 때: 바탕색·배치·그림 프레임·커스텀 프레임·무테를 한 번에 갈아 끼운다. */
+    public void updateFrame(String frame, String layout, String artFrameId, String customFrameJson, boolean borderless) {
+        this.frame = frame;
+        this.layout = layout;
+        this.artFrameId = artFrameId;
+        this.customFrameJson = customFrameJson;
+        this.borderless = borderless;
     }
 }
