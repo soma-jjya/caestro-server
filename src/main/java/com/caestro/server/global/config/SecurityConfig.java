@@ -6,7 +6,13 @@ import com.caestro.server.global.jwt.JwtProvider;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
+import java.util.Arrays;
+import java.util.List;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -26,12 +32,19 @@ public class SecurityConfig {
     @Value("${metrics.token:}")
     private String metricsToken;
 
+    // 웹에서 채우기(peakpic.app)가 브라우저에서 API를 직접 부른다. 쉼표 구분; 로컬 개발은 프로파일에서 덧붙인다.
+    @Value("${cors.allowed-origins:https://peakpic.app,https://www.peakpic.app}")
+    private String corsAllowedOrigins;
+
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
                 .csrf(csrf -> csrf.disable())
+                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
+                        // 함께 채우기 이미지: 세션 코드 + 22자 난수 id로만 열리므로 인증 없이 내준다 (앱·웹이 <img>/OkHttp로 그대로 그림)
+                        .requestMatchers(HttpMethod.GET, "/fills/*/images/*").permitAll()
                         .requestMatchers(
                                 "/auth/**",
                                 "/signaling",
@@ -54,5 +67,19 @@ public class SecurityConfig {
                 .addFilterBefore(new MetricsTokenFilter(metricsToken), JwtAuthenticationFilter.class);
 
         return http.build();
+    }
+
+    @Bean
+    public CorsConfigurationSource corsConfigurationSource() {
+        CorsConfiguration config = new CorsConfiguration();
+        config.setAllowedOrigins(Arrays.stream(corsAllowedOrigins.split(","))
+                .map(String::trim).filter(origin -> !origin.isEmpty()).toList());
+        config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+        config.setAllowedHeaders(List.of("Authorization", "Content-Type", "If-None-Match"));
+        config.setExposedHeaders(List.of("ETag"));
+        config.setMaxAge(3600L);
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/**", config);
+        return source;
     }
 }
