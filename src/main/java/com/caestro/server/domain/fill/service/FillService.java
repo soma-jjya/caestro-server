@@ -3,6 +3,7 @@ package com.caestro.server.domain.fill.service;
 import com.caestro.server.domain.fill.dto.FillCustomFrameDto;
 import com.caestro.server.domain.fill.dto.FillLayerDto;
 import com.caestro.server.domain.fill.dto.request.CreateFillRequest;
+import com.caestro.server.domain.fill.dto.request.UpdateFrameRequest;
 import com.caestro.server.domain.fill.dto.response.FillResponse;
 import com.caestro.server.domain.fill.dto.response.FillSlotResponse;
 import com.caestro.server.domain.fill.entity.FillImage;
@@ -76,6 +77,7 @@ public class FillService {
                 .artFrameId(request.artFrameId())
                 .customFrameJson(request.customFrame() == null ? null : toJson(request.customFrame()))
                 .title(normalizeTitle(request.title()))
+                .borderless(resolveBorderless(request.borderless(), request.customFrame()))
                 .expiresAt(now.plusDays(ttlDays))
                 .build());
         List<FillSlot> slots = new ArrayList<>(SLOTS);
@@ -112,6 +114,55 @@ public class FillService {
             imageRepository.delete(previous);
         }
         return toResponse(session, slotRepository.findBySessionIdOrderBySlotIndex(session.getId()), userId);
+    }
+
+    /**
+     * 주인이 프레임을 바꾼다: 바탕색·배치·그림 프레임·커스텀 프레임·무테를 요청대로 갈아 끼운다.
+     * 이전 커스텀 프레임의 요소 이미지는 지우고, 새 커스텀 프레임의 요소는 url 없이 저장돼 frame-assets 업로드를 기다린다.
+     * 칸의 사진은 그대로다.
+     */
+    @Transactional
+    public FillResponse updateFrame(String code, Long userId, UpdateFrameRequest request) {
+        FillSession session = liveSession(code);
+        if (!session.isOwnedBy(userId)) {
+            throw new CustomException(ErrorCode.FILL_ACCESS_DENIED);
+        }
+        if (!FRAMES.contains(request.frame()) || !LAYOUTS.contains(request.layout())) {
+            throw new CustomException(ErrorCode.FILL_INVALID_FRAME);
+        }
+        FillCustomFrameDto previous = parseCustom(session.getCustomFrameJson());
+        if (previous != null && previous.layers() != null) {
+            for (FillLayerDto layer : previous.layers()) {
+                String id = imageIdOf(layer.url());
+                if (id != null) {
+                    imageRepository.findByIdAndSessionId(id, session.getId()).ifPresent(imageRepository::delete);
+                }
+            }
+        }
+        boolean borderless = resolveBorderless(request.borderless(), request.customFrame());
+        String customJson = null;
+        if (request.customFrame() != null) {
+            List<FillLayerDto> bare = new ArrayList<>();
+            for (FillLayerDto l : request.customFrame().layers() == null ? List.<FillLayerDto>of() : request.customFrame().layers()) {
+                bare.add(l.withUrl(null));
+            }
+            customJson = toJson(new FillCustomFrameDto(request.customFrame().base(), bare, borderless));
+        }
+        session.updateFrame(request.frame(), request.layout(), request.artFrameId(), customJson, borderless);
+        return toResponse(session, slotRepository.findBySessionIdOrderBySlotIndex(session.getId()), userId);
+    }
+
+    /** 요청의 무테 값이 있으면 그것, 없으면 커스텀 프레임의 무테, 그것도 없으면 false. */
+    static boolean resolveBorderless(Boolean requested, FillCustomFrameDto custom) {
+        if (requested != null) return requested;
+        return custom != null && Boolean.TRUE.equals(custom.borderless());
+    }
+
+    /** 이미지 URL(…/fills/{code}/images/{id})의 마지막 조각. URL이 아니면 null. */
+    private static String imageIdOf(String url) {
+        if (url == null || url.isBlank()) return null;
+        int slash = url.lastIndexOf('/');
+        return slash < 0 || slash == url.length() - 1 ? null : url.substring(slash + 1);
     }
 
     /** 칸을 비운다: 본인이 채운 칸, 또는 세션 주인은 어느 칸이든. */
@@ -274,6 +325,7 @@ public class FillService {
                 session.getArtFrameId(),
                 parseCustom(session.getCustomFrameJson()),
                 session.getTitle(),
+                session.isBorderless(),
                 slotResponses,
                 toInstant(session.getExpiresAt()),
                 toInstant(session.getCreatedAt()));

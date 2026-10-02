@@ -11,6 +11,9 @@ import static org.mockito.Mockito.verify;
 import com.caestro.server.domain.fill.dto.FillCustomFrameDto;
 import com.caestro.server.domain.fill.dto.FillLayerDto;
 import com.caestro.server.domain.fill.dto.request.CreateFillRequest;
+import com.caestro.server.domain.fill.dto.request.UpdateFrameRequest;
+import com.caestro.server.domain.fill.dto.FillCustomFrameDto;
+import com.caestro.server.domain.fill.dto.FillLayerDto;
 import com.caestro.server.domain.fill.dto.response.FillResponse;
 import com.caestro.server.domain.fill.entity.FillImage;
 import com.caestro.server.domain.fill.entity.FillSession;
@@ -96,7 +99,7 @@ class FillServiceTest {
         });
         given(slotRepository.save(any(FillSlot.class))).willAnswer(inv -> inv.getArgument(0));
 
-        FillResponse r = service.create(1L, new CreateFillRequest("Black", "Strip", null, null, " 제주   여행 "));
+        FillResponse r = service.create(1L, new CreateFillRequest("Black", "Strip", null, null, " 제주   여행 ", null));
 
         assertThat(r.code()).isEqualTo("K7X2MQ");
         assertThat(r.ownerMe()).isTrue();
@@ -109,7 +112,7 @@ class FillServiceTest {
     @Test
     @DisplayName("생성: frame/layout 값이 앱의 enum 이름이 아니면 400")
     void create_rejectsUnknownFrame() {
-        assertThatThrownBy(() -> service.create(1L, new CreateFillRequest("Pink", "Strip", null, null, null)))
+        assertThatThrownBy(() -> service.create(1L, new CreateFillRequest("Pink", "Strip", null, null, null, null)))
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode()).isEqualTo(ErrorCode.FILL_INVALID_FRAME);
         verify(sessionRepository, never()).save(any());
@@ -236,5 +239,49 @@ class FillServiceTest {
 
         assertThatThrownBy(() -> service.image("K7X2MQ", "nope"))
                 .extracting(e -> ((CustomException) e).getErrorCode()).isEqualTo(ErrorCode.FILL_IMAGE_NOT_FOUND);
+    }
+
+    @Test
+    @DisplayName("프레임 바꾸기: 주인은 그림 프레임·무테로 갈아 끼우고, 이전 커스텀 요소 이미지는 지워진다")
+    void updateFrame_ownerSwapsFrameAndDropsOldAssets() {
+        String oldAssetUrl = "https://api.peakpic.app/fills/K7X2MQ/images/asset01";
+        session.updateCustomFrameJson("{\"base\":\"White\",\"layers\":[{\"cx\":0.5,\"cy\":0.9,\"w\":0.3,\"rot\":0,\"url\":\"" + oldAssetUrl + "\"}],\"borderless\":true}");
+        FillImage oldAsset = FillImage.builder().id("asset01").session(session).contentType("image/png").data(PNG).sizeBytes(PNG.length).build();
+        given(sessionRepository.findByCode("K7X2MQ")).willReturn(Optional.of(session));
+        given(imageRepository.findByIdAndSessionId("asset01", 10L)).willReturn(Optional.of(oldAsset));
+        given(slotRepository.findBySessionIdOrderBySlotIndex(10L)).willReturn(slots(slot(0), slot(1), slot(2), slot(3)));
+
+        FillResponse r = service.updateFrame("K7X2MQ", 1L, new UpdateFrameRequest("White", "Grid", "gyaru", null, null));
+
+        verify(imageRepository).delete(oldAsset);
+        assertThat(r.frame()).isEqualTo("White");
+        assertThat(r.layout()).isEqualTo("Grid");
+        assertThat(r.artFrameId()).isEqualTo("gyaru");
+        assertThat(r.customFrame()).isNull();
+        assertThat(r.borderless()).isFalse();
+    }
+
+    @Test
+    @DisplayName("프레임 바꾸기: 커스텀 프레임으로 바꾸면 요소 url은 비워지고 무테는 요청값이 커스텀 값을 덮는다")
+    void updateFrame_customFrameLayersWaitForAssets() {
+        given(sessionRepository.findByCode("K7X2MQ")).willReturn(Optional.of(session));
+        given(slotRepository.findBySessionIdOrderBySlotIndex(10L)).willReturn(slots(slot(0), slot(1), slot(2), slot(3)));
+        FillCustomFrameDto custom = new FillCustomFrameDto("Black", List.of(new FillLayerDto(0.5f, 0.5f, 0.3f, 12f, "https://x/leftover")), false);
+
+        FillResponse r = service.updateFrame("K7X2MQ", 1L, new UpdateFrameRequest("Black", "Grid", null, custom, true));
+
+        assertThat(r.borderless()).isTrue();
+        assertThat(r.customFrame().borderless()).isTrue();
+        assertThat(r.customFrame().layers()).singleElement().satisfies(l -> assertThat(l.url()).isNull());
+    }
+
+    @Test
+    @DisplayName("프레임 바꾸기: 주인이 아니면 403")
+    void updateFrame_rejectsNonOwner() {
+        given(sessionRepository.findByCode("K7X2MQ")).willReturn(Optional.of(session));
+
+        assertThatThrownBy(() -> service.updateFrame("K7X2MQ", 2L, new UpdateFrameRequest("Black", "Strip", null, null, null)))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode()).isEqualTo(ErrorCode.FILL_ACCESS_DENIED);
     }
 }
