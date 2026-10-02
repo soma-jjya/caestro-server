@@ -1,6 +1,7 @@
 package com.caestro.server.domain.fill.controller.api;
 
 import com.caestro.server.domain.fill.dto.request.CreateFillRequest;
+import com.caestro.server.domain.fill.dto.request.UpdateFrameRequest;
 import com.caestro.server.domain.fill.dto.response.AssetUrlResponse;
 import com.caestro.server.domain.fill.dto.response.FillResponse;
 import com.caestro.server.global.security.CustomUserDetails;
@@ -29,6 +30,17 @@ public interface FillApi {
             @ApiResponse(responseCode = "401", description = "토큰이 없음")
     })
     ResponseEntity<FillResponse> create(CreateFillRequest request, CustomUserDetails userDetails);
+
+    @Operation(summary = "프레임 바꾸기(주인)",
+            description = "바탕색·배치·그림 프레임·커스텀 프레임·무테를 한 번에 바꿉니다(PUT 의미). 칸의 사진은 그대로이고, 커스텀 프레임 요소 PNG는 이 요청 뒤 frame-assets로 다시 올립니다.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "바뀐 세션"),
+            @ApiResponse(responseCode = "400", description = "frame/layout 값이 유효하지 않음"),
+            @ApiResponse(responseCode = "403", description = "주인이 아님"),
+            @ApiResponse(responseCode = "404", description = "세션 없음"),
+            @ApiResponse(responseCode = "410", description = "만료된 세션")
+    })
+    ResponseEntity<FillResponse> updateFrame(String code, UpdateFrameRequest request, CustomUserDetails userDetails);
 
     @Operation(summary = "세션 조회", description = "칸마다 사진 URL과 누가 채웠는지(filledByMe/filledByName)를 내려줍니다. 클라이언트는 화면이 열려 있는 동안 주기적으로 호출합니다.")
     @SecurityRequirement(name = "BearerAuth")
