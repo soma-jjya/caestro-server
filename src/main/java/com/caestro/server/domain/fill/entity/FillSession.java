@@ -59,7 +59,7 @@ public class FillSession {
     @Column(length = 40)
     private String artFrameId;
 
-    // 사용자 제작 프레임: {"base":..,"layers":[{"cx","cy","w","rot","url"}]} — 요소 PNG는 FillImage로 올라오며 url이 채워진다
+    // 사용자 제작 프레임: {"base":..,"layers":[{"cx","cy","w","rot","url","cell"}]} — 요소 PNG는 FillImage로 올라오며 url이 채워진다
     @Lob
     @Column(columnDefinition = "TEXT")
     private String customFrameJson;
