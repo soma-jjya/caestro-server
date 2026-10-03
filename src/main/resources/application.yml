@@ -64,6 +64,7 @@ fill:
   public-base-url: https://api.peakpic.app   # 이미지 URL의 호스트 (ALB 뒤에서는 요청 스킴을 믿을 수 없어 고정)
   ttl-days: 7
   max-image-bytes: 3145728
+  max-gif-bytes: 16777216   # 완성 네컷 GIF(앱이 링크 공유 시 올림)
 
 # 브라우저 클라이언트(peakpic.app 웹에서 채우기) 허용 출처. 로컬 개발은 프로파일에서 http://localhost:포트 를 덧붙인다
 cors:
