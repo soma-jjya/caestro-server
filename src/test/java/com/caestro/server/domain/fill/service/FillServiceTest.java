@@ -266,13 +266,16 @@ class FillServiceTest {
     void updateFrame_customFrameLayersWaitForAssets() {
         given(sessionRepository.findByCode("K7X2MQ")).willReturn(Optional.of(session));
         given(slotRepository.findBySessionIdOrderBySlotIndex(10L)).willReturn(slots(slot(0), slot(1), slot(2), slot(3)));
-        FillCustomFrameDto custom = new FillCustomFrameDto("Black", List.of(new FillLayerDto(0.5f, 0.5f, 0.3f, 12f, "https://x/leftover")), false);
+        FillCustomFrameDto custom = new FillCustomFrameDto("Black", List.of(new FillLayerDto(0.5f, 0.5f, 0.3f, 12f, "https://x/leftover", 2)), false);
 
         FillResponse r = service.updateFrame("K7X2MQ", 1L, new UpdateFrameRequest("Black", "Grid", null, custom, true));
 
         assertThat(r.borderless()).isTrue();
         assertThat(r.customFrame().borderless()).isTrue();
-        assertThat(r.customFrame().layers()).singleElement().satisfies(l -> assertThat(l.url()).isNull());
+        assertThat(r.customFrame().layers()).singleElement().satisfies(l -> {
+            assertThat(l.url()).isNull();
+            assertThat(l.cell()).isEqualTo(2);
+        });
     }
 
     @Test
