@@ -8,11 +8,13 @@ import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.caestro.server.domain.fill.service.FillService;
+import com.caestro.server.domain.fill.service.FillWriteGuard;
 import com.caestro.server.domain.user.entity.User;
 import com.caestro.server.global.config.SecurityConfig;
 import com.caestro.server.global.config.WebMvcConfig;
@@ -47,6 +49,10 @@ class FillUploadSizeInterceptorWebTest {
 
     @MockitoBean
     private FillService fillService;
+
+    // 컨트롤러 의존성(#150). 목이라 아무것도 거절하지 않는다 — 크기 검사만 본다
+    @MockitoBean
+    private FillWriteGuard writeGuard;
 
     @MockitoBean
     private JwtProvider jwtProvider;
@@ -113,6 +119,15 @@ class FillUploadSizeInterceptorWebTest {
                 .andExpect(status().isOk());
 
         verify(fillService).fillSlot(anyString(), anyInt(), anyLong(), isNull(), any(byte[].class), anyString());
+    }
+
+    @Test
+    @DisplayName("[회귀] 같은 경로의 DELETE(칸 비우기)는 본문이 없어도 통과한다")
+    void 칸_비우기_DELETE는_검사_대상_아님() throws Exception {
+        mockMvc.perform(delete("/fills/K7X2MQ/slots/0").with(user(OWNER)))
+                .andExpect(status().isOk());
+
+        verify(fillService).clearSlot(anyString(), anyInt(), anyLong());
     }
 
     @Test

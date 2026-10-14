@@ -7,6 +7,7 @@ import com.caestro.server.domain.fill.dto.response.AssetUrlResponse;
 import com.caestro.server.domain.fill.dto.response.FillResponse;
 import com.caestro.server.domain.fill.entity.FillImage;
 import com.caestro.server.domain.fill.service.FillService;
+import com.caestro.server.domain.fill.service.FillWriteGuard;
 import com.caestro.server.global.security.CustomUserDetails;
 import jakarta.validation.Valid;
 import java.util.concurrent.TimeUnit;
@@ -34,12 +35,15 @@ import org.springframework.web.bind.annotation.RestController;
 public class FillController implements FillApi {
 
     private final FillService fillService;
+    // 쓰기 양 제한(#150): 서비스보다 앞에서 거절해 DB·이미지 처리를 시작하지 않는다
+    private final FillWriteGuard writeGuard;
 
     @PostMapping
     @Override
     public ResponseEntity<FillResponse> create(
             @Valid @RequestBody CreateFillRequest request,
             @AuthenticationPrincipal CustomUserDetails userDetails) {
+        writeGuard.checkCreate(userDetails.getUserId());
         return ResponseEntity.status(HttpStatus.CREATED).body(fillService.create(userDetails.getUserId(), request));
     }
 
@@ -69,6 +73,7 @@ public class FillController implements FillApi {
             @RequestBody byte[] body,
             @RequestHeader(value = HttpHeaders.CONTENT_TYPE, required = false) String contentType,
             @AuthenticationPrincipal CustomUserDetails userDetails) {
+        writeGuard.checkUpload(userDetails.getUserId());
         return ResponseEntity.ok(fillService.fillSlot(code, index, userDetails.getUserId(), name, body, contentType));
     }
 
@@ -89,6 +94,7 @@ public class FillController implements FillApi {
             @RequestBody byte[] body,
             @RequestHeader(value = HttpHeaders.CONTENT_TYPE, required = false) String contentType,
             @AuthenticationPrincipal CustomUserDetails userDetails) {
+        writeGuard.checkUpload(userDetails.getUserId());
         return ResponseEntity.ok(new AssetUrlResponse(fillService.uploadFrameAsset(code, k, userDetails.getUserId(), body, contentType)));
     }
 
@@ -99,6 +105,7 @@ public class FillController implements FillApi {
             @RequestBody byte[] body,
             @RequestHeader(value = HttpHeaders.CONTENT_TYPE, required = false) String contentType,
             @AuthenticationPrincipal CustomUserDetails userDetails) {
+        writeGuard.checkUpload(userDetails.getUserId());
         return ResponseEntity.ok(new AssetUrlResponse(fillService.uploadGif(code, userDetails.getUserId(), body, contentType)));
     }
 

@@ -23,6 +23,10 @@ public class FillUploadSizeInterceptor implements HandlerInterceptor {
 
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) {
+        // 같은 경로의 DELETE(칸 비우기)는 본문이 없다 — 업로드(PUT)만 본다
+        if (!"PUT".equals(request.getMethod())) {
+            return true;
+        }
         boolean gif = request.getRequestURI().endsWith("/gif");
         long limit = gif ? maxGifBytes : maxImageBytes;
         long declared = request.getContentLengthLong();

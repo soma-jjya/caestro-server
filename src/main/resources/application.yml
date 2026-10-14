@@ -65,6 +65,12 @@ fill:
   ttl-days: 7
   max-image-bytes: 3145728
   max-gif-bytes: 16777216   # 완성 네컷 GIF(앱이 링크 공유 시 올림)
+  max-active-sessions: 20   # 사용자당 만료 전 세션 상한 (#150) — 속도가 아닌 총량
+  ratelimit:                # 사용자(토큰) 단위 고정 창. 추정치이며 fill.rate_limited 지표로 교정한다 (#150)
+    create-limit: 10
+    create-window-seconds: 3600
+    upload-limit: 30          # 칸 사진·프레임 요소·GIF 합산
+    upload-window-seconds: 60
 
 # 브라우저 클라이언트(peakpic.app 웹에서 채우기) 허용 출처. 로컬 개발은 프로파일에서 http://localhost:포트 를 덧붙인다
 cors:
