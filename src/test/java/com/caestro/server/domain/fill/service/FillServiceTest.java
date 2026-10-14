@@ -49,6 +49,7 @@ class FillServiceTest {
 
     private static final byte[] JPEG = {(byte) 0xFF, (byte) 0xD8, (byte) 0xFF, (byte) 0xE0, 0, 0, 0, 0, 0, 0};
     private static final byte[] PNG = {(byte) 0x89, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A, 0, 0, 0, 0};
+    private static final byte[] GIF = {'G', 'I', 'F', '8', '9', 'a', 0, 0, 0, 0, 0, 0};
 
     @Mock private FillSessionRepository sessionRepository;
     @Mock private FillSlotRepository slotRepository;
@@ -69,6 +70,7 @@ class FillServiceTest {
         ReflectionTestUtils.setField(service, "publicBaseUrl", "https://api.peakpic.app/");
         ReflectionTestUtils.setField(service, "ttlDays", 7L);
         ReflectionTestUtils.setField(service, "maxImageBytes", 3 * 1024 * 1024);
+        ReflectionTestUtils.setField(service, "maxGifBytes", 16 * 1024 * 1024);
         owner = User.builder().nickname("주인").role(User.Role.USER).build();
         ReflectionTestUtils.setField(owner, "id", 1L);
         friend = User.builder().nickname(null).role(User.Role.USER).build();
@@ -229,6 +231,46 @@ class FillServiceTest {
         // 참여자는 올릴 수 없다
         assertThatThrownBy(() -> service.uploadFrameAsset("CUSTOM", 0, 2L, PNG, "image/png"))
                 .extracting(e -> ((CustomException) e).getErrorCode()).isEqualTo(ErrorCode.FILL_ACCESS_DENIED);
+    }
+
+    @Test
+    @DisplayName("완성 GIF: 주인이 올리면 gifUrl로 내려가고, 참여자는 올릴 수 없고, JPEG는 GIF로 받지 않는다")
+    void gif_ownerUploadsAndOthersCannot() {
+        given(sessionRepository.findByCode("K7X2MQ")).willReturn(Optional.of(session));
+        given(codeGenerator.imageId()).willReturn("gif000000000000000001");
+        given(imageRepository.save(any(FillImage.class))).willAnswer(inv -> inv.getArgument(0));
+        given(slotRepository.findBySessionIdOrderBySlotIndex(10L)).willReturn(List.of());
+
+        String url = service.uploadGif("K7X2MQ", 1L, GIF, "image/gif");
+
+        assertThat(url).isEqualTo("https://api.peakpic.app/fills/K7X2MQ/images/gif000000000000000001");
+        assertThat(session.getGifImageId()).isEqualTo("gif000000000000000001");
+        assertThat(service.get("K7X2MQ", 2L).gifUrl()).isEqualTo(url);
+        assertThatThrownBy(() -> service.uploadGif("K7X2MQ", 2L, GIF, "image/gif"))
+                .extracting(e -> ((CustomException) e).getErrorCode()).isEqualTo(ErrorCode.FILL_ACCESS_DENIED);
+        assertThatThrownBy(() -> service.uploadGif("K7X2MQ", 1L, JPEG, "image/gif"))
+                .extracting(e -> ((CustomException) e).getErrorCode()).isEqualTo(ErrorCode.FILL_INVALID_GIF);
+    }
+
+    @Test
+    @DisplayName("완성 GIF: 칸 사진이 바뀌면 더 맞지 않으므로 지워진다")
+    void gif_droppedWhenASlotChanges() {
+        FillImage gif = FillImage.builder().id("gif000000000000000002").session(session).contentType("image/gif").data(GIF).sizeBytes(GIF.length).build();
+        session.updateGifImageId(gif.getId());
+        FillSlot empty = slot(0);
+        given(sessionRepository.findByCode("K7X2MQ")).willReturn(Optional.of(session));
+        given(slotRepository.findBySessionIdAndSlotIndex(10L, 0)).willReturn(Optional.of(empty));
+        given(userRepository.findById(2L)).willReturn(Optional.of(friend));
+        given(codeGenerator.imageId()).willReturn("img000000000000000003");
+        given(imageRepository.save(any(FillImage.class))).willAnswer(inv -> inv.getArgument(0));
+        given(imageRepository.findByIdAndSessionId(gif.getId(), 10L)).willReturn(Optional.of(gif));
+        given(slotRepository.findBySessionIdOrderBySlotIndex(10L)).willReturn(List.of(empty));
+
+        FillResponse after = service.fillSlot("K7X2MQ", 0, 2L, "민지", JPEG, "image/jpeg");
+
+        verify(imageRepository).delete(gif);
+        assertThat(session.getGifImageId()).isNull();
+        assertThat(after.gifUrl()).isNull();
     }
 
     @Test

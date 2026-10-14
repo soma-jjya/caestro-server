@@ -86,6 +86,18 @@ public interface FillApi {
     ResponseEntity<AssetUrlResponse> uploadFrameAsset(String code, int k, byte[] body, String contentType,
                                                       CustomUserDetails userDetails);
 
+    @Operation(summary = "완성 네컷 GIF 업로드", description = "세션 주인이 완성된 네컷의 움직이는 GIF를 올립니다(앱이 저장된 네컷을 링크로 공유할 때). "
+            + "응답 url이 FillResponse.gifUrl에 실리며, 칸이나 프레임이 바뀌면 지워집니다. 최대 16MB.")
+    @SecurityRequirement(name = "BearerAuth")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "저장",
+                    content = @Content(schema = @Schema(implementation = AssetUrlResponse.class))),
+            @ApiResponse(responseCode = "400", description = "GIF가 아님"),
+            @ApiResponse(responseCode = "403", description = "주인이 아님"),
+            @ApiResponse(responseCode = "413", description = "GIF가 너무 큼")
+    })
+    ResponseEntity<AssetUrlResponse> uploadGif(String code, byte[] body, String contentType, CustomUserDetails userDetails);
+
     @Operation(summary = "세션 없애기", description = "세션 주인만. 칸·사진·요소가 모두 삭제되고 링크는 더 열리지 않습니다.")
     @SecurityRequirement(name = "BearerAuth")
     @ApiResponses({

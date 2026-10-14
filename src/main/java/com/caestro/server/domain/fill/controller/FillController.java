@@ -92,6 +92,16 @@ public class FillController implements FillApi {
         return ResponseEntity.ok(new AssetUrlResponse(fillService.uploadFrameAsset(code, k, userDetails.getUserId(), body, contentType)));
     }
 
+    @PutMapping(value = "/{code}/gif", consumes = {MediaType.IMAGE_GIF_VALUE, MediaType.APPLICATION_OCTET_STREAM_VALUE})
+    @Override
+    public ResponseEntity<AssetUrlResponse> uploadGif(
+            @PathVariable String code,
+            @RequestBody byte[] body,
+            @RequestHeader(value = HttpHeaders.CONTENT_TYPE, required = false) String contentType,
+            @AuthenticationPrincipal CustomUserDetails userDetails) {
+        return ResponseEntity.ok(new AssetUrlResponse(fillService.uploadGif(code, userDetails.getUserId(), body, contentType)));
+    }
+
     @DeleteMapping("/{code}")
     @Override
     public ResponseEntity<Void> delete(

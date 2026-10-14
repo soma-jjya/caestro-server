@@ -61,6 +61,10 @@ public class FillService {
     @Value("${fill.max-image-bytes:3145728}")
     private int maxImageBytes;
 
+    // 움직이는 GIF는 칸 사진보다 크다(네컷 4~7MB).
+    @Value("${fill.max-gif-bytes:16777216}")
+    private int maxGifBytes;
+
     @Transactional
     public FillResponse create(Long ownerId, CreateFillRequest request) {
         if (!FRAMES.contains(request.frame()) || !LAYOUTS.contains(request.layout())) {
@@ -106,13 +110,14 @@ public class FillService {
         }
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
-        FillImage image = storeImage(session, body, contentType, Set.of("image/jpeg", "image/png"));
+        FillImage image = storeImage(session, body, contentType, Set.of("image/jpeg", "image/png"), maxImageBytes);
         FillImage previous = slot.getImage();
         String shownName = (name != null && !name.isBlank()) ? name.trim() : user.getNickname();
         slot.fill(user, shownName, image, LocalDateTime.now(clock));
         if (previous != null) {
             imageRepository.delete(previous);
         }
+        dropGif(session);
         return toResponse(session, slotRepository.findBySessionIdOrderBySlotIndex(session.getId()), userId);
     }
 
@@ -127,6 +132,7 @@ public class FillService {
         if (!session.isOwnedBy(userId)) {
             throw new CustomException(ErrorCode.FILL_ACCESS_DENIED);
         }
+        dropGif(session);
         if (!FRAMES.contains(request.frame()) || !LAYOUTS.contains(request.layout())) {
             throw new CustomException(ErrorCode.FILL_INVALID_FRAME);
         }
@@ -178,6 +184,7 @@ public class FillService {
         if (previous != null) {
             imageRepository.delete(previous);
         }
+        dropGif(session);
         return toResponse(session, slotRepository.findBySessionIdOrderBySlotIndex(session.getId()), userId);
     }
 
@@ -192,12 +199,42 @@ public class FillService {
         if (custom == null || custom.layers() == null || k < 0 || k >= custom.layers().size()) {
             throw new CustomException(ErrorCode.FILL_INVALID_SLOT);
         }
-        FillImage image = storeImage(session, body, contentType, Set.of("image/png"));
+        FillImage image = storeImage(session, body, contentType, Set.of("image/png"), maxImageBytes);
         String url = imageUrl(session.getCode(), image.getId());
         List<FillLayerDto> layers = new ArrayList<>(custom.layers());
         layers.set(k, layers.get(k).withUrl(url));
         session.updateCustomFrameJson(toJson(new FillCustomFrameDto(custom.base(), layers, custom.borderless())));
         return url;
+    }
+
+    /**
+     * 완성된 네컷의 움직이는 GIF(주인만): 앱이 저장된 네컷을 링크로 공유할 때 사진과 함께 올린다.
+     * 웹과 다른 앱은 응답의 gifUrl로 받는다. 이전 GIF는 지우고(교체), 칸이나 프레임이 바뀌면 함께 지워진다.
+     */
+    @Transactional
+    public String uploadGif(String code, Long userId, byte[] body, String contentType) {
+        FillSession session = liveSession(code);
+        if (!session.isOwnedBy(userId)) {
+            throw new CustomException(ErrorCode.FILL_ACCESS_DENIED);
+        }
+        if (body == null || !isGif(body)) {
+            throw new CustomException(ErrorCode.FILL_INVALID_GIF);
+        }
+        if (body.length > maxGifBytes) {
+            throw new CustomException(ErrorCode.FILL_GIF_TOO_LARGE);
+        }
+        dropGif(session);
+        FillImage image = storeImage(session, body, "image/gif", Set.of("image/gif"), maxGifBytes);
+        session.updateGifImageId(image.getId());
+        return imageUrl(session.getCode(), image.getId());
+    }
+
+    /** 사진이나 프레임이 바뀌면 그 전에 올라온 GIF는 더 맞지 않으므로 지운다. */
+    private void dropGif(FillSession session) {
+        String id = session.getGifImageId();
+        if (id == null) return;
+        imageRepository.findByIdAndSessionId(id, session.getId()).ifPresent(imageRepository::delete);
+        session.updateGifImageId(null);
     }
 
     /** 세션을 없앤다(주인만): 칸, 사진, 요소가 모두 사라지고 링크는 더 열리지 않는다. */
@@ -251,17 +288,17 @@ public class FillService {
                 .orElseThrow(() -> new CustomException(ErrorCode.FILL_INVALID_SLOT));
     }
 
-    private FillImage storeImage(FillSession session, byte[] body, String contentType, Set<String> allowed) {
+    private FillImage storeImage(FillSession session, byte[] body, String contentType, Set<String> allowed, int maxBytes) {
         if (body == null || body.length == 0 || !looksLikeImage(body)) {
             throw new CustomException(ErrorCode.FILL_INVALID_IMAGE);
         }
-        if (body.length > maxImageBytes) {
+        if (body.length > maxBytes) {
             throw new CustomException(ErrorCode.FILL_IMAGE_TOO_LARGE);
         }
         String type = contentType == null ? "" : contentType.split(";")[0].trim().toLowerCase();
         if (!allowed.contains(type)) {
             // 헤더가 비었거나 다르면 바이트로 판단한다 — 브라우저 fetch가 Content-Type을 생략하는 경우 대비
-            type = isPng(body) ? "image/png" : "image/jpeg";
+            type = isPng(body) ? "image/png" : isGif(body) ? "image/gif" : "image/jpeg";
             if (!allowed.contains(type)) {
                 throw new CustomException(ErrorCode.FILL_INVALID_IMAGE);
             }
@@ -276,7 +313,11 @@ public class FillService {
     }
 
     private static boolean looksLikeImage(byte[] b) {
-        return isJpeg(b) || isPng(b);
+        return isJpeg(b) || isPng(b) || isGif(b);
+    }
+
+    private static boolean isGif(byte[] b) {
+        return b.length > 6 && b[0] == 'G' && b[1] == 'I' && b[2] == 'F' && b[3] == '8';
     }
 
     private static boolean isJpeg(byte[] b) {
@@ -327,6 +368,7 @@ public class FillService {
                 session.getTitle(),
                 session.isBorderless(),
                 slotResponses,
+                session.getGifImageId() == null ? null : imageUrl(session.getCode(), session.getGifImageId()),
                 toInstant(session.getExpiresAt()),
                 toInstant(session.getCreatedAt()));
     }

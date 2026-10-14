@@ -44,6 +44,8 @@ public enum ErrorCode {
     FILL_INVALID_FRAME(400, "프레임 또는 배치 값이 올바르지 않습니다"),
     FILL_INVALID_IMAGE(400, "이미지 파일(JPEG/PNG)이 아닙니다"),
     FILL_IMAGE_TOO_LARGE(413, "이미지가 너무 큽니다 (최대 3MB)"),
+    FILL_INVALID_GIF(400, "GIF 파일이 아닙니다"),
+    FILL_GIF_TOO_LARGE(413, "GIF가 너무 큽니다 (최대 16MB)"),
     FILL_IMAGE_NOT_FOUND(404, "이미지를 찾을 수 없습니다"),
     FILL_CODE_GENERATION_FAILED(500, "함께 채우기 코드 생성에 실패했습니다"),
     BAD_REQUEST(400, "잘못된 요청입니다"),
