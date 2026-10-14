@@ -21,7 +21,7 @@
 FillResponse = {
   "code": "K7X2MQ", "ownerMe": true,
   "frame": "Black" | "White", "layout": "Strip" | "Grid", "artFrameId": "gyaru" | null,
-  "customFrame": {"base": "White", "borderless": false, "layers": [{"cx":0.5,"cy":0.9,"w":0.3,"rot":0,"url":"https://…/images/…"}]} | null,
+  "customFrame": {"base": "White", "borderless": false, "layers": [{"cx":0.5,"cy":0.9,"w":0.3,"rot":0,"url":"https://…/images/…","cell":null}]} | null,
   "title": "제주 여행" | null, "borderless": false,
   "slots": [{"index":0,"imageUrl":"https://…"|null,"filledByMe":false,"filledByName":"민지"|null,"filledAt":"2026-09-26T03:00:00Z"|null}, …4개],
   "expiresAt": "2026-10-03T03:00:00Z", "createdAt": "2026-09-26T03:00:00Z"
@@ -86,3 +86,11 @@ CREATE INDEX idx_fill_sessions_expires ON fill_sessions(expires_at);
 
 - Android: `FillSessionApi`/`HttpFillSessionApi` (feat/fourcut-fill-together). 서버에 `/fills`가 없으면 기기 내 데모 세션으로 동작.
 - Web: `soma-jjya/peakpic.app` 의 `/fill/{code}` — 게스트 로그인(`POST /auth/guest`) 후 같은 엔드포인트를 브라우저에서 호출.
+
+## 커스텀 프레임 요소(layer)의 `cell`
+
+- `null`: 프레임 위에 얹히는 요소. 칸 위로도 그대로 그려진다.
+- `0`~`3`: 그 칸(0부터, 배치 순서) 안에 있는 요소. 칸 밖으로 나가는 부분은 잘려 그려진다.
+- `-1`: 프레임의 **배경 사진**. 프레임 모양에 맞게 잘라 둔 이미지로 `cx=0.5, cy=0.5, w=1`이며, 칸 아래에 프레임 전체를 덮어 그린다.
+
+서버는 값을 저장만 하고 그대로 돌려준다(그리는 쪽은 앱과 웹 페이지).
