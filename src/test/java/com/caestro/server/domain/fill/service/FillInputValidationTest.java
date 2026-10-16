@@ -8,12 +8,12 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.caestro.server.domain.fill.entity.FillImage;
 import com.caestro.server.domain.fill.entity.FillSession;
 import com.caestro.server.domain.fill.entity.FillSlot;
-import com.caestro.server.domain.fill.repository.FillImageRepository;
 import com.caestro.server.domain.fill.repository.FillSessionRepository;
 import com.caestro.server.domain.fill.repository.FillSlotRepository;
+import com.caestro.server.domain.fill.store.FillImageStore;
+import com.caestro.server.domain.fill.store.StoredImage;
 import com.caestro.server.domain.user.entity.User;
 import com.caestro.server.domain.user.repository.UserRepository;
 import com.caestro.server.global.exception.CustomException;
@@ -49,7 +49,7 @@ class FillInputValidationTest {
 
     @Mock private FillSessionRepository sessionRepository;
     @Mock private FillSlotRepository slotRepository;
-    @Mock private FillImageRepository imageRepository;
+    @Mock private FillImageStore imageStore;
     @Mock private UserRepository userRepository;
     @Mock private FillCodeGenerator codeGenerator;
 
@@ -61,9 +61,8 @@ class FillInputValidationTest {
 
     @BeforeEach
     void setUp() {
-        service = new FillService(sessionRepository, slotRepository, imageRepository, userRepository,
+        service = new FillService(sessionRepository, slotRepository, imageStore, userRepository,
                 codeGenerator, new ObjectMapper(), clock);
-        ReflectionTestUtils.setField(service, "publicBaseUrl", "https://api.peakpic.app");
         ReflectionTestUtils.setField(service, "ttlDays", 7L);
         ReflectionTestUtils.setField(service, "maxImageBytes", 3 * 1024 * 1024);
         ReflectionTestUtils.setField(service, "maxGifBytes", 16 * 1024 * 1024);
@@ -78,8 +77,9 @@ class FillInputValidationTest {
         when(slotRepository.findBySessionIdAndSlotIndex(10L, 0)).thenReturn(Optional.of(slot));
         when(slotRepository.findBySessionIdOrderBySlotIndex(10L)).thenReturn(List.of(slot));
         when(userRepository.findById(1L)).thenReturn(Optional.of(owner));
-        when(codeGenerator.imageId()).thenReturn("img0000000000000000001");
-        when(imageRepository.save(any(FillImage.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(imageStore.store(any(), anyString(), any())).thenReturn("img0000000000000000001");
+        when(imageStore.urlOf(anyString(), anyString())).thenAnswer(inv ->
+                "https://api.peakpic.app/fills/" + inv.getArgument(0) + "/images/" + inv.getArgument(1));
     }
 
     @Test
@@ -120,13 +120,12 @@ class FillInputValidationTest {
     @Test
     @DisplayName("[재현→방어] 소문자 코드로도 이미지를 받을 수 있다 — image도 같은 구멍이었다")
     void image_acceptsLowercaseCode() {
-        FillImage stored = FillImage.builder().id("img0000000000000000001").session(session)
-                .contentType("image/jpeg").data(JPEG).sizeBytes(JPEG.length).build();
-        when(imageRepository.findByIdAndSessionId("img0000000000000000001", 10L)).thenReturn(Optional.of(stored));
+        when(imageStore.load(session, "img0000000000000000001"))
+                .thenReturn(new StoredImage("img0000000000000000001", "image/jpeg", JPEG));
 
-        FillImage found = service.image(" k7x2mq ", "img0000000000000000001");
+        StoredImage found = service.image(" k7x2mq ", "img0000000000000000001");
 
-        assertThat(found.getId()).isEqualTo("img0000000000000000001");
+        assertThat(found.id()).isEqualTo("img0000000000000000001");
         verify(sessionRepository).findByCode("K7X2MQ");
     }
 
@@ -135,16 +134,14 @@ class FillInputValidationTest {
     void takenSlot_rejectedBeforeStoringImage() {
         User friend = User.builder().nickname("친구").role(User.Role.USER).build();
         ReflectionTestUtils.setField(friend, "id", 2L);
-        FillImage theirs = FillImage.builder().id("imgOther00000000000001").session(session)
-                .contentType("image/jpeg").data(JPEG).sizeBytes(JPEG.length).build();
-        slot.fill(friend, "친구", theirs, LocalDateTime.now(clock));
+        slot.fill(friend, "친구", "imgOther00000000000001", LocalDateTime.now(clock));
 
         assertThatThrownBy(() -> service.fillSlot("K7X2MQ", 0, 1L, "주인", JPEG, "image/jpeg"))
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode())
                 .isEqualTo(ErrorCode.FILL_SLOT_TAKEN);
 
-        verify(imageRepository, never()).save(any(FillImage.class));
+        verify(imageStore, never()).store(any(), anyString(), any());
     }
 
     @Test

@@ -5,8 +5,8 @@ import com.caestro.server.domain.fill.dto.request.CreateFillRequest;
 import com.caestro.server.domain.fill.dto.request.UpdateFrameRequest;
 import com.caestro.server.domain.fill.dto.response.AssetUrlResponse;
 import com.caestro.server.domain.fill.dto.response.FillResponse;
-import com.caestro.server.domain.fill.entity.FillImage;
 import com.caestro.server.domain.fill.service.FillService;
+import com.caestro.server.domain.fill.store.StoredImage;
 import com.caestro.server.domain.fill.service.FillWriteGuard;
 import com.caestro.server.global.security.CustomUserDetails;
 import jakarta.validation.Valid;
@@ -122,10 +122,10 @@ public class FillController implements FillApi {
     @GetMapping("/{code}/images/{imageId}")
     @Override
     public ResponseEntity<byte[]> image(@PathVariable String code, @PathVariable String imageId) {
-        FillImage image = fillService.image(code, imageId);
+        StoredImage image = fillService.image(code, imageId);
         return ResponseEntity.ok()
-                .contentType(MediaType.parseMediaType(image.getContentType()))
+                .contentType(MediaType.parseMediaType(image.contentType()))
                 .cacheControl(CacheControl.maxAge(7, TimeUnit.DAYS).cachePublic())
-                .body(image.getData());
+                .body(image.data());
     }
 }
