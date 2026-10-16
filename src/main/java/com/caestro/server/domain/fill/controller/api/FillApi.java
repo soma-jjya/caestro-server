@@ -33,6 +33,7 @@ public interface FillApi {
 
     @Operation(summary = "프레임 바꾸기(주인)",
             description = "바탕색·배치·그림 프레임·커스텀 프레임·무테를 한 번에 바꿉니다(PUT 의미). 칸의 사진은 그대로이고, 커스텀 프레임 요소 PNG는 이 요청 뒤 frame-assets로 다시 올립니다.")
+    @SecurityRequirement(name = "BearerAuth")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "바뀐 세션"),
             @ApiResponse(responseCode = "400", description = "frame/layout 값이 유효하지 않음"),
