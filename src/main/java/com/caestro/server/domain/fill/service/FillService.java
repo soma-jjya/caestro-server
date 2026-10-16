@@ -40,6 +40,9 @@ public class FillService {
 
     public static final int SLOTS = 4;
     private static final int CODE_ATTEMPTS = 5;
+    // 표시 문자열의 컬럼 상한. 넘겨 보내면 DB가 거부해 500이 되므로 잘라서 받는다 (#151)
+    private static final int TITLE_MAX = 30;
+    private static final int NAME_MAX = 40;
     private static final Set<String> FRAMES = Set.of("Black", "White");
     private static final Set<String> LAYOUTS = Set.of("Strip", "Grid");
 
@@ -100,10 +103,12 @@ public class FillService {
     /**
      * 칸 [index]에 사진을 넣는다. 비어 있거나 본인이 채운 칸만 가능하고, 다른 사람의 칸이면 409로 돌려보내
      * 클라이언트가 최신 상태를 다시 그리게 한다. 이전 사진은 지운다(교체).
+     * 같은 칸에 동시 요청이 오면 칸 행을 잠가 한 명만 통과시킨다 — 패자는 사진을 저장하기 전에 409로 끝난다 (#151).
      */
     @Transactional
     public FillResponse fillSlot(String code, int index, Long userId, String name, byte[] body, String contentType) {
         FillSession session = liveSession(code);
+        // 행을 잠그고 읽으므로 이 검사와 아래 기록 사이에 다른 요청이 끼어들 수 없다 (#151)
         FillSlot slot = slotOf(session, index);
         if (!slot.isEmpty() && !slot.isFilledBy(userId)) {
             throw new CustomException(ErrorCode.FILL_SLOT_TAKEN);
@@ -112,7 +117,11 @@ public class FillService {
                 .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
         FillImage image = storeImage(session, body, contentType, Set.of("image/jpeg", "image/png"), maxImageBytes);
         FillImage previous = slot.getImage();
-        String shownName = (name != null && !name.isBlank()) ? name.trim() : user.getNickname();
+        // 닉네임도 컬럼(40자)보다 길 수 있어 같이 자른다
+        String shownName = normalizeText(name, NAME_MAX);
+        if (shownName == null) {
+            shownName = normalizeText(user.getNickname(), NAME_MAX);
+        }
         slot.fill(user, shownName, image, LocalDateTime.now(clock));
         if (previous != null) {
             imageRepository.delete(previous);
@@ -240,8 +249,7 @@ public class FillService {
     /** 세션을 없앤다(주인만): 칸, 사진, 요소가 모두 사라지고 링크는 더 열리지 않는다. */
     @Transactional
     public void delete(String code, Long userId) {
-        FillSession session = sessionRepository.findByCode(code)
-                .orElseThrow(() -> new CustomException(ErrorCode.FILL_NOT_FOUND));
+        FillSession session = sessionOf(code);
         if (!session.isOwnedBy(userId)) {
             throw new CustomException(ErrorCode.FILL_ACCESS_DENIED);
         }
@@ -251,8 +259,7 @@ public class FillService {
     /** 이미지 바이트(칸 사진·프레임 요소). 세션 코드와 이미지 id가 함께 맞아야 한다. */
     @Transactional(readOnly = true)
     public FillImage image(String code, String imageId) {
-        FillSession session = sessionRepository.findByCode(code)
-                .orElseThrow(() -> new CustomException(ErrorCode.FILL_NOT_FOUND));
+        FillSession session = sessionOf(code);
         return imageRepository.findByIdAndSessionId(imageId, session.getId())
                 .orElseThrow(() -> new CustomException(ErrorCode.FILL_IMAGE_NOT_FOUND));
     }
@@ -271,9 +278,18 @@ public class FillService {
         sessionRepository.delete(session);
     }
 
-    private FillSession liveSession(String code) {
-        FillSession session = sessionRepository.findByCode(code.toUpperCase())
+    /**
+     * 코드로 세션을 찾는다. 코드 정규화는 여기 한 곳에서만 한다 (#151) —
+     * 메서드마다 대문자화를 기억해야 했고 delete·image가 그걸 빠뜨려 소문자 코드에 404를 주고 있었다.
+     */
+    private FillSession sessionOf(String code) {
+        String normalized = code == null ? "" : code.trim().toUpperCase();
+        return sessionRepository.findByCode(normalized)
                 .orElseThrow(() -> new CustomException(ErrorCode.FILL_NOT_FOUND));
+    }
+
+    private FillSession liveSession(String code) {
+        FillSession session = sessionOf(code);
         if (session.isExpired(LocalDateTime.now(clock))) {
             throw new CustomException(ErrorCode.FILL_EXPIRED);
         }
@@ -373,12 +389,16 @@ public class FillService {
                 toInstant(session.getCreatedAt()));
     }
 
-    /** 앞뒤 공백을 지우고 연속 공백을 하나로, 30자까지. 비면 null. */
-    static String normalizeTitle(String raw) {
+    /** 앞뒤 공백을 지우고 연속 공백을 하나로, maxLength까지 자른다. 비면 null. */
+    static String normalizeText(String raw, int maxLength) {
         if (raw == null) return null;
         String t = raw.trim().replaceAll("\\s+", " ");
-        if (t.length() > 30) t = t.substring(0, 30);
+        if (t.length() > maxLength) t = t.substring(0, maxLength);
         return t.isEmpty() ? null : t;
+    }
+
+    static String normalizeTitle(String raw) {
+        return normalizeText(raw, TITLE_MAX);
     }
 
     private Instant toInstant(LocalDateTime t) {
