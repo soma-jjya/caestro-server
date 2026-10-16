@@ -40,7 +40,13 @@ FillResponse = {
 ## 저장과 정리
 
 사진은 `fill_images`(LONGBLOB)에 둔다. 클라이언트가 긴 변 1600px로 줄여 올려 한 장 수백 KB, 세션당 4~6장, 7일 만료.
-이 규모에서는 별도 객체 저장소 없이 운영이 가장 단순하고, 커지면 `FillImage` 뒤를 S3로 바꾸면 된다(URL 형식 유지).
+이 규모에서는 별도 객체 저장소 없이 운영이 가장 단순하다.
+
+바이트의 보관 위치는 `FillImageStore`(domain/fill/store) 하나가 안다 — 지금 구현은 `RdsFillImageStore`이고,
+서비스와 칸(`fill_slots.image_id`)은 id 문자열만 든다. S3로 옮길 때 이 인터페이스의 구현만 갈아 끼우면 되고
+주소 형식(`/fills/{code}/images/{id}`)도 저장소가 만들므로 클라이언트 계약은 바뀌지 않는다.
+전환 기준(측정값으로 판단): `fill_images` 합계가 수 GiB에 닿거나, RDS 여유 공간 알람이 울리거나,
+이미지 GET이 Grafana의 톰캣 스레드·Hikari에 보이거나, 보존 기간을 7일보다 늘릴 때.
 `FillCleanupScheduler`가 매일 04:30(ShedLock) 만료 세션을 칸·이미지와 함께 지운다.
 
 완성된 네컷을 앱이 링크로 공유할 때는 네 칸의 사진에 더해 움직이는 GIF(`PUT /fills/{code}/gif`, 4~7MB)도 같은 테이블에 올리고
@@ -87,11 +93,15 @@ CREATE TABLE fill_slots (
   filled_at DATETIME(6) NULL,
   UNIQUE KEY uk_fill_slots_session_index (session_id, slot_index),
   CONSTRAINT fk_fill_slots_session FOREIGN KEY (session_id) REFERENCES fill_sessions(id),
-  CONSTRAINT fk_fill_slots_user FOREIGN KEY (filled_by_id) REFERENCES users(id),
-  CONSTRAINT fk_fill_slots_image FOREIGN KEY (image_id) REFERENCES fill_images(id)
+  CONSTRAINT fk_fill_slots_user FOREIGN KEY (filled_by_id) REFERENCES users(id)
 );
 CREATE INDEX idx_fill_sessions_expires ON fill_sessions(expires_at);
 ```
+
+`fill_slots.image_id`는 더 이상 `fill_images`를 가리키는 외래키가 아니다 — 바이트가 DB 밖(S3)으로 나가면
+그 id가 `fill_images`에 없기 때문이다. **이미 외래키가 걸린 환경(ddl-auto가 지우지 않는다)은 S3 구현을
+넣기 전에 직접 떼어야 한다**: `ALTER TABLE fill_slots DROP FOREIGN KEY fk_fill_slots_image;`
+(RDS 저장소를 쓰는 동안은 모든 id가 `fill_images`에 있으므로 외래키가 남아 있어도 동작한다.)
 
 ## 클라이언트
 

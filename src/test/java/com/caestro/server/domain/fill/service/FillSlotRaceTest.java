@@ -4,8 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.caestro.server.domain.fill.dto.request.CreateFillRequest;
 import com.caestro.server.domain.fill.dto.response.FillResponse;
-import com.caestro.server.domain.fill.repository.FillImageRepository;
 import com.caestro.server.domain.fill.repository.FillSessionRepository;
+import com.caestro.server.domain.fill.store.FillImageStore;
 import com.caestro.server.domain.user.entity.User;
 import com.caestro.server.domain.user.repository.UserRepository;
 import com.caestro.server.global.exception.CustomException;
@@ -46,7 +46,7 @@ class FillSlotRaceTest {
     private FillSessionRepository sessionRepository;
 
     @Autowired
-    private FillImageRepository imageRepository;
+    private FillImageStore imageStore;
 
     @Autowired
     private UserRepository userRepository;
@@ -119,7 +119,7 @@ class FillSlotRaceTest {
         FillResponse after = fillService.get(code, owner.getId());
         assertThat(after.slots().get(0).imageUrl()).isNotNull();
         assertThat(after.slots().subList(1, 4)).allSatisfy(s -> assertThat(s.imageUrl()).isNull());
-        assertThat(imageRepository.countBySessionId(sessionId)).isEqualTo(1);
+        assertThat(imageStore.countBySession(sessionId)).isEqualTo(1);
     }
 
     @Test
@@ -143,7 +143,25 @@ class FillSlotRaceTest {
         }
 
         assertThat(outcomes).containsExactly(null, null);
-        assertThat(imageRepository.countBySessionId(sessionId)).isEqualTo(2);
+        assertThat(imageStore.countBySession(sessionId)).isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("[회귀] 본인 칸 교체 시 이전 사진이 지워진다 — 칸이 id만 들게 바뀐 뒤에도 삭제 순서가 맞는다 (#152)")
+    void replaceOwnSlot_deletesPreviousImage() {
+        FillResponse created = fillService.create(owner.getId(),
+                new CreateFillRequest("Black", "Strip", null, null, null, null));
+        String code = created.code();
+        createdCodes.add(code);
+        Long sessionId = sessionRepository.findByCode(code).orElseThrow().getId();
+
+        String first = fillService.fillSlot(code, 0, owner.getId(), null, JPEG_A, "image/jpeg")
+                .slots().get(0).imageUrl();
+        String second = fillService.fillSlot(code, 0, owner.getId(), null, JPEG_B, "image/jpeg")
+                .slots().get(0).imageUrl();
+
+        assertThat(second).isNotEqualTo(first);
+        assertThat(imageStore.countBySession(sessionId)).isEqualTo(1);
     }
 
     /** 칸 0을 동시에 노린다. 성공하면 null, 거절되면 그 ErrorCode를 돌려준다. */

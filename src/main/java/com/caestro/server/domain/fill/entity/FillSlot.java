@@ -49,32 +49,33 @@ public class FillSlot {
     @Column(length = 40)
     private String filledByName;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "image_id")
-    private FillImage image;
+    // 채운 사진의 id. 바이트가 어디 있는지(DB·S3)는 저장소가 알고 칸은 id만 든다 (#152).
+    // FillSession.gifImageId와 같은 방식 — 저장소를 갈아도 이 컬럼은 그대로다.
+    @Column(name = "image_id", length = 32)
+    private String imageId;
 
     @Column
     private LocalDateTime filledAt;
 
     public boolean isEmpty() {
-        return image == null;
+        return imageId == null;
     }
 
     public boolean isFilledBy(Long userId) {
         return filledBy != null && filledBy.getId().equals(userId);
     }
 
-    public void fill(User user, String name, FillImage newImage, LocalDateTime now) {
+    public void fill(User user, String name, String newImageId, LocalDateTime now) {
         this.filledBy = user;
         this.filledByName = name;
-        this.image = newImage;
+        this.imageId = newImageId;
         this.filledAt = now;
     }
 
     public void clear() {
         this.filledBy = null;
         this.filledByName = null;
-        this.image = null;
+        this.imageId = null;
         this.filledAt = null;
     }
 }
