@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
@@ -15,12 +16,11 @@ import com.caestro.server.domain.fill.dto.request.UpdateFrameRequest;
 import com.caestro.server.domain.fill.dto.FillCustomFrameDto;
 import com.caestro.server.domain.fill.dto.FillLayerDto;
 import com.caestro.server.domain.fill.dto.response.FillResponse;
-import com.caestro.server.domain.fill.entity.FillImage;
 import com.caestro.server.domain.fill.entity.FillSession;
 import com.caestro.server.domain.fill.entity.FillSlot;
-import com.caestro.server.domain.fill.repository.FillImageRepository;
 import com.caestro.server.domain.fill.repository.FillSessionRepository;
 import com.caestro.server.domain.fill.repository.FillSlotRepository;
+import com.caestro.server.domain.fill.store.FillImageStore;
 import com.caestro.server.domain.user.entity.User;
 import com.caestro.server.domain.user.repository.UserRepository;
 import com.caestro.server.global.exception.CustomException;
@@ -49,10 +49,11 @@ class FillServiceTest {
 
     private static final byte[] JPEG = {(byte) 0xFF, (byte) 0xD8, (byte) 0xFF, (byte) 0xE0, 0, 0, 0, 0, 0, 0};
     private static final byte[] PNG = {(byte) 0x89, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A, 0, 0, 0, 0};
+    private static final byte[] GIF = {'G', 'I', 'F', '8', '9', 'a', 0, 0, 0, 0, 0, 0};
 
     @Mock private FillSessionRepository sessionRepository;
     @Mock private FillSlotRepository slotRepository;
-    @Mock private FillImageRepository imageRepository;
+    @Mock private FillImageStore imageStore;
     @Mock private UserRepository userRepository;
     @Mock private FillCodeGenerator codeGenerator;
 
@@ -64,11 +65,14 @@ class FillServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new FillService(sessionRepository, slotRepository, imageRepository, userRepository,
+        service = new FillService(sessionRepository, slotRepository, imageStore, userRepository,
                 codeGenerator, new ObjectMapper(), clock);
-        ReflectionTestUtils.setField(service, "publicBaseUrl", "https://api.peakpic.app/");
+        // 주소 생성은 저장소의 몫이 됐다 (#152) — 실제 구현과 같은 형식으로 흉내 낸다
+        lenient().when(imageStore.urlOf(anyString(), anyString())).thenAnswer(inv ->
+                "https://api.peakpic.app/fills/" + inv.getArgument(0) + "/images/" + inv.getArgument(1));
         ReflectionTestUtils.setField(service, "ttlDays", 7L);
         ReflectionTestUtils.setField(service, "maxImageBytes", 3 * 1024 * 1024);
+        ReflectionTestUtils.setField(service, "maxGifBytes", 16 * 1024 * 1024);
         owner = User.builder().nickname("주인").role(User.Role.USER).build();
         ReflectionTestUtils.setField(owner, "id", 1L);
         friend = User.builder().nickname(null).role(User.Role.USER).build();
@@ -125,8 +129,7 @@ class FillServiceTest {
         given(sessionRepository.findByCode("K7X2MQ")).willReturn(Optional.of(session));
         given(slotRepository.findBySessionIdAndSlotIndex(10L, 0)).willReturn(Optional.of(s0));
         given(userRepository.findById(1L)).willReturn(Optional.of(owner));
-        given(codeGenerator.imageId()).willReturn("img000000000000000001a");
-        given(imageRepository.save(any(FillImage.class))).willAnswer(inv -> inv.getArgument(0));
+        given(imageStore.store(any(), anyString(), any())).willReturn("img000000000000000001a");
         given(slotRepository.findBySessionIdOrderBySlotIndex(10L)).willReturn(slots(s0, slot(1), slot(2), slot(3)));
 
         FillResponse r = service.fillSlot("k7x2mq", 0, 1L, null, JPEG, "image/jpeg");
@@ -141,14 +144,14 @@ class FillServiceTest {
     @DisplayName("채우기: 다른 사람이 먼저 채운 칸은 409")
     void fill_takenSlotIsConflict() {
         FillSlot s0 = slot(0);
-        s0.fill(friend, "민지", FillImage.builder().id("x").build(), LocalDateTime.now(clock));
+        s0.fill(friend, "민지", "x", LocalDateTime.now(clock));
         given(sessionRepository.findByCode("K7X2MQ")).willReturn(Optional.of(session));
         given(slotRepository.findBySessionIdAndSlotIndex(10L, 0)).willReturn(Optional.of(s0));
 
         assertThatThrownBy(() -> service.fillSlot("K7X2MQ", 0, 1L, null, JPEG, "image/jpeg"))
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode()).isEqualTo(ErrorCode.FILL_SLOT_TAKEN);
-        verify(imageRepository, never()).save(any());
+        verify(imageStore, never()).store(any(), anyString(), any());
     }
 
     @Test
@@ -170,8 +173,7 @@ class FillServiceTest {
     @DisplayName("비우기: 남이 채운 칸은 주인만 비울 수 있다")
     void clear_othersSlotOnlyByOwner() {
         FillSlot s0 = slot(0);
-        FillImage img = FillImage.builder().id("x").build();
-        s0.fill(friend, "민지", img, LocalDateTime.now(clock));
+        s0.fill(friend, "민지", "x", LocalDateTime.now(clock));
         given(sessionRepository.findByCode("K7X2MQ")).willReturn(Optional.of(session));
         given(slotRepository.findBySessionIdAndSlotIndex(10L, 0)).willReturn(Optional.of(s0));
 
@@ -184,7 +186,7 @@ class FillServiceTest {
         FillResponse r = service.clearSlot("K7X2MQ", 0, 1L);
         assertThat(s0.isEmpty()).isTrue();
         assertThat(r.slots().get(0).imageUrl()).isNull();
-        verify(imageRepository).delete(img);
+        verify(imageStore).delete(session, "x");
     }
 
     @Test
@@ -197,7 +199,7 @@ class FillServiceTest {
 
         service.delete("K7X2MQ", 1L);
         verify(slotRepository).deleteBySessionId(10L);
-        verify(imageRepository).deleteBySessionId(10L);
+        verify(imageStore).deleteBySession(10L);
         verify(sessionRepository).delete(session);
     }
 
@@ -219,8 +221,7 @@ class FillServiceTest {
         FillSession custom = FillSession.builder().id(12L).code("CUSTOM").owner(owner).frame("White").layout("Strip")
                 .customFrameJson(json).expiresAt(LocalDateTime.now(clock).plusDays(7)).createdAt(LocalDateTime.now(clock)).build();
         given(sessionRepository.findByCode("CUSTOM")).willReturn(Optional.of(custom));
-        given(codeGenerator.imageId()).willReturn("asset00000000000000001");
-        given(imageRepository.save(any(FillImage.class))).willAnswer(inv -> inv.getArgument(0));
+        given(imageStore.store(any(), anyString(), any())).willReturn("asset00000000000000001");
 
         String url = service.uploadFrameAsset("CUSTOM", 0, 1L, PNG, "image/png");
 
@@ -232,10 +233,47 @@ class FillServiceTest {
     }
 
     @Test
+    @DisplayName("완성 GIF: 주인이 올리면 gifUrl로 내려가고, 참여자는 올릴 수 없고, JPEG는 GIF로 받지 않는다")
+    void gif_ownerUploadsAndOthersCannot() {
+        given(sessionRepository.findByCode("K7X2MQ")).willReturn(Optional.of(session));
+        given(imageStore.store(any(), anyString(), any())).willReturn("gif000000000000000001");
+        given(slotRepository.findBySessionIdOrderBySlotIndex(10L)).willReturn(List.of());
+
+        String url = service.uploadGif("K7X2MQ", 1L, GIF, "image/gif");
+
+        assertThat(url).isEqualTo("https://api.peakpic.app/fills/K7X2MQ/images/gif000000000000000001");
+        assertThat(session.getGifImageId()).isEqualTo("gif000000000000000001");
+        assertThat(service.get("K7X2MQ", 2L).gifUrl()).isEqualTo(url);
+        assertThatThrownBy(() -> service.uploadGif("K7X2MQ", 2L, GIF, "image/gif"))
+                .extracting(e -> ((CustomException) e).getErrorCode()).isEqualTo(ErrorCode.FILL_ACCESS_DENIED);
+        assertThatThrownBy(() -> service.uploadGif("K7X2MQ", 1L, JPEG, "image/gif"))
+                .extracting(e -> ((CustomException) e).getErrorCode()).isEqualTo(ErrorCode.FILL_INVALID_GIF);
+    }
+
+    @Test
+    @DisplayName("완성 GIF: 칸 사진이 바뀌면 더 맞지 않으므로 지워진다")
+    void gif_droppedWhenASlotChanges() {
+        String gifId = "gif000000000000000002";
+        session.updateGifImageId(gifId);
+        FillSlot empty = slot(0);
+        given(sessionRepository.findByCode("K7X2MQ")).willReturn(Optional.of(session));
+        given(slotRepository.findBySessionIdAndSlotIndex(10L, 0)).willReturn(Optional.of(empty));
+        given(userRepository.findById(2L)).willReturn(Optional.of(friend));
+        given(imageStore.store(any(), anyString(), any())).willReturn("img000000000000000003");
+        given(slotRepository.findBySessionIdOrderBySlotIndex(10L)).willReturn(List.of(empty));
+
+        FillResponse after = service.fillSlot("K7X2MQ", 0, 2L, "민지", JPEG, "image/jpeg");
+
+        verify(imageStore).delete(session, gifId);
+        assertThat(session.getGifImageId()).isNull();
+        assertThat(after.gifUrl()).isNull();
+    }
+
+    @Test
     @DisplayName("이미지 조회: 세션 코드와 id가 함께 맞아야 한다")
     void image_requiresMatchingSessionAndId() {
         given(sessionRepository.findByCode("K7X2MQ")).willReturn(Optional.of(session));
-        given(imageRepository.findByIdAndSessionId(anyString(), any())).willReturn(Optional.empty());
+        given(imageStore.load(any(), anyString())).willThrow(new CustomException(ErrorCode.FILL_IMAGE_NOT_FOUND));
 
         assertThatThrownBy(() -> service.image("K7X2MQ", "nope"))
                 .extracting(e -> ((CustomException) e).getErrorCode()).isEqualTo(ErrorCode.FILL_IMAGE_NOT_FOUND);
@@ -246,14 +284,12 @@ class FillServiceTest {
     void updateFrame_ownerSwapsFrameAndDropsOldAssets() {
         String oldAssetUrl = "https://api.peakpic.app/fills/K7X2MQ/images/asset01";
         session.updateCustomFrameJson("{\"base\":\"White\",\"layers\":[{\"cx\":0.5,\"cy\":0.9,\"w\":0.3,\"rot\":0,\"url\":\"" + oldAssetUrl + "\"}],\"borderless\":true}");
-        FillImage oldAsset = FillImage.builder().id("asset01").session(session).contentType("image/png").data(PNG).sizeBytes(PNG.length).build();
         given(sessionRepository.findByCode("K7X2MQ")).willReturn(Optional.of(session));
-        given(imageRepository.findByIdAndSessionId("asset01", 10L)).willReturn(Optional.of(oldAsset));
         given(slotRepository.findBySessionIdOrderBySlotIndex(10L)).willReturn(slots(slot(0), slot(1), slot(2), slot(3)));
 
         FillResponse r = service.updateFrame("K7X2MQ", 1L, new UpdateFrameRequest("White", "Grid", "gyaru", null, null));
 
-        verify(imageRepository).delete(oldAsset);
+        verify(imageStore).delete(session, "asset01");
         assertThat(r.frame()).isEqualTo("White");
         assertThat(r.layout()).isEqualTo("Grid");
         assertThat(r.artFrameId()).isEqualTo("gyaru");

@@ -6,12 +6,13 @@ import com.caestro.server.domain.fill.dto.request.CreateFillRequest;
 import com.caestro.server.domain.fill.dto.request.UpdateFrameRequest;
 import com.caestro.server.domain.fill.dto.response.FillResponse;
 import com.caestro.server.domain.fill.dto.response.FillSlotResponse;
-import com.caestro.server.domain.fill.entity.FillImage;
 import com.caestro.server.domain.fill.entity.FillSession;
 import com.caestro.server.domain.fill.entity.FillSlot;
-import com.caestro.server.domain.fill.repository.FillImageRepository;
 import com.caestro.server.domain.fill.repository.FillSessionRepository;
 import com.caestro.server.domain.fill.repository.FillSlotRepository;
+import com.caestro.server.domain.fill.store.FillImageStore;
+import com.caestro.server.domain.fill.store.FillImageTypes;
+import com.caestro.server.domain.fill.store.StoredImage;
 import com.caestro.server.domain.user.entity.User;
 import com.caestro.server.domain.user.repository.UserRepository;
 import com.caestro.server.global.exception.CustomException;
@@ -32,7 +33,7 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * 함께 채우기(#fill-together). 세션은 프레임과 네 칸의 상태만 들고, 합성은 클라이언트가 한다.
  * 규칙: 칸은 먼저 채운 사람 것(다른 사람이 채운 칸은 409), 비우기는 본인 칸 또는 세션 주인, 없애기는 주인만.
- * 이미지는 {@link FillImage}에 두고 인증 없는 난수 URL로 내려준다(웹 클라이언트와 앱이 같은 URL을 그대로 그린다).
+ * 이미지 바이트는 {@link FillImageStore}가 보관하고 서비스는 id만 든다 — 인증 없는 난수 URL로 내려준다 (#152).
  */
 @Service
 @RequiredArgsConstructor
@@ -40,26 +41,29 @@ public class FillService {
 
     public static final int SLOTS = 4;
     private static final int CODE_ATTEMPTS = 5;
+    // 표시 문자열의 컬럼 상한. 넘겨 보내면 DB가 거부해 500이 되므로 잘라서 받는다 (#151)
+    private static final int TITLE_MAX = 30;
+    private static final int NAME_MAX = 40;
     private static final Set<String> FRAMES = Set.of("Black", "White");
     private static final Set<String> LAYOUTS = Set.of("Strip", "Grid");
 
     private final FillSessionRepository sessionRepository;
     private final FillSlotRepository slotRepository;
-    private final FillImageRepository imageRepository;
+    private final FillImageStore imageStore;
     private final UserRepository userRepository;
     private final FillCodeGenerator codeGenerator;
     private final ObjectMapper objectMapper;
     private final Clock clock;
-
-    // 이미지 URL의 호스트. ALB 뒤에서는 요청 스킴이 http로 보일 수 있어 요청에서 만들지 않고 고정한다.
-    @Value("${fill.public-base-url:https://api.peakpic.app}")
-    private String publicBaseUrl;
 
     @Value("${fill.ttl-days:7}")
     private long ttlDays;
 
     @Value("${fill.max-image-bytes:3145728}")
     private int maxImageBytes;
+
+    // 움직이는 GIF는 칸 사진보다 크다(네컷 4~7MB).
+    @Value("${fill.max-gif-bytes:16777216}")
+    private int maxGifBytes;
 
     @Transactional
     public FillResponse create(Long ownerId, CreateFillRequest request) {
@@ -96,23 +100,28 @@ public class FillService {
     /**
      * 칸 [index]에 사진을 넣는다. 비어 있거나 본인이 채운 칸만 가능하고, 다른 사람의 칸이면 409로 돌려보내
      * 클라이언트가 최신 상태를 다시 그리게 한다. 이전 사진은 지운다(교체).
+     * 같은 칸에 동시 요청이 오면 칸 행을 잠가 한 명만 통과시킨다 — 패자는 사진을 저장하기 전에 409로 끝난다 (#151).
      */
     @Transactional
     public FillResponse fillSlot(String code, int index, Long userId, String name, byte[] body, String contentType) {
         FillSession session = liveSession(code);
+        // 행을 잠그고 읽으므로 이 검사와 아래 기록 사이에 다른 요청이 끼어들 수 없다 (#151)
         FillSlot slot = slotOf(session, index);
         if (!slot.isEmpty() && !slot.isFilledBy(userId)) {
             throw new CustomException(ErrorCode.FILL_SLOT_TAKEN);
         }
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
-        FillImage image = storeImage(session, body, contentType, Set.of("image/jpeg", "image/png"));
-        FillImage previous = slot.getImage();
-        String shownName = (name != null && !name.isBlank()) ? name.trim() : user.getNickname();
-        slot.fill(user, shownName, image, LocalDateTime.now(clock));
-        if (previous != null) {
-            imageRepository.delete(previous);
+        String imageId = storeImage(session, body, contentType, Set.of("image/jpeg", "image/png"), maxImageBytes);
+        String previousId = slot.getImageId();
+        // 닉네임도 컬럼(40자)보다 길 수 있어 같이 자른다
+        String shownName = normalizeText(name, NAME_MAX);
+        if (shownName == null) {
+            shownName = normalizeText(user.getNickname(), NAME_MAX);
         }
+        slot.fill(user, shownName, imageId, LocalDateTime.now(clock));
+        imageStore.delete(session, previousId);
+        dropGif(session);
         return toResponse(session, slotRepository.findBySessionIdOrderBySlotIndex(session.getId()), userId);
     }
 
@@ -127,16 +136,14 @@ public class FillService {
         if (!session.isOwnedBy(userId)) {
             throw new CustomException(ErrorCode.FILL_ACCESS_DENIED);
         }
+        dropGif(session);
         if (!FRAMES.contains(request.frame()) || !LAYOUTS.contains(request.layout())) {
             throw new CustomException(ErrorCode.FILL_INVALID_FRAME);
         }
         FillCustomFrameDto previous = parseCustom(session.getCustomFrameJson());
         if (previous != null && previous.layers() != null) {
             for (FillLayerDto layer : previous.layers()) {
-                String id = imageIdOf(layer.url());
-                if (id != null) {
-                    imageRepository.findByIdAndSessionId(id, session.getId()).ifPresent(imageRepository::delete);
-                }
+                imageStore.delete(session, imageIdOf(layer.url()));
             }
         }
         boolean borderless = resolveBorderless(request.borderless(), request.customFrame());
@@ -173,11 +180,10 @@ public class FillService {
         if (!slot.isEmpty() && !slot.isFilledBy(userId) && !session.isOwnedBy(userId)) {
             throw new CustomException(ErrorCode.FILL_ACCESS_DENIED);
         }
-        FillImage previous = slot.getImage();
+        String previousId = slot.getImageId();
         slot.clear();
-        if (previous != null) {
-            imageRepository.delete(previous);
-        }
+        imageStore.delete(session, previousId);
+        dropGif(session);
         return toResponse(session, slotRepository.findBySessionIdOrderBySlotIndex(session.getId()), userId);
     }
 
@@ -192,19 +198,48 @@ public class FillService {
         if (custom == null || custom.layers() == null || k < 0 || k >= custom.layers().size()) {
             throw new CustomException(ErrorCode.FILL_INVALID_SLOT);
         }
-        FillImage image = storeImage(session, body, contentType, Set.of("image/png"));
-        String url = imageUrl(session.getCode(), image.getId());
+        String imageId = storeImage(session, body, contentType, Set.of("image/png"), maxImageBytes);
+        String url = imageStore.urlOf(session.getCode(), imageId);
         List<FillLayerDto> layers = new ArrayList<>(custom.layers());
         layers.set(k, layers.get(k).withUrl(url));
         session.updateCustomFrameJson(toJson(new FillCustomFrameDto(custom.base(), layers, custom.borderless())));
         return url;
     }
 
+    /**
+     * 완성된 네컷의 움직이는 GIF(주인만): 앱이 저장된 네컷을 링크로 공유할 때 사진과 함께 올린다.
+     * 웹과 다른 앱은 응답의 gifUrl로 받는다. 이전 GIF는 지우고(교체), 칸이나 프레임이 바뀌면 함께 지워진다.
+     */
+    @Transactional
+    public String uploadGif(String code, Long userId, byte[] body, String contentType) {
+        FillSession session = liveSession(code);
+        if (!session.isOwnedBy(userId)) {
+            throw new CustomException(ErrorCode.FILL_ACCESS_DENIED);
+        }
+        if (!FillImageTypes.isGif(body)) {
+            throw new CustomException(ErrorCode.FILL_INVALID_GIF);
+        }
+        if (body.length > maxGifBytes) {
+            throw new CustomException(ErrorCode.FILL_GIF_TOO_LARGE);
+        }
+        dropGif(session);
+        String imageId = storeImage(session, body, "image/gif", Set.of("image/gif"), maxGifBytes);
+        session.updateGifImageId(imageId);
+        return imageStore.urlOf(session.getCode(), imageId);
+    }
+
+    /** 사진이나 프레임이 바뀌면 그 전에 올라온 GIF는 더 맞지 않으므로 지운다. */
+    private void dropGif(FillSession session) {
+        String id = session.getGifImageId();
+        if (id == null) return;
+        imageStore.delete(session, id);
+        session.updateGifImageId(null);
+    }
+
     /** 세션을 없앤다(주인만): 칸, 사진, 요소가 모두 사라지고 링크는 더 열리지 않는다. */
     @Transactional
     public void delete(String code, Long userId) {
-        FillSession session = sessionRepository.findByCode(code)
-                .orElseThrow(() -> new CustomException(ErrorCode.FILL_NOT_FOUND));
+        FillSession session = sessionOf(code);
         if (!session.isOwnedBy(userId)) {
             throw new CustomException(ErrorCode.FILL_ACCESS_DENIED);
         }
@@ -213,11 +248,8 @@ public class FillService {
 
     /** 이미지 바이트(칸 사진·프레임 요소). 세션 코드와 이미지 id가 함께 맞아야 한다. */
     @Transactional(readOnly = true)
-    public FillImage image(String code, String imageId) {
-        FillSession session = sessionRepository.findByCode(code)
-                .orElseThrow(() -> new CustomException(ErrorCode.FILL_NOT_FOUND));
-        return imageRepository.findByIdAndSessionId(imageId, session.getId())
-                .orElseThrow(() -> new CustomException(ErrorCode.FILL_IMAGE_NOT_FOUND));
+    public StoredImage image(String code, String imageId) {
+        return imageStore.load(sessionOf(code), imageId);
     }
 
     /** 만료 세션 정리(배치): 만료 시각이 지난 세션을 사진까지 통째로 지우고 개수를 돌려준다. */
@@ -230,13 +262,22 @@ public class FillService {
 
     private void purge(FillSession session) {
         slotRepository.deleteBySessionId(session.getId());
-        imageRepository.deleteBySessionId(session.getId());
+        imageStore.deleteBySession(session.getId());
         sessionRepository.delete(session);
     }
 
-    private FillSession liveSession(String code) {
-        FillSession session = sessionRepository.findByCode(code.toUpperCase())
+    /**
+     * 코드로 세션을 찾는다. 코드 정규화는 여기 한 곳에서만 한다 (#151) —
+     * 메서드마다 대문자화를 기억해야 했고 delete·image가 그걸 빠뜨려 소문자 코드에 404를 주고 있었다.
+     */
+    private FillSession sessionOf(String code) {
+        String normalized = code == null ? "" : code.trim().toUpperCase();
+        return sessionRepository.findByCode(normalized)
                 .orElseThrow(() -> new CustomException(ErrorCode.FILL_NOT_FOUND));
+    }
+
+    private FillSession liveSession(String code) {
+        FillSession session = sessionOf(code);
         if (session.isExpired(LocalDateTime.now(clock))) {
             throw new CustomException(ErrorCode.FILL_EXPIRED);
         }
@@ -251,40 +292,13 @@ public class FillService {
                 .orElseThrow(() -> new CustomException(ErrorCode.FILL_INVALID_SLOT));
     }
 
-    private FillImage storeImage(FillSession session, byte[] body, String contentType, Set<String> allowed) {
-        if (body == null || body.length == 0 || !looksLikeImage(body)) {
-            throw new CustomException(ErrorCode.FILL_INVALID_IMAGE);
-        }
-        if (body.length > maxImageBytes) {
+    /** 크기·형식을 검증하고 저장소에 맡긴다. 바이트의 보관 위치는 저장소만 안다 (#152). */
+    private String storeImage(FillSession session, byte[] body, String contentType, Set<String> allowed, int maxBytes) {
+        String type = FillImageTypes.resolve(body, contentType, allowed);
+        if (body.length > maxBytes) {
             throw new CustomException(ErrorCode.FILL_IMAGE_TOO_LARGE);
         }
-        String type = contentType == null ? "" : contentType.split(";")[0].trim().toLowerCase();
-        if (!allowed.contains(type)) {
-            // 헤더가 비었거나 다르면 바이트로 판단한다 — 브라우저 fetch가 Content-Type을 생략하는 경우 대비
-            type = isPng(body) ? "image/png" : "image/jpeg";
-            if (!allowed.contains(type)) {
-                throw new CustomException(ErrorCode.FILL_INVALID_IMAGE);
-            }
-        }
-        return imageRepository.save(FillImage.builder()
-                .id(codeGenerator.imageId())
-                .session(session)
-                .contentType(type)
-                .data(body)
-                .sizeBytes(body.length)
-                .build());
-    }
-
-    private static boolean looksLikeImage(byte[] b) {
-        return isJpeg(b) || isPng(b);
-    }
-
-    private static boolean isJpeg(byte[] b) {
-        return b.length > 3 && (b[0] & 0xFF) == 0xFF && (b[1] & 0xFF) == 0xD8;
-    }
-
-    private static boolean isPng(byte[] b) {
-        return b.length > 8 && (b[0] & 0xFF) == 0x89 && b[1] == 'P' && b[2] == 'N' && b[3] == 'G';
+        return imageStore.store(session, type, body);
     }
 
     private String uniqueCode() {
@@ -297,10 +311,6 @@ public class FillService {
         throw new CustomException(ErrorCode.FILL_CODE_GENERATION_FAILED);
     }
 
-    private String imageUrl(String code, String imageId) {
-        return publicBaseUrl.replaceAll("/+$", "") + "/fills/" + code + "/images/" + imageId;
-    }
-
     private FillResponse toResponse(FillSession session, List<FillSlot> slots, Long userId) {
         List<FillSlotResponse> slotResponses = new ArrayList<>(SLOTS);
         for (int i = 0; i < SLOTS; i++) {
@@ -311,7 +321,7 @@ public class FillService {
             } else {
                 slotResponses.add(new FillSlotResponse(
                         index,
-                        imageUrl(session.getCode(), slot.getImage().getId()),
+                        imageStore.urlOf(session.getCode(), slot.getImageId()),
                         slot.isFilledBy(userId),
                         slot.getFilledByName(),
                         toInstant(slot.getFilledAt())));
@@ -327,16 +337,21 @@ public class FillService {
                 session.getTitle(),
                 session.isBorderless(),
                 slotResponses,
+                session.getGifImageId() == null ? null : imageStore.urlOf(session.getCode(), session.getGifImageId()),
                 toInstant(session.getExpiresAt()),
                 toInstant(session.getCreatedAt()));
     }
 
-    /** 앞뒤 공백을 지우고 연속 공백을 하나로, 30자까지. 비면 null. */
-    static String normalizeTitle(String raw) {
+    /** 앞뒤 공백을 지우고 연속 공백을 하나로, maxLength까지 자른다. 비면 null. */
+    static String normalizeText(String raw, int maxLength) {
         if (raw == null) return null;
         String t = raw.trim().replaceAll("\\s+", " ");
-        if (t.length() > 30) t = t.substring(0, 30);
+        if (t.length() > maxLength) t = t.substring(0, maxLength);
         return t.isEmpty() ? null : t;
+    }
+
+    static String normalizeTitle(String raw) {
+        return normalizeText(raw, TITLE_MAX);
     }
 
     private Instant toInstant(LocalDateTime t) {

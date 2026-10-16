@@ -44,12 +44,16 @@ public enum ErrorCode {
     FILL_INVALID_FRAME(400, "프레임 또는 배치 값이 올바르지 않습니다"),
     FILL_INVALID_IMAGE(400, "이미지 파일(JPEG/PNG)이 아닙니다"),
     FILL_IMAGE_TOO_LARGE(413, "이미지가 너무 큽니다 (최대 3MB)"),
+    FILL_INVALID_GIF(400, "GIF 파일이 아닙니다"),
+    FILL_GIF_TOO_LARGE(413, "GIF가 너무 큽니다 (최대 16MB)"),
     FILL_IMAGE_NOT_FOUND(404, "이미지를 찾을 수 없습니다"),
     FILL_CODE_GENERATION_FAILED(500, "함께 채우기 코드 생성에 실패했습니다"),
+    FILL_TOO_MANY_SESSIONS(429, "진행 중인 함께 채우기 세션이 너무 많습니다 (최대 20개). 끝난 세션을 지워주세요"),
     BAD_REQUEST(400, "잘못된 요청입니다"),
     RESOURCE_NOT_FOUND(404, "요청한 경로를 찾을 수 없습니다"),
     METHOD_NOT_ALLOWED(405, "지원하지 않는 HTTP 메서드입니다"),
     PAYLOAD_TOO_LARGE(413, "요청 크기가 허용 범위를 초과했습니다"),
+    LENGTH_REQUIRED(411, "요청 본문의 길이(Content-Length)가 필요합니다"),
     UNSUPPORTED_MEDIA_TYPE(415, "지원하지 않는 미디어 타입입니다"),
     INTERNAL_SERVER_ERROR(500, "서버 오류가 발생했습니다");
 

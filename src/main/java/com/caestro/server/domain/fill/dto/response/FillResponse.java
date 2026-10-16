@@ -15,6 +15,8 @@ public record FillResponse(
         String title,
         boolean borderless,
         List<FillSlotResponse> slots,
+        /** 완성된 네컷의 움직이는 GIF 주소; 올라온 적 없거나 그 뒤 칸·프레임이 바뀌었으면 null. */
+        String gifUrl,
         Instant expiresAt,
         Instant createdAt
 ) {

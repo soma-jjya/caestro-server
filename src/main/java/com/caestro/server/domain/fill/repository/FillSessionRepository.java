@@ -10,4 +10,6 @@ public interface FillSessionRepository extends JpaRepository<FillSession, Long> 
     Optional<FillSession> findByCode(String code);
     boolean existsByCode(String code);
     List<FillSession> findByExpiresAtBefore(LocalDateTime cutoff);
+    // 사용자당 활성 세션 상한(#150)용. owner_id FK 인덱스를 탄다
+    long countByOwnerIdAndExpiresAtAfter(Long ownerId, LocalDateTime now);
 }

@@ -72,6 +72,10 @@ public class FillSession {
     @Column(nullable = false)
     private boolean borderless;
 
+    // 완성된 네컷의 움직이는 GIF(앱이 링크로 공유할 때 올림). FillImage id; 칸이나 프레임이 바뀌면 지운다.
+    @Column(length = 32)
+    private String gifImageId;
+
     @Column(nullable = false)
     private LocalDateTime expiresAt;
 
@@ -89,6 +93,10 @@ public class FillSession {
 
     public void updateCustomFrameJson(String json) {
         this.customFrameJson = json;
+    }
+
+    public void updateGifImageId(String gifImageId) {
+        this.gifImageId = gifImageId;
     }
 
     /** 주인이 프레임을 바꿀 때: 바탕색·배치·그림 프레임·커스텀 프레임·무테를 한 번에 갈아 끼운다. */

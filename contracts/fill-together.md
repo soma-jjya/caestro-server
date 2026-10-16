@@ -14,6 +14,7 @@
 | PUT | `/fills/{code}/slots/{i}?name=` | image/jpeg 또는 image/png 바이트 (≤3MB) | 200 FillResponse · 409 남이 채운 칸 · 400 이미지 아님 · 413 초과 |
 | DELETE | `/fills/{code}/slots/{i}` | | 200 FillResponse · 403 (본인 칸·주인 아님) |
 | PUT | `/fills/{code}/frame-assets/{k}` | image/png 바이트 | 200 `{"url"}` · 403 주인 아님 |
+| PUT | `/fills/{code}/gif` | image/gif 바이트 (≤16MB) 주인만 | 200 `{"url"}` · 400 GIF 아님 · 403 주인 아님 · 413 초과 (칸·프레임이 바뀌면 지워짐) |
 | DELETE | `/fills/{code}` | | 204 · 403 주인 아님 |
 | GET | `/fills/{code}/images/{imageId}` | | 200 이미지 바이트 (무인증, Cache-Control 7일) |
 
@@ -21,23 +22,38 @@
 FillResponse = {
   "code": "K7X2MQ", "ownerMe": true,
   "frame": "Black" | "White", "layout": "Strip" | "Grid", "artFrameId": "gyaru" | null,
-  "customFrame": {"base": "White", "borderless": false, "layers": [{"cx":0.5,"cy":0.9,"w":0.3,"rot":0,"url":"https://…/images/…"}]} | null,
+  "customFrame": {"base": "White", "borderless": false, "layers": [{"cx":0.5,"cy":0.9,"w":0.3,"rot":0,"url":"https://…/images/…","cell":null}]} | null,
   "title": "제주 여행" | null, "borderless": false,
   "slots": [{"index":0,"imageUrl":"https://…"|null,"filledByMe":false,"filledByName":"민지"|null,"filledAt":"2026-09-26T03:00:00Z"|null}, …4개],
+  "gifUrl": "https://…/images/…" | null,
   "expiresAt": "2026-10-03T03:00:00Z", "createdAt": "2026-09-26T03:00:00Z"
 }
 ```
 
 규칙: 칸은 먼저 채운 사람 것(본인은 교체 가능), 비우기는 본인 칸 또는 주인, 없애기는 주인만. 시각은 UTC `…Z`.
+업로드 3종(slots·frame-assets·gif)은 본문을 읽기 전에 `Content-Length`로 거른다 — 상한 초과 413, 길이 없는(chunked) 요청 411. 바이트 본문에 길이를 붙여 보낼 것.
+쓰기 한도(사용자 단위, 초과 시 429): 세션 생성 10/시간, 업로드 3종 합산 30/분, 만료 전 세션 20개(`FILL_TOO_MANY_SESSIONS` — 끝난 세션을 DELETE하면 풀린다). 값은 `fill.ratelimit.*`, `fill.max-active-sessions`.
 `name`은 웹 참여자의 표시 이름(선택). 없으면 유저 닉네임, 그것도 없으면 클라이언트가 "친구"로 표시한다.
+`name`은 앞뒤 공백을 지우고 40자까지 저장한다(넘치면 자른다, 400이 아니다). 세션 코드는 대소문자를 가리지 않는다 — 모든 경로가 대문자로 맞춰 조회한다.
+같은 빈 칸에 동시 요청이 오면 한 명만 200이고 나머지는 409다(칸 행을 잠가 심판한다). 409를 받으면 최신 상태를 다시 그린다.
 
 ## 저장과 정리
 
 사진은 `fill_images`(LONGBLOB)에 둔다. 클라이언트가 긴 변 1600px로 줄여 올려 한 장 수백 KB, 세션당 4~6장, 7일 만료.
-이 규모에서는 별도 객체 저장소 없이 운영이 가장 단순하고, 커지면 `FillImage` 뒤를 S3로 바꾸면 된다(URL 형식 유지).
+이 규모에서는 별도 객체 저장소 없이 운영이 가장 단순하다.
+
+바이트의 보관 위치는 `FillImageStore`(domain/fill/store) 하나가 안다 — 지금 구현은 `RdsFillImageStore`이고,
+서비스와 칸(`fill_slots.image_id`)은 id 문자열만 든다. S3로 옮길 때 이 인터페이스의 구현만 갈아 끼우면 되고
+주소 형식(`/fills/{code}/images/{id}`)도 저장소가 만들므로 클라이언트 계약은 바뀌지 않는다.
+전환 기준(측정값으로 판단): `fill_images` 합계가 수 GiB에 닿거나, RDS 여유 공간 알람이 울리거나,
+이미지 GET이 Grafana의 톰캣 스레드·Hikari에 보이거나, 보존 기간을 7일보다 늘릴 때.
 `FillCleanupScheduler`가 매일 04:30(ShedLock) 만료 세션을 칸·이미지와 함께 지운다.
 
-설정: `fill.public-base-url`(이미지 URL 호스트, 기본 https://api.peakpic.app), `fill.ttl-days`(7), `fill.max-image-bytes`(3MB),
+완성된 네컷을 앱이 링크로 공유할 때는 네 칸의 사진에 더해 움직이는 GIF(`PUT /fills/{code}/gif`, 4~7MB)도 같은 테이블에 올리고
+`gifUrl`로 내려 준다. 웹은 그걸 보여 주고 내려받게 하며, 앱은 완성 때 사진과 함께 앨범에 넣는다. 칸 사진이나 프레임이 바뀌면 GIF는
+더 맞지 않으므로 서버가 지운다.
+
+설정: `fill.public-base-url`(이미지 URL 호스트, 기본 https://api.peakpic.app), `fill.ttl-days`(7), `fill.max-image-bytes`(3MB), `fill.max-gif-bytes`(16MB),
 `cleanup.fill.cron`, `cors.allowed-origins`(웹 클라이언트 출처, 기본 peakpic.app).
 
 ## DDL (ddl-auto가 update가 아닌 환경용)
@@ -53,6 +69,7 @@ CREATE TABLE fill_sessions (
   custom_frame_json TEXT NULL,
   title VARCHAR(30) NULL,
   borderless TINYINT(1) NOT NULL DEFAULT 0,
+  gif_image_id VARCHAR(32) NULL,
   expires_at DATETIME(6) NOT NULL,
   created_at DATETIME(6) NULL,
   CONSTRAINT fk_fill_sessions_owner FOREIGN KEY (owner_id) REFERENCES users(id)
@@ -76,13 +93,25 @@ CREATE TABLE fill_slots (
   filled_at DATETIME(6) NULL,
   UNIQUE KEY uk_fill_slots_session_index (session_id, slot_index),
   CONSTRAINT fk_fill_slots_session FOREIGN KEY (session_id) REFERENCES fill_sessions(id),
-  CONSTRAINT fk_fill_slots_user FOREIGN KEY (filled_by_id) REFERENCES users(id),
-  CONSTRAINT fk_fill_slots_image FOREIGN KEY (image_id) REFERENCES fill_images(id)
+  CONSTRAINT fk_fill_slots_user FOREIGN KEY (filled_by_id) REFERENCES users(id)
 );
 CREATE INDEX idx_fill_sessions_expires ON fill_sessions(expires_at);
 ```
+
+`fill_slots.image_id`는 더 이상 `fill_images`를 가리키는 외래키가 아니다 — 바이트가 DB 밖(S3)으로 나가면
+그 id가 `fill_images`에 없기 때문이다. **이미 외래키가 걸린 환경(ddl-auto가 지우지 않는다)은 S3 구현을
+넣기 전에 직접 떼어야 한다**: `ALTER TABLE fill_slots DROP FOREIGN KEY fk_fill_slots_image;`
+(RDS 저장소를 쓰는 동안은 모든 id가 `fill_images`에 있으므로 외래키가 남아 있어도 동작한다.)
 
 ## 클라이언트
 
 - Android: `FillSessionApi`/`HttpFillSessionApi` (feat/fourcut-fill-together). 서버에 `/fills`가 없으면 기기 내 데모 세션으로 동작.
 - Web: `soma-jjya/peakpic.app` 의 `/fill/{code}` — 게스트 로그인(`POST /auth/guest`) 후 같은 엔드포인트를 브라우저에서 호출.
+
+## 커스텀 프레임 요소(layer)의 `cell`
+
+- `null`: 프레임 위에 얹히는 요소. 칸 위로도 그대로 그려진다.
+- `0`~`3`: 그 칸(0부터, 배치 순서) 안에 있는 요소. 칸 밖으로 나가는 부분은 잘려 그려진다.
+- `-1`: 프레임의 **배경 사진**. 프레임 모양에 맞게 잘라 둔 이미지로 `cx=0.5, cy=0.5, w=1`이며, 칸 아래에 프레임 전체를 덮어 그린다.
+
+서버는 값을 저장만 하고 그대로 돌려준다(그리는 쪽은 앱과 웹 페이지).

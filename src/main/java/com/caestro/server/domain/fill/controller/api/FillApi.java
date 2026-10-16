@@ -33,6 +33,7 @@ public interface FillApi {
 
     @Operation(summary = "프레임 바꾸기(주인)",
             description = "바탕색·배치·그림 프레임·커스텀 프레임·무테를 한 번에 바꿉니다(PUT 의미). 칸의 사진은 그대로이고, 커스텀 프레임 요소 PNG는 이 요청 뒤 frame-assets로 다시 올립니다.")
+    @SecurityRequirement(name = "BearerAuth")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "바뀐 세션"),
             @ApiResponse(responseCode = "400", description = "frame/layout 값이 유효하지 않음"),
@@ -85,6 +86,18 @@ public interface FillApi {
     })
     ResponseEntity<AssetUrlResponse> uploadFrameAsset(String code, int k, byte[] body, String contentType,
                                                       CustomUserDetails userDetails);
+
+    @Operation(summary = "완성 네컷 GIF 업로드", description = "세션 주인이 완성된 네컷의 움직이는 GIF를 올립니다(앱이 저장된 네컷을 링크로 공유할 때). "
+            + "응답 url이 FillResponse.gifUrl에 실리며, 칸이나 프레임이 바뀌면 지워집니다. 최대 16MB.")
+    @SecurityRequirement(name = "BearerAuth")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "저장",
+                    content = @Content(schema = @Schema(implementation = AssetUrlResponse.class))),
+            @ApiResponse(responseCode = "400", description = "GIF가 아님"),
+            @ApiResponse(responseCode = "403", description = "주인이 아님"),
+            @ApiResponse(responseCode = "413", description = "GIF가 너무 큼")
+    })
+    ResponseEntity<AssetUrlResponse> uploadGif(String code, byte[] body, String contentType, CustomUserDetails userDetails);
 
     @Operation(summary = "세션 없애기", description = "세션 주인만. 칸·사진·요소가 모두 삭제되고 링크는 더 열리지 않습니다.")
     @SecurityRequirement(name = "BearerAuth")
