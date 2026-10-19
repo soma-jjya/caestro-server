@@ -47,6 +47,13 @@ FillResponse = {
 - `s3`(운영): 버킷 `fill.s3.bucket`의 `{fill.s3.key-prefix}/{sessionId}/{imageId}`에 둔다. 이미지 GET은
   존재 확인 뒤 `fill.s3.presign-minutes`(10분) 수명의 서명 주소로 **302**(no-store). 바이트가 앱 서버를 거치지 않는다.
   클라이언트는 리다이렉트를 따라가면 된다(브라우저 `<img>`·OkHttp 기본 동작). 세션 삭제·만료 정리는 세션 접두사를 나열해 지운다.
+  **버킷에 CORS가 필요하고, 허용 출처는 `*`여야 한다** — 웹은 사진을 `fetch`하고 캔버스에 그리므로 최종 응답(S3)이
+  `Access-Control-Allow-Origin`을 보내야 한다. 그런데 브라우저는 교차 출처 요청이 또 다른 출처로 리다이렉트되면 다음 홉의
+  Origin을 `null`로 바꿔 보낸다(표준 동작). `peakpic.app → api.peakpic.app → S3` 두 번째 홉이 그 경우라, 허용 출처를
+  `https://peakpic.app`으로 좁히면 `null`과 매칭되지 않아 S3가 200을 줘도 브라우저가 버린다(2026-10-19 전환 직후 실제로 겪음).
+  `*`가 안전한 이유: 버킷은 비공개이고 서명 주소(10분)가 있어야만 열리므로 CORS는 접근 권한을 넓히지 않는다.
+  설정: AllowedOrigins `*`, AllowedMethods GET·HEAD, AllowedHeaders `*`, ExposeHeaders ETag·Content-Length.
+  웹이 `credentials: 'include'`로 부르면 `*`가 거부되므로 이미지 요청은 자격증명 없이 부른다.
 서비스와 칸(`fill_slots.image_id`)은 id 문자열만 들고, 주소 형식(`/fills/{code}/images/{id}`)은 두 구현이 같다.
 전환은 일회성 교체다 — 전환 시점에 DB에 남아 있던 사진은 더 열리지 않는다(만료·수명 주기로 사라진다).
 전환 기준(측정값으로 판단): `fill_images` 합계가 수 GiB에 닿거나, RDS 여유 공간 알람이 울리거나,
