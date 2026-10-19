@@ -19,11 +19,13 @@ import com.caestro.server.global.exception.CustomException;
 import com.caestro.server.global.exception.error.ErrorCode;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.net.URI;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
@@ -250,6 +252,12 @@ public class FillService {
     @Transactional(readOnly = true)
     public StoredImage image(String code, String imageId) {
         return imageStore.load(sessionOf(code), imageId);
+    }
+
+    /** 저장소가 직접 내줄 수 있으면 그 주소(S3 서명 주소). 비어 있으면 {@link #image}로 바이트를 중계한다 (#152). */
+    @Transactional(readOnly = true)
+    public Optional<URI> imageRedirect(String code, String imageId) {
+        return imageStore.redirectUrl(sessionOf(code), imageId);
     }
 
     /** 만료 세션 정리(배치): 만료 시각이 지난 세션을 사진까지 통째로 지우고 개수를 돌려준다. */

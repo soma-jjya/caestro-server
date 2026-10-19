@@ -10,6 +10,8 @@ import com.caestro.server.domain.fill.store.StoredImage;
 import com.caestro.server.domain.fill.service.FillWriteGuard;
 import com.caestro.server.global.security.CustomUserDetails;
 import jakarta.validation.Valid;
+import java.net.URI;
+import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.CacheControl;
@@ -122,6 +124,12 @@ public class FillController implements FillApi {
     @GetMapping("/{code}/images/{imageId}")
     @Override
     public ResponseEntity<byte[]> image(@PathVariable String code, @PathVariable String imageId) {
+        // 저장소가 직접 내줄 수 있으면(S3) 302 — 바이트가 앱 서버를 거치지 않는다. 서명 주소는 수명이 있어 캐시하지 않는다 (#152)
+        Optional<URI> redirect = fillService.imageRedirect(code, imageId);
+        if (redirect.isPresent()) {
+            return ResponseEntity.status(HttpStatus.FOUND).location(redirect.get())
+                    .cacheControl(CacheControl.noStore()).build();
+        }
         StoredImage image = fillService.image(code, imageId);
         return ResponseEntity.ok()
                 .contentType(MediaType.parseMediaType(image.contentType()))
