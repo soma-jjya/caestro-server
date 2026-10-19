@@ -108,9 +108,11 @@ public interface FillApi {
     })
     ResponseEntity<Void> delete(String code, CustomUserDetails userDetails);
 
-    @Operation(summary = "이미지 바이트", description = "칸 사진·프레임 요소. 인증 없이 열리지만 세션 코드와 22자 이미지 id가 함께 맞아야 합니다.")
+    @Operation(summary = "이미지 바이트", description = "칸 사진·프레임 요소·GIF. 인증 없이 열리지만 세션 코드와 22자 이미지 id가 함께 맞아야 합니다. "
+            + "저장소가 S3면 짧은 수명의 서명 주소로 302를 보내므로 클라이언트는 리다이렉트를 따라가야 합니다(브라우저·OkHttp 기본 동작).")
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "이미지"),
+            @ApiResponse(responseCode = "200", description = "이미지 바이트(DB 저장소)"),
+            @ApiResponse(responseCode = "302", description = "S3 서명 주소로 리다이렉트(S3 저장소)"),
             @ApiResponse(responseCode = "404", description = "없음")
     })
     ResponseEntity<byte[]> image(String code, String imageId);

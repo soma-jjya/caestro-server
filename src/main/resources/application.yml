@@ -66,6 +66,11 @@ fill:
   max-image-bytes: 3145728
   max-gif-bytes: 16777216   # 완성 네컷 GIF(앱이 링크 공유 시 올림)
   max-active-sessions: 20   # 사용자당 만료 전 세션 상한 (#150) — 속도가 아닌 총량
+  image-store: rds          # rds | s3. 운영은 prod yml에서 s3 (#152). 바이트 위치만 다르고 주소 형식은 같다
+  s3:
+    bucket: peakpic-fill-images-063562646825
+    key-prefix: fills       # 객체 키 = {prefix}/{sessionId}/{imageId} — 세션 단위 삭제·집계를 접두사로 한다
+    presign-minutes: 10     # 이미지 GET은 이 수명의 서명 주소로 302. 짧을수록 유출 창이 짧다
   ratelimit:                # 사용자(토큰) 단위 고정 창. 추정치이며 fill.rate_limited 지표로 교정한다 (#150)
     create-limit: 10
     create-window-seconds: 3600
