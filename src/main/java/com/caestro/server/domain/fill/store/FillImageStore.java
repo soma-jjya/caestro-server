@@ -1,6 +1,8 @@
 package com.caestro.server.domain.fill.store;
 
 import com.caestro.server.domain.fill.entity.FillSession;
+import java.net.URI;
+import java.util.Optional;
 
 /**
  * 함께 채우기 이미지 바이트의 보관소 (#152). 지금은 DB({@link RdsFillImageStore}), 뒤에 S3 구현으로 갈아 끼운다.
@@ -37,4 +39,12 @@ public interface FillImageStore {
 
     /** 클라이언트가 그대로 받아 그리는 이미지 주소. */
     String urlOf(String code, String imageId);
+
+    /**
+     * 바이트를 중계하는 대신 보낼 곳이 있으면 그 주소(짧은 수명의 서명 주소). 비어 있으면 {@link #load}로 중계한다.
+     * 우리 주소 형식은 그대로 두고 서버가 302로 보내므로 클라이언트는 저장소가 바뀐 것을 모른다.
+     */
+    default Optional<URI> redirectUrl(FillSession session, String imageId) {
+        return Optional.empty();
+    }
 }

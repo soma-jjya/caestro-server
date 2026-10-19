@@ -8,6 +8,7 @@ import com.caestro.server.global.exception.CustomException;
 import com.caestro.server.global.exception.error.ErrorCode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 /**
@@ -17,6 +18,7 @@ import org.springframework.stereotype.Component;
  * S3 구현으로 교체한다 — 교체 지점이 이 클래스다.
  */
 @Component
+@ConditionalOnProperty(name = "fill.image-store", havingValue = "rds", matchIfMissing = true)
 @RequiredArgsConstructor
 public class RdsFillImageStore implements FillImageStore {
 

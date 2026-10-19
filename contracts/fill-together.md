@@ -42,9 +42,13 @@ FillResponse = {
 사진은 `fill_images`(LONGBLOB)에 둔다. 클라이언트가 긴 변 1600px로 줄여 올려 한 장 수백 KB, 세션당 4~6장, 7일 만료.
 이 규모에서는 별도 객체 저장소 없이 운영이 가장 단순하다.
 
-바이트의 보관 위치는 `FillImageStore`(domain/fill/store) 하나가 안다 — 지금 구현은 `RdsFillImageStore`이고,
-서비스와 칸(`fill_slots.image_id`)은 id 문자열만 든다. S3로 옮길 때 이 인터페이스의 구현만 갈아 끼우면 되고
-주소 형식(`/fills/{code}/images/{id}`)도 저장소가 만들므로 클라이언트 계약은 바뀌지 않는다.
+바이트의 보관 위치는 `FillImageStore`(domain/fill/store) 하나가 안다. 구현은 설정 `fill.image-store`로 고른다.
+- `rds`(기본, 로컬·CI): `fill_images`에 둔다. 이미지 GET은 바이트를 200으로 중계(7일 캐시).
+- `s3`(운영): 버킷 `fill.s3.bucket`의 `{fill.s3.key-prefix}/{sessionId}/{imageId}`에 둔다. 이미지 GET은
+  존재 확인 뒤 `fill.s3.presign-minutes`(10분) 수명의 서명 주소로 **302**(no-store). 바이트가 앱 서버를 거치지 않는다.
+  클라이언트는 리다이렉트를 따라가면 된다(브라우저 `<img>`·OkHttp 기본 동작). 세션 삭제·만료 정리는 세션 접두사를 나열해 지운다.
+서비스와 칸(`fill_slots.image_id`)은 id 문자열만 들고, 주소 형식(`/fills/{code}/images/{id}`)은 두 구현이 같다.
+전환은 일회성 교체다 — 전환 시점에 DB에 남아 있던 사진은 더 열리지 않는다(만료·수명 주기로 사라진다).
 전환 기준(측정값으로 판단): `fill_images` 합계가 수 GiB에 닿거나, RDS 여유 공간 알람이 울리거나,
 이미지 GET이 Grafana의 톰캣 스레드·Hikari에 보이거나, 보존 기간을 7일보다 늘릴 때.
 `FillCleanupScheduler`가 매일 04:30(ShedLock) 만료 세션을 칸·이미지와 함께 지운다.
