@@ -39,7 +39,7 @@ import org.springframework.test.web.servlet.MockMvc;
  */
 @WebMvcTest(controllers = FillController.class)
 @Import({SecurityConfig.class, WebMvcConfig.class})
-@TestPropertySource(properties = {"fill.max-image-bytes=1024", "fill.max-gif-bytes=2048"})
+@TestPropertySource(properties = {"fill.max-image-bytes=1024", "fill.max-gif-bytes=2048", "fill.max-clip-bytes=1536"})
 class FillUploadSizeInterceptorWebTest {
 
     private static final CustomUserDetails OWNER = new CustomUserDetails(1L, User.Role.USER);
@@ -96,6 +96,20 @@ class FillUploadSizeInterceptorWebTest {
 
         mockMvc.perform(put("/fills/K7X2MQ/gif").with(user(OWNER))
                         .contentType(MediaType.IMAGE_GIF).content(new byte[2049]))
+                .andExpect(status().is(413))
+                .andExpect(jsonPath("$.message").value(ErrorCode.FILL_GIF_TOO_LARGE.getMessage()));
+    }
+
+    @Test
+    @DisplayName("칸 클립은 클립 상한을 쓴다: 사진 상한은 넘어도 통과, 클립 상한을 넘으면 GIF 초과로 413")
+    void 칸_클립은_클립_상한() throws Exception {
+        mockMvc.perform(put("/fills/K7X2MQ/slots/1/clip").with(user(OWNER))
+                        .contentType(MediaType.IMAGE_GIF).content(new byte[1500]))
+                .andExpect(status().isOk());
+        verify(fillService).uploadSlotClip(anyString(), anyInt(), anyLong(), any(byte[].class), anyString());
+
+        mockMvc.perform(put("/fills/K7X2MQ/slots/1/clip").with(user(OWNER))
+                        .contentType(MediaType.IMAGE_GIF).content(new byte[1537]))
                 .andExpect(status().is(413))
                 .andExpect(jsonPath("$.message").value(ErrorCode.FILL_GIF_TOO_LARGE.getMessage()));
     }

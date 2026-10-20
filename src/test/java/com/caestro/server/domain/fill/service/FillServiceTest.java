@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
@@ -73,6 +74,7 @@ class FillServiceTest {
         ReflectionTestUtils.setField(service, "ttlDays", 7L);
         ReflectionTestUtils.setField(service, "maxImageBytes", 3 * 1024 * 1024);
         ReflectionTestUtils.setField(service, "maxGifBytes", 16 * 1024 * 1024);
+        ReflectionTestUtils.setField(service, "maxClipBytes", 6 * 1024 * 1024);
         owner = User.builder().nickname("주인").role(User.Role.USER).build();
         ReflectionTestUtils.setField(owner, "id", 1L);
         friend = User.builder().nickname(null).role(User.Role.USER).build();
@@ -248,6 +250,56 @@ class FillServiceTest {
                 .extracting(e -> ((CustomException) e).getErrorCode()).isEqualTo(ErrorCode.FILL_ACCESS_DENIED);
         assertThatThrownBy(() -> service.uploadGif("K7X2MQ", 1L, JPEG, "image/gif"))
                 .extracting(e -> ((CustomException) e).getErrorCode()).isEqualTo(ErrorCode.FILL_INVALID_GIF);
+    }
+
+    @Test
+    @DisplayName("칸 클립: 채운 본인만 붙이고 clipUrl로 내려가며, 빈 칸·남의 칸·GIF 아닌 것은 거절한다")
+    void clip_onlyTheFillerAttachesAGif() {
+        FillSlot mine = slot(1);
+        mine.fill(friend, "민지", "img000000000000000010", LocalDateTime.now(clock));
+        FillSlot empty = slot(2);
+        given(sessionRepository.findByCode("K7X2MQ")).willReturn(Optional.of(session));
+        given(slotRepository.findBySessionIdAndSlotIndex(10L, 1)).willReturn(Optional.of(mine));
+        given(slotRepository.findBySessionIdAndSlotIndex(10L, 2)).willReturn(Optional.of(empty));
+        given(imageStore.store(any(), eq("image/gif"), any())).willReturn("clp000000000000000011");
+        given(slotRepository.findBySessionIdOrderBySlotIndex(10L)).willReturn(List.of(mine, empty));
+
+        FillResponse after = service.uploadSlotClip("K7X2MQ", 1, 2L, GIF, "image/gif");
+
+        assertThat(after.slots().get(1).clipUrl())
+                .isEqualTo("https://api.peakpic.app/fills/K7X2MQ/images/clp000000000000000011");
+        assertThat(after.slots().get(1).imageUrl()).endsWith("img000000000000000010");
+        assertThat(after.slots().get(2).clipUrl()).isNull();
+        assertThatThrownBy(() -> service.uploadSlotClip("K7X2MQ", 1, 1L, GIF, "image/gif"))
+                .extracting(e -> ((CustomException) e).getErrorCode()).isEqualTo(ErrorCode.FILL_ACCESS_DENIED);
+        assertThatThrownBy(() -> service.uploadSlotClip("K7X2MQ", 2, 2L, GIF, "image/gif"))
+                .extracting(e -> ((CustomException) e).getErrorCode()).isEqualTo(ErrorCode.FILL_INVALID_SLOT);
+        assertThatThrownBy(() -> service.uploadSlotClip("K7X2MQ", 1, 2L, JPEG, "image/gif"))
+                .extracting(e -> ((CustomException) e).getErrorCode()).isEqualTo(ErrorCode.FILL_INVALID_GIF);
+    }
+
+    @Test
+    @DisplayName("칸 클립: 새 사진이 들어오거나 칸을 비우면 옛 클립은 지워진다")
+    void clip_goesWithItsPhoto() {
+        FillSlot mine = slot(0);
+        mine.fill(friend, "민지", "img000000000000000020", LocalDateTime.now(clock));
+        mine.attachClip("clp000000000000000021");
+        given(sessionRepository.findByCode("K7X2MQ")).willReturn(Optional.of(session));
+        given(slotRepository.findBySessionIdAndSlotIndex(10L, 0)).willReturn(Optional.of(mine));
+        given(userRepository.findById(2L)).willReturn(Optional.of(friend));
+        given(imageStore.store(any(), anyString(), any())).willReturn("img000000000000000022");
+        given(slotRepository.findBySessionIdOrderBySlotIndex(10L)).willReturn(List.of(mine));
+
+        FillResponse replaced = service.fillSlot("K7X2MQ", 0, 2L, "민지", JPEG, "image/jpeg");
+
+        verify(imageStore).delete(session, "clp000000000000000021");
+        assertThat(mine.getClipId()).isNull();
+        assertThat(replaced.slots().get(0).clipUrl()).isNull();
+
+        mine.attachClip("clp000000000000000023");
+        service.clearSlot("K7X2MQ", 0, 2L);
+        verify(imageStore).delete(session, "clp000000000000000023");
+        assertThat(mine.getClipId()).isNull();
     }
 
     @Test

@@ -12,6 +12,7 @@
 | PUT | `/fills/{code}/frame` | `{frame, layout, artFrameId?, customFrame?, borderless?}` 주인만 | 200 FillResponse · 403 주인 아님 (이전 커스텀 요소는 삭제, 새 요소는 frame-assets 로 재업로드) |
 | GET | `/fills/{code}` | | 200 FillResponse · 404 없음 · 410 만료 |
 | PUT | `/fills/{code}/slots/{i}?name=` | image/jpeg 또는 image/png 바이트 (≤3MB) | 200 FillResponse · 409 남이 채운 칸 · 400 이미지 아님 · 413 초과 |
+| PUT | `/fills/{code}/slots/{i}/clip` | image/gif 바이트 (≤6MB) 그 칸을 채운 본인만 | 200 FillResponse · 400 GIF 아님·빈 칸 · 403 채운 사람 아님 · 413 초과 (사진이 바뀌거나 칸을 비우면 지워짐) |
 | DELETE | `/fills/{code}/slots/{i}` | | 200 FillResponse · 403 (본인 칸·주인 아님) |
 | PUT | `/fills/{code}/frame-assets/{k}` | image/png 바이트 | 200 `{"url"}` · 403 주인 아님 |
 | PUT | `/fills/{code}/gif` | image/gif 바이트 (≤16MB) 주인만 | 200 `{"url"}` · 400 GIF 아님 · 403 주인 아님 · 413 초과 (칸·프레임이 바뀌면 지워짐) |
@@ -24,13 +25,15 @@ FillResponse = {
   "frame": "Black" | "White", "layout": "Strip" | "Grid", "artFrameId": "gyaru" | null,
   "customFrame": {"base": "White", "borderless": false, "layers": [{"cx":0.5,"cy":0.9,"w":0.3,"rot":0,"url":"https://…/images/…","cell":null}]} | null,
   "title": "제주 여행" | null, "borderless": false,
-  "slots": [{"index":0,"imageUrl":"https://…"|null,"filledByMe":false,"filledByName":"민지"|null,"filledAt":"2026-09-26T03:00:00Z"|null}, …4개],
+  "slots": [{"index":0,"imageUrl":"https://…"|null,"filledByMe":false,"filledByName":"민지"|null,"filledAt":"2026-09-26T03:00:00Z"|null,"clipUrl":"https://…"|null}, …4개],
   "gifUrl": "https://…/images/…" | null,
   "expiresAt": "2026-10-03T03:00:00Z", "createdAt": "2026-09-26T03:00:00Z"
 }
 ```
 
 규칙: 칸은 먼저 채운 사람 것(본인은 교체 가능), 비우기는 본인 칸 또는 주인, 없애기는 주인만. 시각은 UTC `…Z`.
+칸 클립(`clipUrl`)은 앱 안 카메라로 칸을 채울 때 사진과 함께 찍힌 짧은 움직임(셔터 전 약 2초)이다. 사진을 먼저 올리고(PUT slots/{i}) 이어서 클립을 붙인다.
+완성 네컷의 움직이는 GIF는 서버가 합성하지 않는다 — 네 칸이 차면 기기가 각 칸의 클립(없으면 사진)으로 만든다. 웹은 칸 자리에서 클립을 재생한다. 클립을 모르는 클라이언트는 이 필드를 무시해도 된다.
 업로드 3종(slots·frame-assets·gif)은 본문을 읽기 전에 `Content-Length`로 거른다 — 상한 초과 413, 길이 없는(chunked) 요청 411. 바이트 본문에 길이를 붙여 보낼 것.
 쓰기 한도(사용자 단위, 초과 시 429): 세션 생성 10/시간, 업로드 3종 합산 30/분, 만료 전 세션 20개(`FILL_TOO_MANY_SESSIONS` — 끝난 세션을 DELETE하면 풀린다). 값은 `fill.ratelimit.*`, `fill.max-active-sessions`.
 `name`은 웹 참여자의 표시 이름(선택). 없으면 유저 닉네임, 그것도 없으면 클라이언트가 "친구"로 표시한다.
@@ -105,6 +108,7 @@ CREATE TABLE fill_slots (
   filled_by_id BIGINT NULL,
   filled_by_name VARCHAR(40) NULL,
   image_id VARCHAR(32) NULL,
+  clip_id VARCHAR(32) NULL,
   filled_at DATETIME(6) NULL,
   UNIQUE KEY uk_fill_slots_session_index (session_id, slot_index),
   CONSTRAINT fk_fill_slots_session FOREIGN KEY (session_id) REFERENCES fill_sessions(id),
@@ -112,6 +116,8 @@ CREATE TABLE fill_slots (
 );
 CREATE INDEX idx_fill_sessions_expires ON fill_sessions(expires_at);
 ```
+
+칸 클립 이전에 만든 환경: `ALTER TABLE fill_slots ADD COLUMN clip_id VARCHAR(32) NULL;` (ddl-auto update면 저절로 붙는다)
 
 `fill_slots.image_id`는 더 이상 `fill_images`를 가리키는 외래키가 아니다 — 바이트가 DB 밖(S3)으로 나가면
 그 id가 `fill_images`에 없기 때문이다. **이미 외래키가 걸린 환경(ddl-auto가 지우지 않는다)은 S3 구현을

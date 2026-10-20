@@ -65,6 +65,7 @@ fill:
   ttl-days: 7
   max-image-bytes: 3145728
   max-gif-bytes: 16777216   # 완성 네컷 GIF(앱이 링크 공유 시 올림)
+  max-clip-bytes: 6291456   # 칸 클립 GIF(앱 안 카메라로 채울 때 사진과 함께 찍힌 움직임)
   max-active-sessions: 20   # 사용자당 만료 전 세션 상한 (#150) — 속도가 아닌 총량
   image-store: rds          # rds | s3. 운영은 prod yml에서 s3 (#152). 바이트 위치만 다르고 주소 형식은 같다
   s3:

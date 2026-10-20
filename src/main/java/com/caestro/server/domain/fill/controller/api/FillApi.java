@@ -69,6 +69,20 @@ public interface FillApi {
     ResponseEntity<FillResponse> fillSlot(String code, int index, String name, byte[] body, String contentType,
                                           CustomUserDetails userDetails);
 
+    @Operation(summary = "칸 클립 올리기",
+            description = "칸의 사진과 함께 찍힌 짧은 움직임(image/gif, 최대 6MB). 그 칸을 채운 본인만 올릴 수 있고, "
+                    + "FillResponse.slots[].clipUrl로 내려갑니다. 칸 사진이 바뀌거나 칸을 비우면 함께 지워지고, 완성 GIF(gifUrl)도 지워집니다.")
+    @SecurityRequirement(name = "BearerAuth")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "붙임",
+                    content = @Content(schema = @Schema(implementation = FillResponse.class))),
+            @ApiResponse(responseCode = "400", description = "GIF가 아니거나 빈 칸"),
+            @ApiResponse(responseCode = "403", description = "그 칸을 채운 사람이 아님"),
+            @ApiResponse(responseCode = "413", description = "GIF가 너무 큼")
+    })
+    ResponseEntity<FillResponse> uploadSlotClip(String code, int index, byte[] body, String contentType,
+                                                CustomUserDetails userDetails);
+
     @Operation(summary = "칸 비우기", description = "본인이 채운 칸, 또는 세션 주인은 어느 칸이든 비울 수 있습니다.")
     @SecurityRequirement(name = "BearerAuth")
     @ApiResponses({
