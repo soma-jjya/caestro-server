@@ -260,12 +260,20 @@ public class FillService {
         return imageStore.redirectUrl(sessionOf(code), imageId);
     }
 
-    /** 만료 세션 정리(배치): 만료 시각이 지난 세션을 사진까지 통째로 지우고 개수를 돌려준다. */
+    /** 만료 시각이 지난 세션 id 목록(배치용). 삭제는 {@link #purgeSession}으로 세션마다 따로 한다. */
+    @Transactional(readOnly = true)
+    public List<Long> expiredSessionIds(LocalDateTime now) {
+        return sessionRepository.findByExpiresAtBefore(now).stream().map(FillSession::getId).toList();
+    }
+
+    /**
+     * 세션 하나를 사진까지 통째로 지운다(배치용, 세션당 트랜잭션 하나).
+     * 한 묶음으로 지우면 세션 하나의 실패(예: 옛 fill_images 행의 외래키)가 나머지까지 롤백시켰다 — 2026-10-20 운영 배치 실패 (#162).
+     * 이미 지워졌으면 조용히 넘어간다.
+     */
     @Transactional
-    public int purgeExpired(LocalDateTime now) {
-        List<FillSession> expired = sessionRepository.findByExpiresAtBefore(now);
-        expired.forEach(this::purge);
-        return expired.size();
+    public void purgeSession(Long sessionId) {
+        sessionRepository.findById(sessionId).ifPresent(this::purge);
     }
 
     private void purge(FillSession session) {
