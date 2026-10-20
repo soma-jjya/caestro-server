@@ -54,6 +54,11 @@ public class FillSlot {
     @Column(name = "image_id", length = 32)
     private String imageId;
 
+    // 사진과 함께 찍힌 짧은 움직임(GIF)의 id. 앱 안 카메라로 채운 칸만 있고, 채운 사람만 붙인다.
+    // 사진이 바뀌거나 칸을 비우면 함께 사라진다 — 새 사진에 옛 움직임은 맞지 않는다.
+    @Column(name = "clip_id", length = 32)
+    private String clipId;
+
     @Column
     private LocalDateTime filledAt;
 
@@ -70,6 +75,11 @@ public class FillSlot {
         this.filledByName = name;
         this.imageId = newImageId;
         this.filledAt = now;
+        this.clipId = null;
+    }
+
+    public void attachClip(String newClipId) {
+        this.clipId = newClipId;
     }
 
     public void clear() {
@@ -77,5 +87,6 @@ public class FillSlot {
         this.filledByName = null;
         this.imageId = null;
         this.filledAt = null;
+        this.clipId = null;
     }
 }

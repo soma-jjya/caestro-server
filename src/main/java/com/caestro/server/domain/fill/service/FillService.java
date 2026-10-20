@@ -67,6 +67,10 @@ public class FillService {
     @Value("${fill.max-gif-bytes:16777216}")
     private int maxGifBytes;
 
+    // 칸 클립: 셔터 전 2초 남짓, 칸 크기 프레임이라 수백 KB — 넉넉히 6MB
+    @Value("${fill.max-clip-bytes:6291456}")
+    private int maxClipBytes;
+
     @Transactional
     public FillResponse create(Long ownerId, CreateFillRequest request) {
         if (!FRAMES.contains(request.frame()) || !LAYOUTS.contains(request.layout())) {
@@ -116,6 +120,8 @@ public class FillService {
                 .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
         String imageId = storeImage(session, body, contentType, Set.of("image/jpeg", "image/png"), maxImageBytes);
         String previousId = slot.getImageId();
+        // 새 사진에는 옛 움직임이 맞지 않는다. 새 클립은 이 응답을 받은 뒤 따로 올라온다
+        String previousClipId = slot.getClipId();
         // 닉네임도 컬럼(40자)보다 길 수 있어 같이 자른다
         String shownName = normalizeText(name, NAME_MAX);
         if (shownName == null) {
@@ -123,6 +129,7 @@ public class FillService {
         }
         slot.fill(user, shownName, imageId, LocalDateTime.now(clock));
         imageStore.delete(session, previousId);
+        imageStore.delete(session, previousClipId);
         dropGif(session);
         return toResponse(session, slotRepository.findBySessionIdOrderBySlotIndex(session.getId()), userId);
     }
@@ -183,8 +190,39 @@ public class FillService {
             throw new CustomException(ErrorCode.FILL_ACCESS_DENIED);
         }
         String previousId = slot.getImageId();
+        String previousClipId = slot.getClipId();
         slot.clear();
         imageStore.delete(session, previousId);
+        imageStore.delete(session, previousClipId);
+        dropGif(session);
+        return toResponse(session, slotRepository.findBySessionIdOrderBySlotIndex(session.getId()), userId);
+    }
+
+    /**
+     * 칸 [index]의 사진과 함께 찍힌 짧은 움직임(GIF)을 붙인다. 그 칸을 채운 본인만 올릴 수 있고, 빈 칸에는 붙일 수 없다.
+     * 이전 클립은 지우고(교체), 완성 GIF는 더 맞지 않으므로 지운다. 완성 네컷의 GIF는 서버가 만들지 않는다 —
+     * 네 칸이 차면 기기가 각 칸의 클립(없으면 사진)으로 만든다.
+     */
+    @Transactional
+    public FillResponse uploadSlotClip(String code, int index, Long userId, byte[] body, String contentType) {
+        FillSession session = liveSession(code);
+        FillSlot slot = slotOf(session, index);
+        if (slot.isEmpty()) {
+            throw new CustomException(ErrorCode.FILL_INVALID_SLOT);
+        }
+        if (!slot.isFilledBy(userId)) {
+            throw new CustomException(ErrorCode.FILL_ACCESS_DENIED);
+        }
+        if (body == null || !FillImageTypes.isGif(body)) {
+            throw new CustomException(ErrorCode.FILL_INVALID_GIF);
+        }
+        if (body.length > maxClipBytes) {
+            throw new CustomException(ErrorCode.FILL_GIF_TOO_LARGE);
+        }
+        String clipId = storeImage(session, body, "image/gif", Set.of("image/gif"), maxClipBytes);
+        String previousClipId = slot.getClipId();
+        slot.attachClip(clipId);
+        imageStore.delete(session, previousClipId);
         dropGif(session);
         return toResponse(session, slotRepository.findBySessionIdOrderBySlotIndex(session.getId()), userId);
     }
@@ -260,12 +298,20 @@ public class FillService {
         return imageStore.redirectUrl(sessionOf(code), imageId);
     }
 
-    /** 만료 세션 정리(배치): 만료 시각이 지난 세션을 사진까지 통째로 지우고 개수를 돌려준다. */
+    /** 만료 시각이 지난 세션 id 목록(배치용). 삭제는 {@link #purgeSession}으로 세션마다 따로 한다. */
+    @Transactional(readOnly = true)
+    public List<Long> expiredSessionIds(LocalDateTime now) {
+        return sessionRepository.findByExpiresAtBefore(now).stream().map(FillSession::getId).toList();
+    }
+
+    /**
+     * 세션 하나를 사진까지 통째로 지운다(배치용, 세션당 트랜잭션 하나).
+     * 한 묶음으로 지우면 세션 하나의 실패(예: 옛 fill_images 행의 외래키)가 나머지까지 롤백시켰다 — 2026-10-20 운영 배치 실패 (#162).
+     * 이미 지워졌으면 조용히 넘어간다.
+     */
     @Transactional
-    public int purgeExpired(LocalDateTime now) {
-        List<FillSession> expired = sessionRepository.findByExpiresAtBefore(now);
-        expired.forEach(this::purge);
-        return expired.size();
+    public void purgeSession(Long sessionId) {
+        sessionRepository.findById(sessionId).ifPresent(this::purge);
     }
 
     private void purge(FillSession session) {
@@ -325,14 +371,15 @@ public class FillService {
             final int index = i;
             FillSlot slot = slots.stream().filter(s -> s.getSlotIndex() == index).findFirst().orElse(null);
             if (slot == null || slot.isEmpty()) {
-                slotResponses.add(new FillSlotResponse(index, null, false, null, null));
+                slotResponses.add(new FillSlotResponse(index, null, false, null, null, null));
             } else {
                 slotResponses.add(new FillSlotResponse(
                         index,
                         imageStore.urlOf(session.getCode(), slot.getImageId()),
                         slot.isFilledBy(userId),
                         slot.getFilledByName(),
-                        toInstant(slot.getFilledAt())));
+                        toInstant(slot.getFilledAt()),
+                        slot.getClipId() == null ? null : imageStore.urlOf(session.getCode(), slot.getClipId())));
             }
         }
         return new FillResponse(
