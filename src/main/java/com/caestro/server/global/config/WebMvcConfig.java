@@ -17,9 +17,12 @@ public class WebMvcConfig implements WebMvcConfigurer {
     @Value("${fill.max-gif-bytes:16777216}")
     private long maxGifBytes;
 
+    @Value("${fill.max-clip-bytes:6291456}")
+    private long maxClipBytes;
+
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
-        registry.addInterceptor(new FillUploadSizeInterceptor(maxImageBytes, maxGifBytes))
-                .addPathPatterns("/fills/*/slots/*", "/fills/*/frame-assets/*", "/fills/*/gif");
+        registry.addInterceptor(new FillUploadSizeInterceptor(maxImageBytes, maxGifBytes, maxClipBytes))
+                .addPathPatterns("/fills/*/slots/*", "/fills/*/slots/*/clip", "/fills/*/frame-assets/*", "/fills/*/gif");
     }
 }
