@@ -55,10 +55,14 @@ FillResponse = {
   설정: AllowedOrigins `*`, AllowedMethods GET·HEAD, AllowedHeaders `*`, ExposeHeaders ETag·Content-Length.
   웹이 `credentials: 'include'`로 부르면 `*`가 거부되므로 이미지 요청은 자격증명 없이 부른다.
 서비스와 칸(`fill_slots.image_id`)은 id 문자열만 들고, 주소 형식(`/fills/{code}/images/{id}`)은 두 구현이 같다.
-전환은 일회성 교체다 — 전환 시점에 DB에 남아 있던 사진은 더 열리지 않는다(만료·수명 주기로 사라진다).
+전환은 일회성 교체다 — 전환 시점에 DB에 남아 있던 사진은 더 열리지 않는다.
+**단, 옛 `fill_images` 행은 저절로 사라지지 않는다.** S3 저장소의 세션 삭제는 S3만 지우는데 `fill_images.session_id`가
+`fill_sessions`를 외래키로 참조하므로, 옛 행이 남은 세션은 만료 정리에서 세션 삭제가 외래키 위반으로 실패한다
+(2026-10-20 실제 발생, #162). 저장소를 바꿀 때는 쓰기·읽기뿐 아니라 **삭제 경로가 옛 저장소의 외래키와 얽혀 있지 않은지** 확인한다.
+전환 후에는 `DELETE FROM fill_images`로 비우고, 안정화 뒤 테이블을 DROP한다.
 전환 기준(측정값으로 판단): `fill_images` 합계가 수 GiB에 닿거나, RDS 여유 공간 알람이 울리거나,
 이미지 GET이 Grafana의 톰캣 스레드·Hikari에 보이거나, 보존 기간을 7일보다 늘릴 때.
-`FillCleanupScheduler`가 매일 04:30(ShedLock) 만료 세션을 칸·이미지와 함께 지운다.
+`FillCleanupScheduler`가 매일 04:30(ShedLock) 만료 세션을 칸·이미지와 함께 지운다. 세션마다 트랜잭션을 따로 걸어 하나가 실패해도 나머지는 지워지고, 실패는 `fill.cleanup.failed` 지표와 warn 로그로 남는다(#162). 종료 로그 `Fill cleanup batch end (purged=N, failed=M)`.
 
 완성된 네컷을 앱이 링크로 공유할 때는 네 칸의 사진에 더해 움직이는 GIF(`PUT /fills/{code}/gif`, 4~7MB)도 같은 테이블에 올리고
 `gifUrl`로 내려 준다. 웹은 그걸 보여 주고 내려받게 하며, 앱은 완성 때 사진과 함께 앨범에 넣는다. 칸 사진이나 프레임이 바뀌면 GIF는
