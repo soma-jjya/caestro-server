@@ -11,9 +11,11 @@
 | POST | `/fills` | `{frame, layout, artFrameId?, customFrame?, title?, borderless?}` | 201 FillResponse |
 | PUT | `/fills/{code}/frame` | `{frame, layout, artFrameId?, customFrame?, borderless?}` 주인만 | 200 FillResponse · 403 주인 아님 (이전 커스텀 요소는 삭제, 새 요소는 frame-assets 로 재업로드) |
 | GET | `/fills/{code}` | | 200 FillResponse · 404 없음 · 410 만료 |
-| PUT | `/fills/{code}/slots/{i}?name=` | image/jpeg 또는 image/png 바이트 (≤3MB) | 200 FillResponse · 409 남이 채운 칸 · 400 이미지 아님 · 413 초과 |
+| PUT | `/fills/{code}/slots/{i}?name=` | image/jpeg 또는 image/png 바이트 (≤3MB) 누구나, 채워진 칸도 | 200 FillResponse (이전 사진은 `queue`로) · 400 이미지 아님 · 413 초과 |
 | PUT | `/fills/{code}/slots/{i}/clip` | image/gif 바이트 (≤6MB) 그 칸을 채운 본인만 | 200 FillResponse · 400 GIF 아님·빈 칸 · 403 채운 사람 아님 · 413 초과 (사진이 바뀌거나 칸을 비우면 지워짐) |
-| DELETE | `/fills/{code}/slots/{i}` | | 200 FillResponse · 403 (본인 칸·주인 아님) |
+| DELETE | `/fills/{code}/slots/{i}` | 누구나 | 200 FillResponse (사진은 `queue`로) |
+| DELETE | `/fills/{code}/queue/{id}` | 누구나 | 200 FillResponse · 404 대기열에 없음 (사진·클립 바이트 삭제) |
+| POST | `/fills/{code}/queue/{id}/restore?slot=i` | 누구나 | 200 FillResponse · 400 칸 번호 · 404 대기열에 없음 (그 칸의 사진은 `queue` 맨 아래로) |
 | PUT | `/fills/{code}/frame-assets/{k}` | image/png 바이트 | 200 `{"url"}` · 403 주인 아님 |
 | PUT | `/fills/{code}/gif` | image/gif 바이트 (≤16MB) 주인만 | 200 `{"url"}` · 400 GIF 아님 · 403 주인 아님 · 413 초과 (칸·프레임이 바뀌면 지워짐) |
 | DELETE | `/fills/{code}` | | 204 · 403 주인 아님 |
@@ -27,18 +29,23 @@ FillResponse = {
   "title": "제주 여행" | null, "borderless": false,
   "slots": [{"index":0,"imageUrl":"https://…"|null,"filledByMe":false,"filledByName":"민지"|null,"filledAt":"2026-09-26T03:00:00Z"|null,"clipUrl":"https://…"|null}, …4개],
   "gifUrl": "https://…/images/…" | null,
-  "expiresAt": "2026-10-03T03:00:00Z", "createdAt": "2026-09-26T03:00:00Z"
+  "expiresAt": "2026-10-03T03:00:00Z", "createdAt": "2026-09-26T03:00:00Z",
+  "queue": [{"id":17,"imageUrl":"https://…","clipUrl":"https://…"|null,"fromSlot":2,"filledByMe":false,"filledByName":"민지"|null,"filledAt":"…Z"|null,"queuedAt":"…Z"}, …]
 }
 ```
 
-규칙: 칸은 먼저 채운 사람 것(본인은 교체 가능), 비우기는 본인 칸 또는 주인, 없애기는 주인만. 시각은 UTC `…Z`.
+규칙(2026-10-21, #fill-queue): 칸은 **누구나** 채우고·바꾸고·비울 수 있다. 바뀌거나 비워진 사진은 지워지지 않고 세션의 **대기열(`queue`)** 맨 아래로
+내려간다(클립·주인·이름과 함께) — 다른 참여자가 "아까 사진이 이랬지"를 볼 수 있다. 대기열의 사진은 누구나 어느 칸으로든 되돌리거나(`restore`,
+그 칸에 있던 사진은 대기열 맨 아래로) 지울 수 있다(`DELETE queue/{id}`, 바이트까지). 대기열은 세션당 `fill.queue-max`(12)개까지이고 넘치면
+가장 오래된 것이 사라진다. 없애기는 주인만. 시각은 UTC `…Z`. 409(`FILL_SLOT_TAKEN`)는 더 내려가지 않는다 — 옛 클라이언트의 409 처리는 그대로 두어도 된다.
+`queue`를 모르는 클라이언트는 필드를 무시하면 된다(웹·iOS는 아직 대기열을 그리지 않는다).
 칸 클립(`clipUrl`)은 앱 안 카메라로 칸을 채울 때 사진과 함께 찍힌 짧은 움직임(셔터 전 약 2초)이다. 사진을 먼저 올리고(PUT slots/{i}) 이어서 클립을 붙인다.
 완성 네컷의 움직이는 GIF는 서버가 합성하지 않는다 — 네 칸이 차면 기기가 각 칸의 클립(없으면 사진)으로 만든다. 웹은 칸 자리에서 클립을 재생한다. 클립을 모르는 클라이언트는 이 필드를 무시해도 된다.
 업로드 3종(slots·frame-assets·gif)은 본문을 읽기 전에 `Content-Length`로 거른다 — 상한 초과 413, 길이 없는(chunked) 요청 411. 바이트 본문에 길이를 붙여 보낼 것.
 쓰기 한도(사용자 단위, 초과 시 429): 세션 생성 10/시간, 업로드 3종 합산 30/분, 만료 전 세션 20개(`FILL_TOO_MANY_SESSIONS` — 끝난 세션을 DELETE하면 풀린다). 값은 `fill.ratelimit.*`, `fill.max-active-sessions`.
 `name`은 웹 참여자의 표시 이름(선택). 없으면 유저 닉네임, 그것도 없으면 클라이언트가 "친구"로 표시한다.
 `name`은 앞뒤 공백을 지우고 40자까지 저장한다(넘치면 자른다, 400이 아니다). 세션 코드는 대소문자를 가리지 않는다 — 모든 경로가 대문자로 맞춰 조회한다.
-같은 빈 칸에 동시 요청이 오면 한 명만 200이고 나머지는 409다(칸 행을 잠가 심판한다). 409를 받으면 최신 상태를 다시 그린다.
+같은 빈 칸에 동시 요청이 오면 칸 행을 잠가 차례로 처리한다 — 둘 다 200이고 뒤의 것이 칸을, 앞의 것이 대기열을 갖는다. 응답의 최신 상태를 다시 그린다.
 
 ## 저장과 정리
 
@@ -71,7 +78,7 @@ FillResponse = {
 `gifUrl`로 내려 준다. 웹은 그걸 보여 주고 내려받게 하며, 앱은 완성 때 사진과 함께 앨범에 넣는다. 칸 사진이나 프레임이 바뀌면 GIF는
 더 맞지 않으므로 서버가 지운다.
 
-설정: `fill.public-base-url`(이미지 URL 호스트, 기본 https://api.peakpic.app), `fill.ttl-days`(7), `fill.max-image-bytes`(3MB), `fill.max-gif-bytes`(16MB),
+설정: `fill.public-base-url`(이미지 URL 호스트, 기본 https://api.peakpic.app), `fill.ttl-days`(7), `fill.max-image-bytes`(3MB), `fill.max-gif-bytes`(16MB), `fill.queue-max`(12),
 `cleanup.fill.cron`, `cors.allowed-origins`(웹 클라이언트 출처, 기본 peakpic.app).
 
 ## DDL (ddl-auto가 update가 아닌 환경용)
@@ -114,8 +121,24 @@ CREATE TABLE fill_slots (
   CONSTRAINT fk_fill_slots_session FOREIGN KEY (session_id) REFERENCES fill_sessions(id),
   CONSTRAINT fk_fill_slots_user FOREIGN KEY (filled_by_id) REFERENCES users(id)
 );
+CREATE TABLE fill_queue (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  session_id BIGINT NOT NULL,
+  from_slot INT NOT NULL,
+  filled_by_id BIGINT NULL,
+  filled_by_name VARCHAR(40) NULL,
+  image_id VARCHAR(32) NOT NULL,
+  clip_id VARCHAR(32) NULL,
+  filled_at DATETIME(6) NULL,
+  queued_at DATETIME(6) NOT NULL,
+  KEY idx_fill_queue_session (session_id),
+  CONSTRAINT fk_fill_queue_session FOREIGN KEY (session_id) REFERENCES fill_sessions(id),
+  CONSTRAINT fk_fill_queue_user FOREIGN KEY (filled_by_id) REFERENCES users(id)
+);
 CREATE INDEX idx_fill_sessions_expires ON fill_sessions(expires_at);
 ```
+
+대기열 이전에 만든 환경: 위 `fill_queue` CREATE만 더하면 된다(ddl-auto update면 저절로 생긴다).
 
 칸 클립 이전에 만든 환경: `ALTER TABLE fill_slots ADD COLUMN clip_id VARCHAR(32) NULL;` (ddl-auto update면 저절로 붙는다)
 

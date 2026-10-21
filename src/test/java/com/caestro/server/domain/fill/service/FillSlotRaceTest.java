@@ -27,9 +27,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 
 /**
- * #151 핵심 증명 — 두 사람이 같은 빈 칸을 동시에 채워도 "먼저 채운 사람 것" 규칙이 지켜진다.
+ * #151 핵심 증명 — 두 사람이 같은 빈 칸을 동시에 채워도 사진이 고아가 되지 않는다.
  * 잠금 없이 읽으면 둘 다 "비었다"를 통과해 둘 다 저장하고, 나중 것이 칸을 가져가며 먼저 올린 사진이 고아가 됐다.
- * 칸 행을 FOR UPDATE로 읽어 패자가 사진을 저장하기 전에 409로 끝나게 했다.
+ * 칸 행을 FOR UPDATE로 읽어 차례로 처리한다. 누구나 칸을 바꿀 수 있게 된 뒤(#fill-queue)로는 둘 다 200이고,
+ * 뒤의 것이 칸을, 앞의 것이 대기열을 갖는다 — 어느 사진도 사라지지 않는다.
  * 실제 MySQL 필요 (docker-compose up -d / CI 서비스 컨테이너).
  */
 // RANDOM_PORT: 모의 서블릿 환경에는 WS ServerContainer가 없어 WS 설정 빈이 초기화되지 못한다 (contextLoads와 동일)
@@ -90,8 +91,8 @@ class FillSlotRaceTest {
     }
 
     @Test
-    @DisplayName("[재현→방어] 같은 빈 칸에 동시 요청이 오면 한쪽만 성공하고 패자는 409 — 고아 사진이 남지 않는다")
-    void concurrentFill_onlyOneWins_andNoOrphanImage() throws Exception {
+    @DisplayName("[재현→방어] 같은 빈 칸에 동시 요청이 오면 둘 다 성공하고, 하나는 칸에 하나는 대기열에 — 고아 사진이 남지 않는다")
+    void concurrentFill_bothKept_oneInSlotOneQueued() throws Exception {
         FillResponse created = fillService.create(owner.getId(),
                 new CreateFillRequest("Black", "Strip", null, null, "경합 테스트", null));
         String code = created.code();
@@ -112,14 +113,16 @@ class FillSlotRaceTest {
             pool.shutdownNow();
         }
 
-        // 한쪽은 성공(null), 다른 쪽은 FILL_SLOT_TAKEN — 둘 다 성공하면 규칙이 깨진 것이다
-        assertThat(outcomes).containsExactlyInAnyOrder(null, ErrorCode.FILL_SLOT_TAKEN);
+        // 둘 다 성공(null) — 잠금이 차례를 정하고, 밀려난 쪽은 대기열로 간다
+        assertThat(outcomes).containsExactly(null, null);
 
-        // 칸은 하나이고 사진도 하나여야 한다. 둘 다 저장됐다면 2가 나오고 그중 하나가 고아다
+        // 칸에 하나, 대기열에 하나, 저장된 사진은 둘: 어느 쪽도 고아가 아니다
         FillResponse after = fillService.get(code, owner.getId());
         assertThat(after.slots().get(0).imageUrl()).isNotNull();
         assertThat(after.slots().subList(1, 4)).allSatisfy(s -> assertThat(s.imageUrl()).isNull());
-        assertThat(imageStore.countBySession(sessionId)).isEqualTo(1);
+        assertThat(after.queue()).hasSize(1);
+        assertThat(after.queue().get(0).imageUrl()).isNotEqualTo(after.slots().get(0).imageUrl());
+        assertThat(imageStore.countBySession(sessionId)).isEqualTo(2);
     }
 
     @Test
@@ -147,8 +150,8 @@ class FillSlotRaceTest {
     }
 
     @Test
-    @DisplayName("[회귀] 본인 칸 교체 시 이전 사진이 지워진다 — 칸이 id만 들게 바뀐 뒤에도 삭제 순서가 맞는다 (#152)")
-    void replaceOwnSlot_deletesPreviousImage() {
+    @DisplayName("[회귀] 본인 칸 교체 시 이전 사진은 대기열에 남고, 대기열에서 지우면 바이트까지 사라진다 (#152, #fill-queue)")
+    void replaceOwnSlot_queuesPreviousImage_andQueueDeleteRemovesIt() {
         FillResponse created = fillService.create(owner.getId(),
                 new CreateFillRequest("Black", "Strip", null, null, null, null));
         String code = created.code();
@@ -161,7 +164,14 @@ class FillSlotRaceTest {
                 .slots().get(0).imageUrl();
 
         assertThat(second).isNotEqualTo(first);
+        assertThat(imageStore.countBySession(sessionId)).isEqualTo(2);
+        FillResponse state = fillService.get(code, owner.getId());
+        assertThat(state.queue()).hasSize(1);
+        assertThat(state.queue().get(0).imageUrl()).isEqualTo(first);
+
+        fillService.deleteQueued(code, state.queue().get(0).id(), friend.getId());
         assertThat(imageStore.countBySession(sessionId)).isEqualTo(1);
+        assertThat(fillService.get(code, owner.getId()).queue()).isEmpty();
     }
 
     /** 칸 0을 동시에 노린다. 성공하면 null, 거절되면 그 ErrorCode를 돌려준다. */
