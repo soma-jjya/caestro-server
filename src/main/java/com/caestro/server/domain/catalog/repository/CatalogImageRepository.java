@@ -1,0 +1,17 @@
+package com.caestro.server.domain.catalog.repository;
+
+import com.caestro.server.domain.catalog.entity.CatalogImage;
+import java.time.LocalDateTime;
+import java.util.List;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+
+public interface CatalogImageRepository extends JpaRepository<CatalogImage, String> {
+
+    // 어떤 프레임·배너도 쓰지 않는 그림(올리고 저장을 안 한 것). 정리 배치가 하루 지난 것부터 지운다
+    @Query("select i.id from CatalogImage i where i.createdAt < :before"
+            + " and not exists (select f from CatalogFrame f where f.image = i)"
+            + " and not exists (select b from CatalogBanner b where b.image = i)")
+    List<String> findOrphanIds(@Param("before") LocalDateTime before);
+}
