@@ -198,6 +198,7 @@ public class CatalogService {
             throw new CustomException(ErrorCode.CATALOG_INVALID_FRAME);
         }
         CatalogImage image = imageOf(request.imageId(), ErrorCode.CATALOG_INVALID_FRAME);
+        LocalizedText badge = requireText(request.badge(), BADGE_MAX, false, ErrorCode.CATALOG_INVALID_FRAME);
         LocalDateTime now = LocalDateTime.now(clock);
         CatalogFrame frame = frameRepository.save(CatalogFrame.builder()
                 .id(idGenerator.frameId())
@@ -207,6 +208,9 @@ public class CatalogService {
                 .windowsJson(toJson(windows))
                 .sortOrder(request.sortOrder() == null ? 0 : request.sortOrder())
                 .hidden(Boolean.TRUE.equals(request.hidden()))
+                // 새 프레임은 Pro 가 기본(스튜디오 토글 기본값과 같다)
+                .pro(!Boolean.FALSE.equals(request.pro()))
+                .badgeKo(badge == null ? null : badge.ko()).badgeEn(badge == null ? null : badge.en())
                 .createdAt(now).updatedAt(now)
                 .build());
         return toResponse(frame);
@@ -238,6 +242,14 @@ public class CatalogService {
         }
         if (request.hidden() != null) {
             frame.setHidden(request.hidden());
+        }
+        if (request.pro() != null) {
+            frame.setPro(request.pro());
+        }
+        if (request.badge() != null) {
+            // 한국어를 비워 보내면 배지를 지운다
+            LocalizedText badge = requireText(request.badge(), BADGE_MAX, false, ErrorCode.CATALOG_INVALID_FRAME);
+            frame.setBadge(badge == null ? null : badge.ko(), badge == null ? null : badge.en());
         }
         frame.touch(LocalDateTime.now(clock));
         return toResponse(frame);
@@ -443,6 +455,9 @@ public class CatalogService {
      * ko 는 다듬어 길이를 보고, en 은 비면 ko 로 채운다(응답 규칙). {@code required} 가 아니고 ko 가 비면 null —
      * 그 문구가 없는 것으로 저장한다.
      */
+    /** 배지 한국어 글자 수 상한(영어는 1.5배). 스튜디오 입력란도 이 안이다 */
+    static final int BADGE_MAX = 8;
+
     static LocalizedText requireText(LocalizedText text, int maxKo, boolean required, ErrorCode error) {
         String ko = text == null || text.ko() == null ? "" : text.ko().strip();
         if (ko.isEmpty()) {
@@ -546,7 +561,8 @@ public class CatalogService {
         return new CatalogFrameResponse(f.getId(), LocalizedText.of(f.getTitleKo(), f.getTitleEn()),
                 LocalizedText.of(f.getSubtitleKo(), f.getSubtitleEn()), imageUrl(f.getImage().getId()),
                 f.getWidth(), f.getHeight(), fromJson(f.getWindowsJson()), f.getSortOrder(), f.isHidden(),
-                toInstant(f.getCreatedAt()), toInstant(f.getUpdatedAt()), toInstant(f.getDeletedAt()), toInstant(f.getPurgeAt()));
+                toInstant(f.getCreatedAt()), toInstant(f.getUpdatedAt()), toInstant(f.getDeletedAt()), toInstant(f.getPurgeAt()),
+                f.isPro(), LocalizedText.of(f.getBadgeKo(), f.getBadgeEn()));
     }
 
     private CatalogBannerResponse toResponse(CatalogBanner b) {
