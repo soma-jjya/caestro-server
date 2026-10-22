@@ -302,3 +302,74 @@ ALTER TABLE catalog_frames ADD COLUMN pro BIT(1) NULL,
 - 스튜디오: 프레임 편집기에 '이용' Pro | 무료(새 프레임은 Pro)와 '배지' 입력란(한국어·English, 선택). 목록 카드에 PRO / 무료 표시,
   선반·폰 미리보기는 무료 사용자의 앱 그대로(잠금·배지, 무료 프레임이 앞). 서버가 `pro` 를 내려주지 않으면(4차 전 서버) 토글을 막아 둔다.
 - 앱: `pro` 가 없으면 Pro 로 본다. 무료 사용자에게는 풀린 프레임이 잠긴 프레임보다 앞에 온다. 배지는 제목 왼쪽 빨간 상자, 없으면 안 보인다.
+
+# 5차: 기본 프레임 덮어쓰기 (2026-10-23)
+
+앱에 든 기본 프레임 9개(단색 `Black`·`White`, AI `gyaru`·`street`·`chrome`·`birthday`·`picnic`·`patchwork`·`vintage`)를
+스튜디오에서 고친다. 프레임 id 는 그대로라 이미 만든 네컷·함께 채우기 세션과 그대로 이어진다. 덮어쓰지 않은 값은 앱에 든 그대로.
+
+## 덮어쓸 수 있는 것
+
+| | 단색(검정·흰색) | AI 프레임 |
+|---|---|---|
+| 이름·한 줄 소개(ko/en) | ✓ | ✓ |
+| Pro / 무료 | ✓ | ✓ (기본: 갸루 야호·코지 패치워크 무료, 나머지 Pro) |
+| 배지 | ✓ | ✓ |
+| 숨김 | ✓ | ✓ |
+| 그림·창 | ✗ (그림이 없다) | ✓ (새 그림은 창 4개와 함께) |
+| 삭제(휴지통) · 되살리기 · 원래대로 | ✓ | ✓ |
+
+## API (스튜디오, X-Studio-Key)
+
+- `PUT /catalog/studio/builtins/{id}` `{title?, subtitle?, pro?, badge?, hidden?, imageId?, windows?, resetArtwork?}` → 200 덮어쓴 값
+  - 보낸 필드만 바뀐다. 이름·소개·배지는 **한국어를 비워 보내면** 앱에 든 값으로(배지는 없음)
+  - `imageId` 는 `windows`(4개)와 함께. `windows` 만 보내면 이미 바꾼 그림의 창만 고친다. `resetArtwork: true` 는 앱에 든 그림·창으로
+  - 단색에 그림·창, 창 4개가 아님 → 400 `CATALOG_INVALID_FRAME`. 기본 프레임 id 가 아님 → 404 `CATALOG_BUILTIN_NOT_FOUND`
+- `DELETE /catalog/studio/builtins/{id}` → 204. 앱 목록에서 빠지고 휴지통에 남는다(기본 프레임은 정리 배치가 지우지 않음, 언제든 되살림)
+- `POST /catalog/studio/builtins/{id}/restore` → 200. 휴지통에 없으면 404 `CATALOG_NOT_IN_TRASH`
+- `POST /catalog/studio/builtins/{id}/reset` → 204. 덮어쓴 값을 모두 지워 앱에 든 그대로(휴지통에 있었으면 되살아남)
+- `GET /catalog/studio/trash` 에 `builtins` (휴지통의 기본 프레임) 추가
+
+## 응답
+
+`GET /catalog/frames` 에 `builtins` 추가(공개·스튜디오 공통, 덮어쓴 것만, **숨김·휴지통 포함** — 앱이 목록에서 빼야 하므로):
+
+```
+{ "id": "gyaru", "kind": "art",            // base | art
+  "title": {"ko","en"} | null, "subtitle": {...} | null,   // null = 앱에 든 값
+  "pro": true | false | null,               // null = 앱 기본값
+  "badge": {...} | null,
+  "hidden": false,                          // 숨김이거나 휴지통이면 true
+  "deletedAt": null,                        // 휴지통에 넣은 시각
+  "imageUrl": null, "width": null, "height": null, "windows": null,   // 바꾼 그림이 있을 때만
+  "updatedAt": "…" }
+```
+
+목록의 `updatedAt`·ETag 는 덮어쓴 값의 수정에도 바뀐다.
+
+## DDL
+
+```sql
+CREATE TABLE catalog_builtin_frames (
+  id           VARCHAR(32)  NOT NULL PRIMARY KEY,
+  title_ko     VARCHAR(40)  NULL, title_en VARCHAR(60) NULL,
+  subtitle_ko  VARCHAR(80)  NULL, subtitle_en VARCHAR(120) NULL,
+  pro          BIT(1)       NULL,
+  badge_ko     VARCHAR(20)  NULL, badge_en VARCHAR(40) NULL,
+  hidden       BIT(1)       NOT NULL,
+  image_id     VARCHAR(32)  NULL,
+  width        INT NULL, height INT NULL,
+  windows_json TEXT NULL,
+  deleted_at   DATETIME(6)  NULL,
+  updated_at   DATETIME(6)  NOT NULL,
+  CONSTRAINT fk_catalog_builtin_frames_image FOREIGN KEY (image_id) REFERENCES catalog_images(id)
+);
+```
+
+고아 그림 정리는 덮어쓴 기본 프레임이 가리키는 그림을 지우지 않는다.
+
+## 클라이언트
+
+- 앱: 기본 프레임에 이름·소개·Pro·배지를 덮어씌우고, 숨김·휴지통이면 목록(홈 선반·프레임 목록·네컷 시트·칩)에서 뺀다.
+  그림이 바뀐 AI 프레임은 서버 그림·창으로 그린다. 이미 그 프레임으로 만든 네컷은 그대로 열린다.
+- 스튜디오: '앱 기본' 카드에도 수정·숨기기·삭제·원래대로. 단색은 이름·소개·Pro·배지·숨김만. 서버가 `builtins` 를 모르면 버튼을 막는다.

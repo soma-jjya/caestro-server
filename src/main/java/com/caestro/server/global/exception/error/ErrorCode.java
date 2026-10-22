@@ -55,6 +55,7 @@ public enum ErrorCode {
     FILL_CODE_GENERATION_FAILED(500, "함께 채우기 코드 생성에 실패했습니다"),
     FILL_TOO_MANY_SESSIONS(429, "진행 중인 함께 채우기 세션이 너무 많습니다 (최대 20개). 끝난 세션을 지워주세요"),
     CATALOG_FRAME_NOT_FOUND(404, "프레임을 찾을 수 없습니다"),
+    CATALOG_BUILTIN_NOT_FOUND(404, "앱 기본 프레임이 아닙니다 (Black, White, gyaru, street, chrome, birthday, picnic, patchwork, vintage)"),
     CATALOG_BANNER_NOT_FOUND(404, "배너를 찾을 수 없습니다"),
     CATALOG_IMAGE_NOT_FOUND(404, "그림을 찾을 수 없습니다"),
     CATALOG_INVALID_IMAGE(400, "이미지 파일(PNG/JPEG)이 아니거나 읽을 수 없습니다"),
