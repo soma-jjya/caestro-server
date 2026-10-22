@@ -101,6 +101,15 @@ google:
     product-id: peakpic_pro
     service-account-json: ""    # Play Console 에 연결한 서비스 계정 키(JSON 원문 또는 base64). 비면 POST /subscriptions/google-play 가 503
     rtdn-token: ""              # Pub/Sub 푸시 URL 의 ?token= 값. 비면 실시간 알림 엔드포인트가 403
+apple:
+  app-store:                    # App Store 구독 확인 (contracts/subscription-app-store.md)
+    bundle-id: soma.project.caestro
+    product-prefix: peakpic_pro_  # 상품 peakpic_pro_yearly · _monthly · _weekly, 뒤가 basePlanId
+    issuer-id: ""               # App Store Connect › 사용자 및 액세스 › 통합 › 인앱 결제의 Issuer ID
+    key-id: ""                  # 같은 곳의 인앱 결제 키 ID
+    private-key: ""             # 그 키의 .p8 (PEM 원문, 또는 머리줄을 뺀 한 줄 base64). 셋 중 하나라도 비면 POST /subscriptions/app-store 가 503
+    environment: auto           # auto(운영 먼저, 모르면 샌드박스) | production | sandbox
+    notification-token: ""      # App Store Connect 에 등록한 알림 URL 의 ?token= 값. 비면 알림 엔드포인트가 403
 
 # 무료 사용자 하루 한도 (contracts/fourcut-daily-limit.md). 프리미엄 구독 중이면 없다
 limits:

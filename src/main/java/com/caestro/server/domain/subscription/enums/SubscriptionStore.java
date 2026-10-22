@@ -6,5 +6,5 @@ package com.caestro.server.domain.subscription.enums;
  */
 public enum SubscriptionStore {
 
-    GOOGLE_PLAY, MANUAL
+    GOOGLE_PLAY, APP_STORE, MANUAL
 }
