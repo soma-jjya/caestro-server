@@ -15,6 +15,7 @@ public interface CatalogImageRepository extends JpaRepository<CatalogImage, Stri
             + " and not exists (select f from CatalogFrame f where f.image = i)"
             + " and not exists (select b from CatalogBanner b where b.image = i)"
             + " and not exists (select v from CatalogBanner v where v.video = i)"
-            + " and not exists (select p from CatalogPoseUpload p where p.image = i)")
+            + " and not exists (select p from CatalogPoseUpload p where p.image = i)"
+            + " and not exists (select o from CatalogBuiltinFrame o where o.image = i)")
     List<String> findOrphanIds(@Param("before") LocalDateTime before);
 }
