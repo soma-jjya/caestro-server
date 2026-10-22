@@ -230,3 +230,46 @@ CREATE TABLE catalog_pose_uploads (
 
 ### 뒤로 미룬 것
 - 업로드를 S3 `assets/studio/orig/<id>.jpg` 로도 보내 파이프라인(썸네일 Lambda 포함)이 다음 버전에 넣게 하는 것: 포즈 자산 버킷 이름과 EC2 역할의 쓰기 권한이 확인되면 붙인다.
+
+---
+
+# 3차: 홈 배너 동영상 (2026-10-22)
+
+배너는 사진(필수, 동영상의 대체·첫 화면)에 더해 동영상을 하나 가질 수 있다. 앱은 동영상 배너를 소리 없이 한 번 재생하고,
+**영상 길이만큼 보여 준 뒤** 다음 배너로 넘긴다(사진 배너는 5초).
+
+## 업로드
+
+```
+POST /catalog/studio/videos?width=1080&height=1350&durationMs=8200   (X-Studio-Key)
+Content-Type: video/mp4, raw body ≤ catalog.max-video-bytes (기본 15728640)
+→ 201 {"videoId":"…22자…","url":"https://api.peakpic.app/catalog/images/{videoId}","width":1080,"height":1350,"durationMs":8200,"contentType":"video/mp4"}
+```
+- 검증: Content-Type 이 video/mp4, 본문 4..8 바이트가 `ftyp`(MP4), 크기 초과 413 `CATALOG_VIDEO_TOO_LARGE`,
+  width·height 1..4096, durationMs 500..60000 이 아니면 400 `CATALOG_INVALID_VIDEO`. 폭·높이·길이는 브라우저가 읽어 보낸다.
+- 저장: `catalog_images` 에 같이(content_type video/mp4), 새 열 `duration_ms`.
+- `GET /catalog/images/{id}` 는 동영상이면 Range 요청을 받는다(206, `Accept-Ranges: bytes`). 캐시 헤더는 사진과 같다.
+
+## 배너
+
+- 요청(POST/PUT) 에 `videoId`(문자열, 업로드한 동영상) 와 `clearVideo`(true 면 동영상을 뗀다) 추가. PUT 에서 둘 다 없으면 그대로.
+  다른 동영상으로 바꾸거나 떼면 이전 동영상 바이트는 지운다. 휴지통 정리·즉시 삭제 때도 같이 지운다.
+- 응답에 `videoUrl`(없으면 null), `videoDurationMs`(없으면 null) 추가.
+- 고아 정리: 배너의 video_id 가 가리키는 행은 고아가 아니다.
+- 검증: videoId 가 있으면 content_type 이 video/mp4 인 catalog_images 행이어야 한다(아니면 400 `CATALOG_INVALID_BANNER`).
+
+## DDL
+
+```sql
+ALTER TABLE catalog_images  ADD COLUMN duration_ms INT NULL;
+ALTER TABLE catalog_banners ADD COLUMN video_id VARCHAR(32) NULL,
+  ADD CONSTRAINT fk_catalog_banners_video FOREIGN KEY (video_id) REFERENCES catalog_images(id);
+```
+
+설정: `catalog.max-video-bytes: 15728640`.
+
+## 클라이언트
+
+- 스튜디오: 배너 편집기에서 사진 또는 동영상(MP4). 동영상을 고르면 첫 장면을 잘라 JPEG 로 올려 imageId(대체 사진)로, 동영상은 videoId 로.
+  미리보기·폰 미리보기에서 소리 없이 재생.
+- 앱: 동영상을 내려받아 캐시한 뒤 소리 없이 한 번 재생, 끝나면(또는 videoDurationMs 가 지나면) 다음 배너. 받기 전·실패 시에는 사진.
