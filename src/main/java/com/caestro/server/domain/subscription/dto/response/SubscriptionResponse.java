@@ -3,6 +3,7 @@ package com.caestro.server.domain.subscription.dto.response;
 import com.caestro.server.domain.subscription.entity.Subscription;
 import com.caestro.server.domain.subscription.enums.SubscriptionPlan;
 import com.caestro.server.domain.subscription.enums.SubscriptionStatus;
+import com.caestro.server.domain.subscription.enums.SubscriptionStore;
 import java.time.LocalDateTime;
 
 public record SubscriptionResponse(
@@ -11,7 +12,12 @@ public record SubscriptionResponse(
         SubscriptionStatus status,
         LocalDateTime startedAt,
         LocalDateTime expiresAt,
-        LocalDateTime createdAt
+        LocalDateTime createdAt,
+        // 스토어 결제(GOOGLE_PLAY)일 때만 채워진다. 수동 부여(MANUAL)·이력 없음은 null
+        SubscriptionStore store,
+        String basePlanId,
+        Boolean autoRenewing,
+        String storeState
 ) {
 
     /**
@@ -28,7 +34,11 @@ public record SubscriptionResponse(
                 subscription.getStatus(),
                 subscription.getStartedAt(),
                 subscription.getExpiresAt(),
-                subscription.getCreatedAt()
+                subscription.getCreatedAt(),
+                subscription.getStore(),
+                subscription.getBasePlanId(),
+                subscription.getAutoRenewing(),
+                subscription.getStoreState()
         );
     }
 
@@ -36,6 +46,6 @@ public record SubscriptionResponse(
      * 구독 이력이 전혀 없는 사용자를 위한 비활성 응답.
      */
     public static SubscriptionResponse none() {
-        return new SubscriptionResponse(false, null, null, null, null, null);
+        return new SubscriptionResponse(false, null, null, null, null, null, null, null, null, null);
     }
 }
