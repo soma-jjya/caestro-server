@@ -18,6 +18,8 @@ public record FillResponse(
         /** 완성된 네컷의 움직이는 GIF 주소; 올라온 적 없거나 그 뒤 칸·프레임이 바뀌었으면 null. */
         String gifUrl,
         Instant expiresAt,
-        Instant createdAt
+        Instant createdAt,
+        /** 칸에서 밀려난 사진들, 먼저 밀려난 것부터(맨 아래가 가장 최근). 되돌리거나 지울 수 있다. */
+        List<FillQueueItemResponse> queue
 ) {
 }

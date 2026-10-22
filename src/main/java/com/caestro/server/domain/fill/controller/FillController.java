@@ -100,6 +100,25 @@ public class FillController implements FillApi {
         return ResponseEntity.ok(fillService.clearSlot(code, index, userDetails.getUserId()));
     }
 
+    @DeleteMapping("/{code}/queue/{id}")
+    @Override
+    public ResponseEntity<FillResponse> deleteQueued(
+            @PathVariable String code,
+            @PathVariable long id,
+            @AuthenticationPrincipal CustomUserDetails userDetails) {
+        return ResponseEntity.ok(fillService.deleteQueued(code, id, userDetails.getUserId()));
+    }
+
+    @PostMapping("/{code}/queue/{id}/restore")
+    @Override
+    public ResponseEntity<FillResponse> restoreQueued(
+            @PathVariable String code,
+            @PathVariable long id,
+            @RequestParam int slot,
+            @AuthenticationPrincipal CustomUserDetails userDetails) {
+        return ResponseEntity.ok(fillService.restoreQueued(code, id, slot, userDetails.getUserId()));
+    }
+
     @PutMapping(value = "/{code}/frame-assets/{k}", consumes = {MediaType.IMAGE_PNG_VALUE, MediaType.APPLICATION_OCTET_STREAM_VALUE})
     @Override
     public ResponseEntity<AssetUrlResponse> uploadFrameAsset(

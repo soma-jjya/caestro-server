@@ -19,6 +19,8 @@ import com.caestro.server.domain.fill.dto.FillLayerDto;
 import com.caestro.server.domain.fill.dto.response.FillResponse;
 import com.caestro.server.domain.fill.entity.FillSession;
 import com.caestro.server.domain.fill.entity.FillSlot;
+import com.caestro.server.domain.fill.entity.FillQueueItem;
+import com.caestro.server.domain.fill.repository.FillQueueRepository;
 import com.caestro.server.domain.fill.repository.FillSessionRepository;
 import com.caestro.server.domain.fill.repository.FillSlotRepository;
 import com.caestro.server.domain.fill.store.FillImageStore;
@@ -37,6 +39,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -54,6 +57,7 @@ class FillServiceTest {
 
     @Mock private FillSessionRepository sessionRepository;
     @Mock private FillSlotRepository slotRepository;
+    @Mock private FillQueueRepository queueRepository;
     @Mock private FillImageStore imageStore;
     @Mock private UserRepository userRepository;
     @Mock private FillCodeGenerator codeGenerator;
@@ -66,8 +70,11 @@ class FillServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new FillService(sessionRepository, slotRepository, imageStore, userRepository,
+        service = new FillService(sessionRepository, slotRepository, queueRepository, imageStore, userRepository,
                 codeGenerator, new ObjectMapper(), clock);
+        // 대기열 저장은 넘긴 것을 그대로 돌려주고, 조회는 비어 있다(각 테스트가 필요하면 채운다)
+        lenient().when(queueRepository.save(any(FillQueueItem.class))).thenAnswer(inv -> inv.getArgument(0));
+        ReflectionTestUtils.setField(service, "queueMax", 12);
         // 주소 생성은 저장소의 몫이 됐다 (#152) — 실제 구현과 같은 형식으로 흉내 낸다
         lenient().when(imageStore.urlOf(anyString(), anyString())).thenAnswer(inv ->
                 "https://api.peakpic.app/fills/" + inv.getArgument(0) + "/images/" + inv.getArgument(1));
@@ -143,17 +150,116 @@ class FillServiceTest {
     }
 
     @Test
-    @DisplayName("채우기: 다른 사람이 먼저 채운 칸은 409")
-    void fill_takenSlotIsConflict() {
+    @DisplayName("채우기: 다른 사람이 채운 칸도 바꿀 수 있고, 이전 사진은 지워지지 않고 대기열로 간다")
+    void fill_othersSlotIsReplacedAndItsPhotoQueued() {
         FillSlot s0 = slot(0);
-        s0.fill(friend, "민지", "x", LocalDateTime.now(clock));
+        s0.fill(friend, "민지", "imgPrev0000000000000001", LocalDateTime.now(clock).minusHours(1));
+        s0.attachClip("clpPrev0000000000000001");
         given(sessionRepository.findByCode("K7X2MQ")).willReturn(Optional.of(session));
         given(slotRepository.findBySessionIdAndSlotIndex(10L, 0)).willReturn(Optional.of(s0));
+        given(userRepository.findById(1L)).willReturn(Optional.of(owner));
+        given(imageStore.store(any(), anyString(), any())).willReturn("imgNew00000000000000001");
+        given(slotRepository.findBySessionIdOrderBySlotIndex(10L)).willReturn(slots(s0, slot(1), slot(2), slot(3)));
+        // 저장된 줄이 곧 조회 결과: 응답의 queue가 그것으로 만들어진다
+        List<FillQueueItem> saved = new java.util.ArrayList<>();
+        given(queueRepository.save(any(FillQueueItem.class))).willAnswer(inv -> {
+            FillQueueItem item = inv.getArgument(0);
+            ReflectionTestUtils.setField(item, "id", 70L + saved.size());
+            saved.add(item);
+            return item;
+        });
+        given(queueRepository.findBySessionIdOrderByIdAsc(10L)).willAnswer(inv -> List.copyOf(saved));
 
-        assertThatThrownBy(() -> service.fillSlot("K7X2MQ", 0, 1L, null, JPEG, "image/jpeg"))
-                .isInstanceOf(CustomException.class)
-                .extracting(e -> ((CustomException) e).getErrorCode()).isEqualTo(ErrorCode.FILL_SLOT_TAKEN);
-        verify(imageStore, never()).store(any(), anyString(), any());
+        FillResponse r = service.fillSlot("K7X2MQ", 0, 1L, null, JPEG, "image/jpeg");
+
+        assertThat(saved).hasSize(1);
+        assertThat(saved.get(0).getImageId()).isEqualTo("imgPrev0000000000000001");
+        assertThat(saved.get(0).getClipId()).isEqualTo("clpPrev0000000000000001");
+        assertThat(saved.get(0).getFromSlot()).isZero();
+        assertThat(saved.get(0).getFilledByName()).isEqualTo("민지");
+        verify(imageStore, never()).delete(any(), anyString());
+        assertThat(s0.isFilledBy(1L)).isTrue();
+        assertThat(s0.getClipId()).isNull();
+        assertThat(r.slots().get(0).imageUrl()).endsWith("imgNew00000000000000001");
+        assertThat(r.queue()).hasSize(1);
+        assertThat(r.queue().get(0).imageUrl()).endsWith("imgPrev0000000000000001");
+        assertThat(r.queue().get(0).clipUrl()).endsWith("clpPrev0000000000000001");
+        assertThat(r.queue().get(0).filledByMe()).isFalse();
+        assertThat(r.queue().get(0).fromSlot()).isZero();
+    }
+
+    @Test
+    @DisplayName("대기열: 지우기는 누구나 할 수 있고 사진·클립 바이트까지 사라진다; 없는 id는 404")
+    void queue_anyoneDeletesAndBytesGo() {
+        FillQueueItem item = FillQueueItem.builder().id(7L).session(session).fromSlot(2).filledBy(friend).filledByName("민지")
+                .imageId("imgQ000000000000000001").clipId("clpQ000000000000000001").queuedAt(LocalDateTime.now(clock)).build();
+        given(sessionRepository.findByCode("K7X2MQ")).willReturn(Optional.of(session));
+        given(queueRepository.findByIdAndSessionId(7L, 10L)).willReturn(Optional.of(item));
+        given(queueRepository.findByIdAndSessionId(8L, 10L)).willReturn(Optional.empty());
+
+        FillResponse r = service.deleteQueued("K7X2MQ", 7L, 3L);
+
+        verify(imageStore).delete(session, "imgQ000000000000000001");
+        verify(imageStore).delete(session, "clpQ000000000000000001");
+        verify(queueRepository).delete(item);
+        assertThat(r.queue()).isEmpty();
+        assertThatThrownBy(() -> service.deleteQueued("K7X2MQ", 8L, 3L))
+                .extracting(e -> ((CustomException) e).getErrorCode()).isEqualTo(ErrorCode.FILL_QUEUE_ITEM_NOT_FOUND);
+    }
+
+    @Test
+    @DisplayName("대기열: 되돌리기는 사진을 주인·이름·클립과 함께 칸에 넣고, 그 칸에 있던 사진은 대기열로 내려간다")
+    void queue_restoreSwapsWithTheOccupant() {
+        FillSlot s1 = slot(1);
+        s1.fill(owner, "주인", "imgOcc00000000000000001", LocalDateTime.now(clock));
+        FillQueueItem item = FillQueueItem.builder().id(7L).session(session).fromSlot(3).filledBy(friend).filledByName("민지")
+                .imageId("imgQ000000000000000001").clipId("clpQ000000000000000001")
+                .filledAt(LocalDateTime.now(clock).minusDays(1)).queuedAt(LocalDateTime.now(clock)).build();
+        given(sessionRepository.findByCode("K7X2MQ")).willReturn(Optional.of(session));
+        given(slotRepository.findBySessionIdAndSlotIndex(10L, 1)).willReturn(Optional.of(s1));
+        given(queueRepository.findByIdAndSessionId(7L, 10L)).willReturn(Optional.of(item));
+        given(slotRepository.findBySessionIdOrderBySlotIndex(10L)).willReturn(slots(slot(0), s1, slot(2), slot(3)));
+        ArgumentCaptor<FillQueueItem> queued = ArgumentCaptor.forClass(FillQueueItem.class);
+
+        FillResponse r = service.restoreQueued("K7X2MQ", 7L, 1, 2L);
+
+        verify(queueRepository).save(queued.capture());
+        assertThat(queued.getValue().getImageId()).isEqualTo("imgOcc00000000000000001");
+        assertThat(queued.getValue().getFromSlot()).isEqualTo(1);
+        verify(queueRepository).delete(item);
+        verify(imageStore, never()).delete(any(), anyString());
+        assertThat(s1.getImageId()).isEqualTo("imgQ000000000000000001");
+        assertThat(s1.getClipId()).isEqualTo("clpQ000000000000000001");
+        assertThat(s1.isFilledBy(2L)).isTrue();
+        assertThat(s1.getFilledByName()).isEqualTo("민지");
+        assertThat(r.slots().get(1).filledByMe()).isTrue();
+        assertThat(r.slots().get(1).clipUrl()).endsWith("clpQ000000000000000001");
+    }
+
+    @Test
+    @DisplayName("대기열: 상한을 넘치면 가장 오래 기다린 사진부터 바이트까지 사라진다")
+    void queue_oldestDroppedPastTheCap() {
+        ReflectionTestUtils.setField(service, "queueMax", 2);
+        FillQueueItem oldest = FillQueueItem.builder().id(1L).session(session).fromSlot(0).imageId("imgOld0000000000000001")
+                .queuedAt(LocalDateTime.now(clock)).build();
+        FillQueueItem older = FillQueueItem.builder().id(2L).session(session).fromSlot(0).imageId("imgOld0000000000000002")
+                .queuedAt(LocalDateTime.now(clock)).build();
+        FillSlot s0 = slot(0);
+        s0.fill(friend, "민지", "imgCur0000000000000001", LocalDateTime.now(clock));
+        given(sessionRepository.findByCode("K7X2MQ")).willReturn(Optional.of(session));
+        given(slotRepository.findBySessionIdAndSlotIndex(10L, 0)).willReturn(Optional.of(s0));
+        given(queueRepository.findBySessionIdOrderByIdAsc(10L)).willAnswer(inv -> List.of(oldest, older,
+                FillQueueItem.builder().id(3L).session(session).fromSlot(0).imageId("imgCur0000000000000001")
+                        .queuedAt(LocalDateTime.now(clock)).build()));
+        given(slotRepository.findBySessionIdOrderBySlotIndex(10L)).willReturn(slots(s0));
+
+        service.clearSlot("K7X2MQ", 0, 3L);
+
+        verify(imageStore).delete(session, "imgOld0000000000000001");
+        verify(queueRepository).delete(oldest);
+        verify(imageStore, never()).delete(session, "imgOld0000000000000002");
+        verify(imageStore, never()).delete(session, "imgCur0000000000000001");
+        assertThat(s0.isEmpty()).isTrue();
     }
 
     @Test
@@ -172,23 +278,23 @@ class FillServiceTest {
     }
 
     @Test
-    @DisplayName("비우기: 남이 채운 칸은 주인만 비울 수 있다")
-    void clear_othersSlotOnlyByOwner() {
+    @DisplayName("비우기: 누구나 비울 수 있고 사진은 지워지지 않고 대기열로 간다; 빈 칸 비우기는 대기열에 아무것도 남기지 않는다")
+    void clear_anyoneAndThePhotoIsQueued() {
         FillSlot s0 = slot(0);
         s0.fill(friend, "민지", "x", LocalDateTime.now(clock));
         given(sessionRepository.findByCode("K7X2MQ")).willReturn(Optional.of(session));
         given(slotRepository.findBySessionIdAndSlotIndex(10L, 0)).willReturn(Optional.of(s0));
-
-        // 제3자(3L)는 403
-        assertThatThrownBy(() -> service.clearSlot("K7X2MQ", 0, 3L))
-                .extracting(e -> ((CustomException) e).getErrorCode()).isEqualTo(ErrorCode.FILL_ACCESS_DENIED);
-
-        // 주인(1L)은 비울 수 있고 이미지는 삭제된다
         given(slotRepository.findBySessionIdOrderBySlotIndex(10L)).willReturn(slots(s0, slot(1), slot(2), slot(3)));
-        FillResponse r = service.clearSlot("K7X2MQ", 0, 1L);
+
+        // 제3자(3L)도 비울 수 있다
+        FillResponse r = service.clearSlot("K7X2MQ", 0, 3L);
         assertThat(s0.isEmpty()).isTrue();
         assertThat(r.slots().get(0).imageUrl()).isNull();
-        verify(imageStore).delete(session, "x");
+        verify(imageStore, never()).delete(any(), anyString());
+        verify(queueRepository).save(any(FillQueueItem.class));
+
+        service.clearSlot("K7X2MQ", 0, 1L);
+        verify(queueRepository, org.mockito.Mockito.times(1)).save(any(FillQueueItem.class));
     }
 
     @Test
@@ -279,7 +385,7 @@ class FillServiceTest {
     }
 
     @Test
-    @DisplayName("칸 클립: 새 사진이 들어오거나 칸을 비우면 옛 클립은 지워진다")
+    @DisplayName("칸 클립: 새 사진이 들어오거나 칸을 비우면 옛 클립은 옛 사진과 함께 대기열로 간다 — 칸에는 남지 않는다")
     void clip_goesWithItsPhoto() {
         FillSlot mine = slot(0);
         mine.fill(friend, "민지", "img000000000000000020", LocalDateTime.now(clock));
@@ -289,16 +395,19 @@ class FillServiceTest {
         given(userRepository.findById(2L)).willReturn(Optional.of(friend));
         given(imageStore.store(any(), anyString(), any())).willReturn("img000000000000000022");
         given(slotRepository.findBySessionIdOrderBySlotIndex(10L)).willReturn(List.of(mine));
+        ArgumentCaptor<FillQueueItem> queued = ArgumentCaptor.forClass(FillQueueItem.class);
 
         FillResponse replaced = service.fillSlot("K7X2MQ", 0, 2L, "민지", JPEG, "image/jpeg");
 
-        verify(imageStore).delete(session, "clp000000000000000021");
+        verify(imageStore, never()).delete(session, "clp000000000000000021");
         assertThat(mine.getClipId()).isNull();
         assertThat(replaced.slots().get(0).clipUrl()).isNull();
 
         mine.attachClip("clp000000000000000023");
         service.clearSlot("K7X2MQ", 0, 2L);
-        verify(imageStore).delete(session, "clp000000000000000023");
+        verify(queueRepository, org.mockito.Mockito.times(2)).save(queued.capture());
+        assertThat(queued.getAllValues()).extracting(FillQueueItem::getClipId)
+                .containsExactly("clp000000000000000021", "clp000000000000000023");
         assertThat(mine.getClipId()).isNull();
     }
 

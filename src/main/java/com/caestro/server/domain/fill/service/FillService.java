@@ -4,10 +4,13 @@ import com.caestro.server.domain.fill.dto.FillCustomFrameDto;
 import com.caestro.server.domain.fill.dto.FillLayerDto;
 import com.caestro.server.domain.fill.dto.request.CreateFillRequest;
 import com.caestro.server.domain.fill.dto.request.UpdateFrameRequest;
+import com.caestro.server.domain.fill.dto.response.FillQueueItemResponse;
 import com.caestro.server.domain.fill.dto.response.FillResponse;
 import com.caestro.server.domain.fill.dto.response.FillSlotResponse;
+import com.caestro.server.domain.fill.entity.FillQueueItem;
 import com.caestro.server.domain.fill.entity.FillSession;
 import com.caestro.server.domain.fill.entity.FillSlot;
+import com.caestro.server.domain.fill.repository.FillQueueRepository;
 import com.caestro.server.domain.fill.repository.FillSessionRepository;
 import com.caestro.server.domain.fill.repository.FillSlotRepository;
 import com.caestro.server.domain.fill.store.FillImageStore;
@@ -34,7 +37,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 /**
  * 함께 채우기(#fill-together). 세션은 프레임과 네 칸의 상태만 들고, 합성은 클라이언트가 한다.
- * 규칙: 칸은 먼저 채운 사람 것(다른 사람이 채운 칸은 409), 비우기는 본인 칸 또는 세션 주인, 없애기는 주인만.
+ * 규칙: 칸은 누구나 채우고·바꾸고·비울 수 있다. 바뀌거나 비워진 사진은 지우지 않고 세션의 대기열(#fill-queue) 맨 아래로
+ * 내려가 모두에게 보이며, 누구나 어느 칸으로든 되돌리거나(restore) 대기열에서 지울 수 있다. 없애기는 주인만.
  * 이미지 바이트는 {@link FillImageStore}가 보관하고 서비스는 id만 든다 — 인증 없는 난수 URL로 내려준다 (#152).
  */
 @Service
@@ -51,6 +55,7 @@ public class FillService {
 
     private final FillSessionRepository sessionRepository;
     private final FillSlotRepository slotRepository;
+    private final FillQueueRepository queueRepository;
     private final FillImageStore imageStore;
     private final UserRepository userRepository;
     private final FillCodeGenerator codeGenerator;
@@ -70,6 +75,10 @@ public class FillService {
     // 칸 클립: 셔터 전 2초 남짓, 칸 크기 프레임이라 수백 KB — 넉넉히 6MB
     @Value("${fill.max-clip-bytes:6291456}")
     private int maxClipBytes;
+
+    // 대기열 상한: 넘치면 가장 오래 기다린 사진부터 사라진다(사진 바이트까지)
+    @Value("${fill.queue-max:12}")
+    private int queueMax;
 
     @Transactional
     public FillResponse create(Long ownerId, CreateFillRequest request) {
@@ -104,34 +113,79 @@ public class FillService {
     }
 
     /**
-     * 칸 [index]에 사진을 넣는다. 비어 있거나 본인이 채운 칸만 가능하고, 다른 사람의 칸이면 409로 돌려보내
-     * 클라이언트가 최신 상태를 다시 그리게 한다. 이전 사진은 지운다(교체).
-     * 같은 칸에 동시 요청이 오면 칸 행을 잠가 한 명만 통과시킨다 — 패자는 사진을 저장하기 전에 409로 끝난다 (#151).
+     * 칸 [index]에 사진을 넣는다. 빈 칸이든 누가 채운 칸이든 누구나 넣을 수 있다 — 채워진 칸이었으면 이전 사진은
+     * (클립과 함께) 지우지 않고 대기열 맨 아래로 내려간다(#fill-queue). 같은 칸에 동시 요청이 오면 칸 행을 잠가
+     * 차례로 처리하므로(#151) 뒤의 것이 칸을, 앞의 것이 대기열을 갖는다 — 어느 사진도 사라지지 않는다.
      */
     @Transactional
     public FillResponse fillSlot(String code, int index, Long userId, String name, byte[] body, String contentType) {
         FillSession session = liveSession(code);
-        // 행을 잠그고 읽으므로 이 검사와 아래 기록 사이에 다른 요청이 끼어들 수 없다 (#151)
+        // 행을 잠그고 읽으므로 아래 기록까지 다른 요청이 끼어들 수 없다 (#151)
         FillSlot slot = slotOf(session, index);
-        if (!slot.isEmpty() && !slot.isFilledBy(userId)) {
-            throw new CustomException(ErrorCode.FILL_SLOT_TAKEN);
-        }
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
         String imageId = storeImage(session, body, contentType, Set.of("image/jpeg", "image/png"), maxImageBytes);
-        String previousId = slot.getImageId();
-        // 새 사진에는 옛 움직임이 맞지 않는다. 새 클립은 이 응답을 받은 뒤 따로 올라온다
-        String previousClipId = slot.getClipId();
         // 닉네임도 컬럼(40자)보다 길 수 있어 같이 자른다
         String shownName = normalizeText(name, NAME_MAX);
         if (shownName == null) {
             shownName = normalizeText(user.getNickname(), NAME_MAX);
         }
-        slot.fill(user, shownName, imageId, LocalDateTime.now(clock));
-        imageStore.delete(session, previousId);
-        imageStore.delete(session, previousClipId);
+        LocalDateTime now = LocalDateTime.now(clock);
+        enqueue(session, slot, now);
+        // 새 사진에는 옛 움직임이 맞지 않는다(클립은 옛 사진과 함께 대기열로 갔다). 새 클립은 이 응답을 받은 뒤 따로 올라온다
+        slot.fill(user, shownName, imageId, now);
         dropGif(session);
         return toResponse(session, slotRepository.findBySessionIdOrderBySlotIndex(session.getId()), userId);
+    }
+
+    /** 칸의 사진(과 클립)을 대기열 맨 아래로 내린다. 빈 칸이면 아무것도 하지 않는다. 상한을 넘치면 가장 오래된 것이 사라진다. */
+    private void enqueue(FillSession session, FillSlot slot, LocalDateTime now) {
+        if (slot.isEmpty()) return;
+        queueRepository.save(FillQueueItem.of(slot, now));
+        List<FillQueueItem> items = queueRepository.findBySessionIdOrderByIdAsc(session.getId());
+        for (int i = 0; i < items.size() - queueMax; i++) {
+            discard(session, items.get(i));
+        }
+    }
+
+    /** 대기열 한 줄을 사진·클립 바이트까지 지운다. */
+    private void discard(FillSession session, FillQueueItem item) {
+        imageStore.delete(session, item.getImageId());
+        imageStore.delete(session, item.getClipId());
+        queueRepository.delete(item);
+    }
+
+    /** 대기열에서 사진 하나를 지운다(누구나). 사진·클립 바이트도 사라진다. */
+    @Transactional
+    public FillResponse deleteQueued(String code, long itemId, Long userId) {
+        FillSession session = liveSession(code);
+        discard(session, queuedItem(session, itemId));
+        dropGif(session);
+        return toResponse(session, slotRepository.findBySessionIdOrderBySlotIndex(session.getId()), userId);
+    }
+
+    /**
+     * 대기열의 사진을 칸 [index]로 되돌린다(누구나). 그 칸에 사진이 있었으면 그것이 대기열 맨 아래로 내려간다 — 자리를
+     * 바꾸는 셈이다. 사진의 주인·이름·클립은 그대로 따라간다.
+     */
+    @Transactional
+    public FillResponse restoreQueued(String code, long itemId, int index, Long userId) {
+        FillSession session = liveSession(code);
+        FillSlot slot = slotOf(session, index);
+        FillQueueItem item = queuedItem(session, itemId);
+        LocalDateTime now = LocalDateTime.now(clock);
+        enqueue(session, slot, now);
+        slot.fill(item.getFilledBy(), item.getFilledByName(), item.getImageId(),
+                item.getFilledAt() != null ? item.getFilledAt() : now);
+        slot.attachClip(item.getClipId());
+        queueRepository.delete(item);
+        dropGif(session);
+        return toResponse(session, slotRepository.findBySessionIdOrderBySlotIndex(session.getId()), userId);
+    }
+
+    private FillQueueItem queuedItem(FillSession session, long itemId) {
+        return queueRepository.findByIdAndSessionId(itemId, session.getId())
+                .orElseThrow(() -> new CustomException(ErrorCode.FILL_QUEUE_ITEM_NOT_FOUND));
     }
 
     /**
@@ -181,19 +235,13 @@ public class FillService {
         return slash < 0 || slash == url.length() - 1 ? null : url.substring(slash + 1);
     }
 
-    /** 칸을 비운다: 본인이 채운 칸, 또는 세션 주인은 어느 칸이든. */
+    /** 칸을 비운다(누구나). 사진은 지워지지 않고 대기열 맨 아래로 내려가 되돌릴 수 있다. */
     @Transactional
     public FillResponse clearSlot(String code, int index, Long userId) {
         FillSession session = liveSession(code);
         FillSlot slot = slotOf(session, index);
-        if (!slot.isEmpty() && !slot.isFilledBy(userId) && !session.isOwnedBy(userId)) {
-            throw new CustomException(ErrorCode.FILL_ACCESS_DENIED);
-        }
-        String previousId = slot.getImageId();
-        String previousClipId = slot.getClipId();
+        enqueue(session, slot, LocalDateTime.now(clock));
         slot.clear();
-        imageStore.delete(session, previousId);
-        imageStore.delete(session, previousClipId);
         dropGif(session);
         return toResponse(session, slotRepository.findBySessionIdOrderBySlotIndex(session.getId()), userId);
     }
@@ -315,6 +363,7 @@ public class FillService {
     }
 
     private void purge(FillSession session) {
+        queueRepository.deleteBySessionId(session.getId());
         slotRepository.deleteBySessionId(session.getId());
         imageStore.deleteBySession(session.getId());
         sessionRepository.delete(session);
@@ -394,7 +443,18 @@ public class FillService {
                 slotResponses,
                 session.getGifImageId() == null ? null : imageStore.urlOf(session.getCode(), session.getGifImageId()),
                 toInstant(session.getExpiresAt()),
-                toInstant(session.getCreatedAt()));
+                toInstant(session.getCreatedAt()),
+                queueRepository.findBySessionIdOrderByIdAsc(session.getId()).stream()
+                        .map(item -> new FillQueueItemResponse(
+                                item.getId(),
+                                imageStore.urlOf(session.getCode(), item.getImageId()),
+                                item.getClipId() == null ? null : imageStore.urlOf(session.getCode(), item.getClipId()),
+                                item.getFromSlot(),
+                                item.isFilledBy(userId),
+                                item.getFilledByName(),
+                                toInstant(item.getFilledAt()),
+                                toInstant(item.getQueuedAt())))
+                        .toList());
     }
 
     /** 앞뒤 공백을 지우고 연속 공백을 하나로, maxLength까지 자른다. 비면 null. */
