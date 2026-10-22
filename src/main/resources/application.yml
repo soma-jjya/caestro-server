@@ -89,6 +89,16 @@ catalog:
   public-base-url: https://api.peakpic.app   # 그림 URL 의 호스트 (fill.public-base-url 과 같은 이유로 고정)
   trash-days: 7               # 지운 프레임·배너·포즈 사진이 휴지통에 남는 날수. 지나면 정리 배치가 완전히 지운다(포즈 덧씌우기는 숨김으로 남김)
 
+# Peakpic Pro 구독 (contracts/subscription-google-play.md)
+subscription:
+  manual-grant-enabled: false   # POST /subscriptions(결제 없이 부여). 운영에서 켜면 누구나 무료로 프리미엄이 된다
+google:
+  play:
+    package-name: soma.project.caestro
+    product-id: peakpic_pro
+    service-account-json: ""    # Play Console 에 연결한 서비스 계정 키(JSON 원문 또는 base64). 비면 POST /subscriptions/google-play 가 503
+    rtdn-token: ""              # Pub/Sub 푸시 URL 의 ?token= 값. 비면 실시간 알림 엔드포인트가 403
+
 # 브라우저 클라이언트(peakpic.app 웹에서 채우기) 허용 출처. 로컬 개발은 프로파일에서 http://localhost:포트 를 덧붙인다
 cors:
   allowed-origins: https://peakpic.app,https://www.peakpic.app
