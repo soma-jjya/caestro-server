@@ -146,3 +146,87 @@ CREATE TABLE catalog_banners (
   이미지는 쓰일 때 내려받아 파일로 캐시한다. 오프라인이면 캐시 + 번들만. 모르는 프레임 id(미러링·함께 채우기)는 `GET /catalog/frames/{id}` 로 그 하나를 받는다.
 - 웹(/fill): 번들 프레임은 `/frames/frames.json`, 서버 프레임은 `GET /catalog/frames` 를 합쳐 쓴다. `rot` 는 캔버스 회전으로 그린다.
 - 스튜디오(/studio): 키 입력 → 프레임 올리기(창 4개를 끌어 배치·크기·회전), 목록(숨김·삭제·순서·수정), 배너 올리기·목록.
+
+---
+
+# 2차: 휴지통 · 포즈추천 (2026-10-22)
+
+## 휴지통 (프레임·배너·포즈 업로드 공통)
+
+- `DELETE /catalog/studio/{frames|banners|pose/uploads}/{id}` → 204. 지우지 않고 `deletedAt` 과 `purgeAt = deletedAt + catalog.trash-days(7)` 를 적는다.
+  목록(`?all=true` 포함)에서 빠진다. `GET /catalog/frames/{id}` 는 휴지통에 있어도 200 (세션이 참조 중일 수 있다).
+- `GET /catalog/studio/trash` → `{ "frames": [프레임 + deletedAt, purgeAt], "banners": […], "poseUploads": […] }`
+- `POST /catalog/studio/{frames|banners|pose/uploads}/{id}/restore` → 200 항목 (deletedAt·purgeAt 지움). 휴지통에 없으면 404.
+- `DELETE /catalog/studio/trash/{frames|banners|pose/uploads}/{id}` → 204 완전 삭제(이미지도). 휴지통에 없으면 404.
+- 정리 스케줄(CatalogCleanupScheduler): `purgeAt` 이 지난 항목을 이미지와 함께 지운다.
+- 홈 배너는 최소 한 개는 보여야 한다: 마지막으로 보이는(hidden=false, 휴지통 아님) 배너를 숨기거나(PUT hidden=true) 지우면 409 `CATALOG_LAST_BANNER`.
+
+## 포즈추천
+
+포즈 풀은 오프라인 파이프라인이 S3 `assets/<ver>/` 에 버전째 올린다(meta.json + kp + index.bin 등, 이미지 thumb/preview/guide/canny/cutout).
+서버는 그 파일을 건드리지 않는다(index.bin 의 길이가 meta 의 샷 수와 묶여 있어 한 장만 빼도 깨진다). 대신 두 가지를 덧씌운다.
+
+1. **덧씌우기(overrides)**: 기존 샷을 숨기거나(앱에서 안 보임) 라벨(성별·인종·계절)을 더한다.
+2. **스튜디오 업로드(uploads)**: 디자이너가 올린 AI 사진. 앱은 찾아보기 목록에 섞어 보이고, 가이드로 고르면 기기에서 관절을 계산한다
+   (내 사진과 같은 경로). 유사도 추천(index)에는 파이프라인이 다음 버전에 넣기 전까지 들어가지 않는다.
+
+```
+GET /catalog/pose  (공개, ETag)   ?all=true + 스튜디오 키 → 숨김 포함
+{
+  "updatedAt": "…",
+  "overrides": [
+    { "version": "v012", "shot": "ext_beach_0001", "hidden": true, "labels": { "성별": "여자", "계절": "여름" }, "updatedAt": "…" }
+  ],                                  // hidden 이거나 labels 가 있는 것만. 휴지통(deletedAt)에 있는 것은 hidden=true 로 내려간다
+  "uploads": [
+    { "id": "pu_k2m9x1p0qz", "imageUrl": "…/catalog/images/…", "width": 1024, "height": 1365,
+      "labels": { "장소": "카페", "성별": "남자", "인종": "동양", "계절": "봄·가을" },
+      "sortOrder": 0, "hidden": false, "createdAt": "…", "updatedAt": "…" }
+  ]                                   // 숨김·휴지통 제외 (all=true 면 숨김 포함)
+}
+```
+- 라벨 키는 앱의 meta 라벨과 같은 한국어 토큰: `장소`(필수, 값은 거리·계단·광장·자연·공원·전시·실내·카페·해변 또는 자유 입력 ≤ 20자),
+  `성별`(남자|여자), `인종`(≤ 20자 자유 입력; **앱에는 절대 보이지 않는 내부 분류**), `계절`(봄·가을|여름|겨울). 빈 값은 키를 뺀다.
+- `PUT /catalog/studio/pose/overrides/{version}/{shot}` `{ "hidden"?: bool, "labels"?: {…}, "deleted"?: bool }` → 200 override.
+  `deleted=true` 는 휴지통(숨김 + deletedAt/purgeAt, trash 목록 `poseOverrides` 에 나옴), 복구는 `POST /catalog/studio/pose/overrides/{version}/{shot}/restore`.
+  purge 때는 S3 를 지울 수 없으므로 `hidden=true` 로 영구히 남긴다. hidden=false·labels 비어 있음·deleted 아님이면 행을 지운다.
+- `POST /catalog/studio/pose/uploads` `{ "imageId", "labels": {…}, "sortOrder"?, "hidden"? }` → 201. `PUT …/{id}` 부분 갱신, `DELETE …/{id}` 휴지통.
+- 검증(400 `CATALOG_INVALID_POSE`): 장소 필수, 성별·계절은 허용값, 이미지 존재.
+- 앱 규칙: 어떤 분류 축(장소·성별·계절)은 **보이는 사진을 가진 값이 2개 이상**일 때만 화면에 나온다. 성별은 파이프라인 샷의 `세트`("gpt_여자·1인")에서 여자/남자를 읽고 overrides 로 덮는다. `인종` 은 어디에도 표시하지 않는다.
+
+### DDL
+
+```sql
+ALTER TABLE catalog_frames  ADD COLUMN deleted_at DATETIME(6) NULL, ADD COLUMN purge_at DATETIME(6) NULL;
+ALTER TABLE catalog_banners ADD COLUMN deleted_at DATETIME(6) NULL, ADD COLUMN purge_at DATETIME(6) NULL;
+CREATE TABLE catalog_pose_overrides (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  version VARCHAR(20) NOT NULL,
+  shot VARCHAR(80) NOT NULL,
+  hidden TINYINT(1) NOT NULL DEFAULT 0,
+  labels_json TEXT NULL,
+  deleted_at DATETIME(6) NULL,
+  purge_at DATETIME(6) NULL,
+  created_at DATETIME(6) NOT NULL,
+  updated_at DATETIME(6) NOT NULL,
+  UNIQUE KEY uk_pose_override (version, shot)
+);
+CREATE TABLE catalog_pose_uploads (
+  id VARCHAR(32) PRIMARY KEY,
+  image_id VARCHAR(32) NOT NULL,
+  width INT NOT NULL,
+  height INT NOT NULL,
+  labels_json TEXT NOT NULL,
+  sort_order INT NOT NULL DEFAULT 0,
+  hidden TINYINT(1) NOT NULL DEFAULT 0,
+  deleted_at DATETIME(6) NULL,
+  purge_at DATETIME(6) NULL,
+  created_at DATETIME(6) NOT NULL,
+  updated_at DATETIME(6) NOT NULL,
+  CONSTRAINT fk_catalog_pose_uploads_image FOREIGN KEY (image_id) REFERENCES catalog_images(id)
+);
+```
+
+설정: `catalog.trash-days: 7`.
+
+### 뒤로 미룬 것
+- 업로드를 S3 `assets/studio/orig/<id>.jpg` 로도 보내 파이프라인(썸네일 Lambda 포함)이 다음 버전에 넣게 하는 것: 포즈 자산 버킷 이름과 EC2 역할의 쓰기 권한이 확인되면 붙인다.
