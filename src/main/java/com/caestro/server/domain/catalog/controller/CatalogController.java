@@ -33,6 +33,7 @@ public class CatalogController implements CatalogApi {
 
     private final CatalogService catalogService;
     private final CatalogPoseService poseService;
+    private final com.caestro.server.domain.catalog.service.CatalogBuiltinService builtinService;
 
     @GetMapping("/frames")
     @Override
@@ -41,8 +42,9 @@ public class CatalogController implements CatalogApi {
             @RequestHeader(value = HttpHeaders.IF_NONE_MATCH, required = false) String ifNoneMatch,
             HttpServletRequest request) {
         boolean includeHidden = all && isStudio(request);
-        CatalogFrameListResponse body = catalogService.frames(includeHidden);
-        String etag = etag("f", includeHidden, body.updatedAt(), body.frames().size());
+        // 스튜디오가 덮어쓴 기본 프레임(5차)도 함께: 앱이 이름·Pro·숨김을 기본 프레임에 덮어씌운다
+        CatalogFrameListResponse body = catalogService.frames(includeHidden).withBuiltins(builtinService.all());
+        String etag = etag("f", includeHidden, body.updatedAt(), body.frames().size() * 100 + body.builtins().size());
         if (etag.equals(ifNoneMatch)) {
             return ResponseEntity.status(HttpStatus.NOT_MODIFIED).eTag(etag).build();
         }

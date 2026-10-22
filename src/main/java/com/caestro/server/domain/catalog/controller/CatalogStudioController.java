@@ -41,6 +41,7 @@ public class CatalogStudioController implements CatalogStudioApi {
 
     private final CatalogService catalogService;
     private final CatalogPoseService poseService;
+    private final com.caestro.server.domain.catalog.service.CatalogBuiltinService builtinService;
 
     @PostMapping(value = "/images", consumes = {MediaType.IMAGE_PNG_VALUE, MediaType.IMAGE_JPEG_VALUE, MediaType.APPLICATION_OCTET_STREAM_VALUE})
     @Override
@@ -87,6 +88,35 @@ public class CatalogStudioController implements CatalogStudioApi {
     @Override
     public ResponseEntity<CatalogFrameResponse> restoreFrame(@PathVariable String id) {
         return ResponseEntity.ok(catalogService.restoreFrame(id));
+    }
+
+    // ── 기본 프레임 덮어쓰기(5차) ──
+
+    @PutMapping("/builtins/{id}")
+    @Override
+    public ResponseEntity<com.caestro.server.domain.catalog.dto.response.CatalogBuiltinFrameResponse> updateBuiltin(
+            @PathVariable String id, @RequestBody com.caestro.server.domain.catalog.dto.request.UpsertBuiltinFrameRequest request) {
+        return ResponseEntity.ok(builtinService.update(id, request));
+    }
+
+    @DeleteMapping("/builtins/{id}")
+    @Override
+    public ResponseEntity<Void> deleteBuiltin(@PathVariable String id) {
+        builtinService.delete(id);
+        return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/builtins/{id}/restore")
+    @Override
+    public ResponseEntity<com.caestro.server.domain.catalog.dto.response.CatalogBuiltinFrameResponse> restoreBuiltin(@PathVariable String id) {
+        return ResponseEntity.ok(builtinService.restore(id));
+    }
+
+    @PostMapping("/builtins/{id}/reset")
+    @Override
+    public ResponseEntity<Void> resetBuiltin(@PathVariable String id) {
+        builtinService.reset(id);
+        return ResponseEntity.noContent().build();
     }
 
     // ── 배너 ──
@@ -162,7 +192,7 @@ public class CatalogStudioController implements CatalogStudioApi {
     @Override
     public ResponseEntity<CatalogTrashResponse> trash() {
         return ResponseEntity.ok(new CatalogTrashResponse(catalogService.trashedFrames(), catalogService.trashedBanners(),
-                poseService.trashedUploads(), poseService.trashedOverrides()));
+                poseService.trashedUploads(), poseService.trashedOverrides(), builtinService.trashed()));
     }
 
     @DeleteMapping("/trash/frames/{id}")

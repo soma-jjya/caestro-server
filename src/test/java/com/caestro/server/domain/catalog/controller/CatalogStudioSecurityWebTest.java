@@ -52,6 +52,7 @@ class CatalogStudioSecurityWebTest {
     @Autowired private MockMvc mockMvc;
     @MockitoBean private CatalogService catalogService;
     @MockitoBean private CatalogPoseService poseService;
+    @MockitoBean private com.caestro.server.domain.catalog.service.CatalogBuiltinService builtinService;
     @MockitoBean private JwtProvider jwtProvider;
     @MockitoBean private RedisTemplate<String, String> redisTemplate;
     @MockitoBean private JpaMetamodelMappingContext jpaMetamodelMappingContext;

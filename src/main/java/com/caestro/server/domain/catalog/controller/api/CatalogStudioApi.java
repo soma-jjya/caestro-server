@@ -85,6 +85,35 @@ public interface CatalogStudioApi {
     })
     ResponseEntity<CatalogFrameResponse> restoreFrame(String id);
 
+    // ── 기본 프레임 덮어쓰기(5차) ──
+
+    @Operation(summary = "기본 프레임 덮어쓰기", description = "앱에 든 기본 프레임(Black, White, gyaru, street, chrome, birthday, picnic, patchwork, vintage)의 "
+            + "이름·한 줄 소개·Pro·배지·숨김, AI 프레임은 그림·창까지. 보낸 필드만 바뀌고, 이름·소개·배지는 한국어를 비워 보내면 앱에 든 값(배지는 없음)으로. "
+            + "resetArtwork=true 면 앱에 든 그림·창으로.")
+    @SecurityRequirement(name = "StudioKey")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "덮어쓴 값"),
+            @ApiResponse(responseCode = "400", description = "값이 올바르지 않음(단색 프레임에 그림, 창이 4개가 아님 등)"),
+            @ApiResponse(responseCode = "404", description = "기본 프레임 id 가 아님")
+    })
+    ResponseEntity<com.caestro.server.domain.catalog.dto.response.CatalogBuiltinFrameResponse> updateBuiltin(
+            String id, com.caestro.server.domain.catalog.dto.request.UpsertBuiltinFrameRequest request);
+
+    @Operation(summary = "기본 프레임 삭제(휴지통)", description = "앱 목록에서 빠지고 휴지통에 남습니다. 기본 프레임은 정리 배치가 지우지 않아 언제든 되살릴 수 있습니다.")
+    @SecurityRequirement(name = "StudioKey")
+    @ApiResponses({@ApiResponse(responseCode = "204", description = "휴지통으로 감"), @ApiResponse(responseCode = "404", description = "기본 프레임 id 가 아니거나 이미 휴지통")})
+    ResponseEntity<Void> deleteBuiltin(String id);
+
+    @Operation(summary = "기본 프레임 되살리기", description = "휴지통에서 꺼냅니다.")
+    @SecurityRequirement(name = "StudioKey")
+    @ApiResponses({@ApiResponse(responseCode = "200", description = "되살린 값"), @ApiResponse(responseCode = "404", description = "휴지통에 없음")})
+    ResponseEntity<com.caestro.server.domain.catalog.dto.response.CatalogBuiltinFrameResponse> restoreBuiltin(String id);
+
+    @Operation(summary = "기본 프레임 원래대로", description = "덮어쓴 값을 모두 지워 앱에 든 그대로 돌아갑니다(휴지통에 있었으면 되살아납니다).")
+    @SecurityRequirement(name = "StudioKey")
+    @ApiResponses({@ApiResponse(responseCode = "204", description = "원래대로"), @ApiResponse(responseCode = "404", description = "기본 프레임 id 가 아님")})
+    ResponseEntity<Void> resetBuiltin(String id);
+
     // ── 배너 ──
 
     @Operation(summary = "배너 만들기", description = "title.ko 1..60자. action 은 poseGuide|fourCut|fillTogether|frameLibrary|url, url 이면 linkUrl(https) 필요. videoId(선택)는 /catalog/studio/videos 로 올린 동영상.")
