@@ -51,7 +51,7 @@ public class SecurityConfig {
                         // 함께 채우기 이미지: 세션 코드 + 22자 난수 id로만 열리므로 인증 없이 내준다 (앱·웹이 <img>/OkHttp로 그대로 그림)
                         .requestMatchers(HttpMethod.GET, "/fills/*/images/*").permitAll()
                         // 카탈로그(디자이너가 올린 프레임·배너) 읽기: 앱·웹이 로그인 전에도 내려받는다
-                        .requestMatchers(HttpMethod.GET, "/catalog/frames", "/catalog/frames/*", "/catalog/banners", "/catalog/images/*").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/catalog/frames", "/catalog/frames/*", "/catalog/banners", "/catalog/pose", "/catalog/images/*").permitAll()
                         // 스튜디오 쓰기: X-Studio-Key(ROLE_STUDIO) 또는 관리자 JWT
                         .requestMatchers("/catalog/studio/**").hasAnyRole("STUDIO", "ADMIN")
                         .requestMatchers(
