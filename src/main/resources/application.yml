@@ -60,6 +60,9 @@ cleanup:
     cron: "0 30 4 * * *"      # 만료된 함께 채우기 세션(사진 포함) 정리
   catalog:
     cron: "0 50 4 * * *"      # 스튜디오에서 올리고 저장하지 않은 그림(하루 지난 것)과 기한 지난 휴지통 항목 정리
+  daily-usage:
+    cron: "0 10 5 * * *"      # 지난 하루 사용 기록(daily_usages) 정리
+    retention-days: 30
 
 # 함께 채우기 (#fill-together): 사진은 DB(fill_images)에 두고 만료 뒤 배치가 지운다
 fill:
@@ -88,6 +91,12 @@ catalog:
   max-video-bytes: 15728640   # 홈 배너 동영상(MP4) 상한(15MB). catalog_images LONGBLOB 에 같이 두므로 RDS max_allowed_packet(기본 64MB)보다 작게
   public-base-url: https://api.peakpic.app   # 그림 URL 의 호스트 (fill.public-base-url 과 같은 이유로 고정)
   trash-days: 7               # 지운 프레임·배너·포즈 사진이 휴지통에 남는 날수. 지나면 정리 배치가 완전히 지운다(포즈 덧씌우기는 숨김으로 남김)
+
+# 무료 사용자 하루 한도 (contracts/fourcut-daily-limit.md). 프리미엄 구독 중이면 없다
+limits:
+  zone: Asia/Seoul            # 이 시간대의 자정에 하루가 바뀐다
+  fourcut-save:
+    daily-free: 3             # 완성한 네컷을 앨범에 저장하기, 하루 횟수
 
 # 브라우저 클라이언트(peakpic.app 웹에서 채우기) 허용 출처. 로컬 개발은 프로파일에서 http://localhost:포트 를 덧붙인다
 cors:
