@@ -56,14 +56,13 @@ public interface FillApi {
     ResponseEntity<FillResponse> get(String code, CustomUserDetails userDetails);
 
     @Operation(summary = "칸 채우기",
-            description = "본문은 이미지 바이트(image/jpeg 또는 image/png, 최대 3MB). 비어 있거나 본인이 채운 칸만 가능하며, "
-                    + "다른 사람이 채운 칸이면 409와 함께 최신 상태를 돌려줍니다. name은 웹 참여자의 표시 이름(선택).")
+            description = "본문은 이미지 바이트(image/jpeg 또는 image/png, 최대 3MB). 빈 칸이든 누가 채운 칸이든 누구나 넣을 수 있으며, "
+                    + "채워진 칸이었으면 이전 사진은 클립과 함께 대기열(queue) 맨 아래로 내려갑니다. name은 웹 참여자의 표시 이름(선택).")
     @SecurityRequirement(name = "BearerAuth")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "채움",
                     content = @Content(schema = @Schema(implementation = FillResponse.class))),
             @ApiResponse(responseCode = "400", description = "이미지가 아니거나 칸 번호가 잘못됨"),
-            @ApiResponse(responseCode = "409", description = "다른 사람이 먼저 채운 칸"),
             @ApiResponse(responseCode = "413", description = "이미지가 너무 큼")
     })
     ResponseEntity<FillResponse> fillSlot(String code, int index, String name, byte[] body, String contentType,
@@ -83,13 +82,32 @@ public interface FillApi {
     ResponseEntity<FillResponse> uploadSlotClip(String code, int index, byte[] body, String contentType,
                                                 CustomUserDetails userDetails);
 
-    @Operation(summary = "칸 비우기", description = "본인이 채운 칸, 또는 세션 주인은 어느 칸이든 비울 수 있습니다.")
+    @Operation(summary = "칸 비우기", description = "누구나 어느 칸이든 비울 수 있습니다. 사진은 지워지지 않고 대기열(queue) 맨 아래로 내려가 되돌릴 수 있습니다.")
     @SecurityRequirement(name = "BearerAuth")
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "비움"),
-            @ApiResponse(responseCode = "403", description = "남이 채운 칸(주인 아님)")
+            @ApiResponse(responseCode = "200", description = "비움")
     })
     ResponseEntity<FillResponse> clearSlot(String code, int index, CustomUserDetails userDetails);
+
+    @Operation(summary = "대기열에서 지우기", description = "칸에서 밀려나 대기열에 있는 사진을 지웁니다(누구나). 사진·클립 바이트도 사라집니다.")
+    @SecurityRequirement(name = "BearerAuth")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "지움",
+                    content = @Content(schema = @Schema(implementation = FillResponse.class))),
+            @ApiResponse(responseCode = "404", description = "대기열에 그 사진이 없음")
+    })
+    ResponseEntity<FillResponse> deleteQueued(String code, long id, CustomUserDetails userDetails);
+
+    @Operation(summary = "대기열에서 칸으로 되돌리기", description = "대기열의 사진을 slot 번 칸(0~3)에 넣습니다(누구나). "
+            + "그 칸에 있던 사진은 대기열 맨 아래로 내려갑니다. 사진의 주인·이름·클립이 함께 돌아갑니다.")
+    @SecurityRequirement(name = "BearerAuth")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "되돌림",
+                    content = @Content(schema = @Schema(implementation = FillResponse.class))),
+            @ApiResponse(responseCode = "400", description = "칸 번호가 잘못됨"),
+            @ApiResponse(responseCode = "404", description = "대기열에 그 사진이 없음")
+    })
+    ResponseEntity<FillResponse> restoreQueued(String code, long id, int slot, CustomUserDetails userDetails);
 
     @Operation(summary = "커스텀 프레임 요소 업로드", description = "세션 주인이 커스텀 프레임의 k번째 요소 PNG를 올립니다. 응답 url이 customFrame.layers[k].url에 채워집니다.")
     @SecurityRequirement(name = "BearerAuth")

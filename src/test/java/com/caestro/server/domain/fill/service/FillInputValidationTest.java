@@ -10,6 +10,8 @@ import static org.mockito.Mockito.when;
 
 import com.caestro.server.domain.fill.entity.FillSession;
 import com.caestro.server.domain.fill.entity.FillSlot;
+import com.caestro.server.domain.fill.entity.FillQueueItem;
+import com.caestro.server.domain.fill.repository.FillQueueRepository;
 import com.caestro.server.domain.fill.repository.FillSessionRepository;
 import com.caestro.server.domain.fill.repository.FillSlotRepository;
 import com.caestro.server.domain.fill.store.FillImageStore;
@@ -39,7 +41,7 @@ import org.springframework.test.util.ReflectionTestUtils;
  * 입력 검증 결함 3건의 재현·방어 (#151).
  * ① 표시 이름이 컬럼(40자)보다 길면 DB가 거부해 500 + 5xx 알람이 됐다 → 잘라서 받는다.
  * ② 코드 대문자화를 메서드마다 기억해야 했고 delete·image가 빠뜨려 소문자 코드에 404를 줬다 → 한 곳으로 모았다.
- * ③ 남의 칸이면 사진을 저장하기 전에 거절한다(고아 이미지 방지). 동시 경합은 {@code FillSlotRaceTest}가 본다.
+ * ③ (바뀜, #fill-queue) 남의 칸도 바꿀 수 있다 — 이전 사진은 지워지지 않고 대기열로 간다. 동시 경합은 {@code FillSlotRaceTest}가 본다.
  */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
@@ -49,6 +51,7 @@ class FillInputValidationTest {
 
     @Mock private FillSessionRepository sessionRepository;
     @Mock private FillSlotRepository slotRepository;
+    @Mock private FillQueueRepository queueRepository;
     @Mock private FillImageStore imageStore;
     @Mock private UserRepository userRepository;
     @Mock private FillCodeGenerator codeGenerator;
@@ -61,8 +64,9 @@ class FillInputValidationTest {
 
     @BeforeEach
     void setUp() {
-        service = new FillService(sessionRepository, slotRepository, imageStore, userRepository,
+        service = new FillService(sessionRepository, slotRepository, queueRepository, imageStore, userRepository,
                 codeGenerator, new ObjectMapper(), clock);
+        ReflectionTestUtils.setField(service, "queueMax", 12);
         ReflectionTestUtils.setField(service, "ttlDays", 7L);
         ReflectionTestUtils.setField(service, "maxImageBytes", 3 * 1024 * 1024);
         ReflectionTestUtils.setField(service, "maxGifBytes", 16 * 1024 * 1024);
@@ -130,18 +134,21 @@ class FillInputValidationTest {
     }
 
     @Test
-    @DisplayName("남이 채운 칸이면 사진을 저장하기 전에 409로 끝난다 — 주인 없는 사진이 남지 않는다")
-    void takenSlot_rejectedBeforeStoringImage() {
+    @DisplayName("남이 채운 칸도 바꿀 수 있다 — 새 사진이 칸에, 이전 사진은 대기열에 (#fill-queue)")
+    void takenSlot_replacedAndPreviousQueued() {
         User friend = User.builder().nickname("친구").role(User.Role.USER).build();
         ReflectionTestUtils.setField(friend, "id", 2L);
         slot.fill(friend, "친구", "imgOther00000000000001", LocalDateTime.now(clock));
+        when(imageStore.store(any(), anyString(), any())).thenReturn("imgMine000000000000001");
+        when(queueRepository.save(any(FillQueueItem.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        assertThatThrownBy(() -> service.fillSlot("K7X2MQ", 0, 1L, "주인", JPEG, "image/jpeg"))
-                .isInstanceOf(CustomException.class)
-                .extracting(e -> ((CustomException) e).getErrorCode())
-                .isEqualTo(ErrorCode.FILL_SLOT_TAKEN);
+        service.fillSlot("K7X2MQ", 0, 1L, "주인", JPEG, "image/jpeg");
 
-        verify(imageStore, never()).store(any(), anyString(), any());
+        verify(imageStore).store(any(), anyString(), any());
+        verify(imageStore, never()).delete(any(), anyString());
+        verify(queueRepository).save(any(FillQueueItem.class));
+        assertThat(slot.getImageId()).isEqualTo("imgMine000000000000001");
+        assertThat(slot.isFilledBy(1L)).isTrue();
     }
 
     @Test

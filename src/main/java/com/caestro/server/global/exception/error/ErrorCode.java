@@ -47,6 +47,7 @@ public enum ErrorCode {
     FILL_INVALID_GIF(400, "GIF 파일이 아닙니다"),
     FILL_GIF_TOO_LARGE(413, "GIF가 너무 큽니다 (최대 16MB)"),
     FILL_IMAGE_NOT_FOUND(404, "이미지를 찾을 수 없습니다"),
+    FILL_QUEUE_ITEM_NOT_FOUND(404, "대기열에 그 사진이 없습니다"),
     FILL_CODE_GENERATION_FAILED(500, "함께 채우기 코드 생성에 실패했습니다"),
     FILL_TOO_MANY_SESSIONS(429, "진행 중인 함께 채우기 세션이 너무 많습니다 (최대 20개). 끝난 세션을 지워주세요"),
     BAD_REQUEST(400, "잘못된 요청입니다"),
