@@ -235,6 +235,60 @@ class CatalogServiceTest {
     }
 
     @Test
+    @DisplayName("Pro·배지(4차): 새 프레임은 Pro 가 기본, 무료로 만들 수 있고 배지는 en 이 비면 ko 를 복사한다")
+    void createFrame_proAndBadge() {
+        given(imageRepository.findById(image.getId())).willReturn(Optional.of(image));
+        LocalizedText title = new LocalizedText("봄 소풍", null);
+
+        CatalogFrameResponse plain = service.createFrame(new UpsertFrameRequest(title, null, image.getId(), WINDOWS, null, null));
+        CatalogFrameResponse free = service.createFrame(new UpsertFrameRequest(title, null, image.getId(), WINDOWS, null, null,
+                false, new LocalizedText(" 이벤트 ", "")));
+
+        assertThat(plain.pro()).isTrue();
+        assertThat(plain.badge()).isNull();
+        assertThat(free.pro()).isFalse();
+        assertThat(free.badge()).isEqualTo(new LocalizedText("이벤트", "이벤트"));
+    }
+
+    @Test
+    @DisplayName("Pro·배지(4차): 수정은 보낸 것만 바꾸고, 한국어가 빈 배지는 지운다. 너무 긴 배지는 400")
+    void updateFrame_proAndBadge() {
+        CatalogFrame frame = frame("af_a", false, 0, LocalDateTime.now(clock));
+        given(frameRepository.findById("af_a")).willReturn(Optional.of(frame));
+
+        CatalogFrameResponse freed = service.updateFrame("af_a", new UpsertFrameRequest(null, null, null, null, null, null,
+                false, new LocalizedText("인기", "Hot")));
+        assertThat(freed.pro()).isFalse();
+        assertThat(freed.badge()).isEqualTo(new LocalizedText("인기", "Hot"));
+
+        CatalogFrameResponse untouched = service.updateFrame("af_a", new UpsertFrameRequest(null, null, null, null, 5, null));
+        assertThat(untouched.pro()).isFalse();
+        assertThat(untouched.badge()).isEqualTo(new LocalizedText("인기", "Hot"));
+
+        CatalogFrameResponse cleared = service.updateFrame("af_a", new UpsertFrameRequest(null, null, null, null, null, null,
+                true, new LocalizedText("", "Hot")));
+        assertThat(cleared.pro()).isTrue();
+        assertThat(cleared.badge()).isNull();
+
+        assertThatThrownBy(() -> service.updateFrame("af_a", new UpsertFrameRequest(null, null, null, null, null, null,
+                null, new LocalizedText("아주아주긴배지문구", null))))
+                .isInstanceOf(CustomException.class);
+    }
+
+    @Test
+    @DisplayName("Pro·배지(4차): 열이 생기기 전 행(pro null)은 Pro 로 내려간다")
+    void legacyFrameIsPro() {
+        CatalogFrame frame = frame("af_old", false, 0, LocalDateTime.now(clock));
+        given(frameRepository.findById("af_old")).willReturn(Optional.of(frame));
+
+        CatalogFrameResponse res = service.frame("af_old");
+
+        assertThat(frame.getPro()).isNull();
+        assertThat(res.pro()).isTrue();
+        assertThat(res.badge()).isNull();
+    }
+
+    @Test
     @DisplayName("같은 그림 id 로 수정하면 아무것도 지우지 않는다")
     void updateFrame_sameImageKeepsIt() {
         CatalogFrame frame = frame("af_a", false, 0, LocalDateTime.now(clock));
