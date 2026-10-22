@@ -17,4 +17,9 @@ public interface SubscriptionRepository extends JpaRepository<Subscription, Long
      * 사용자에게 특정 상태이면서 만료 시각이 기준 시각 이후인 구독이 존재하는지 확인한다. (활성 판별 용)
      */
     boolean existsByUserIdAndStatusAndExpiresAtAfter(Long userId, SubscriptionStatus status, LocalDateTime now);
+
+    /**
+     * 스토어 구매 토큰으로 구독을 찾는다. (Google Play 확인·실시간 알림 용)
+     */
+    Optional<Subscription> findByPurchaseToken(String purchaseToken);
 }
