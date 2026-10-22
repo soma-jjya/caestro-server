@@ -1,5 +1,6 @@
 package com.caestro.server.global.config;
 
+import com.caestro.server.domain.catalog.controller.CatalogUploadSizeInterceptor;
 import com.caestro.server.domain.fill.controller.FillUploadSizeInterceptor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
@@ -20,9 +21,15 @@ public class WebMvcConfig implements WebMvcConfigurer {
     @Value("${fill.max-clip-bytes:6291456}")
     private long maxClipBytes;
 
+    // 스튜디오 그림(프레임 PNG·배너) 상한 — CatalogService 와 같은 키
+    @Value("${catalog.max-image-bytes:8388608}")
+    private long maxCatalogImageBytes;
+
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
         registry.addInterceptor(new FillUploadSizeInterceptor(maxImageBytes, maxGifBytes, maxClipBytes))
                 .addPathPatterns("/fills/*/slots/*", "/fills/*/slots/*/clip", "/fills/*/frame-assets/*", "/fills/*/gif");
+        registry.addInterceptor(new CatalogUploadSizeInterceptor(maxCatalogImageBytes))
+                .addPathPatterns("/catalog/studio/images");
     }
 }

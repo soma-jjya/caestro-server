@@ -58,6 +58,8 @@ cleanup:
     cron: "0 0 4 * * *"       # 매일 새벽 4시
   fill:
     cron: "0 30 4 * * *"      # 만료된 함께 채우기 세션(사진 포함) 정리
+  catalog:
+    cron: "0 50 4 * * *"      # 스튜디오에서 올리고 저장하지 않은 그림(하루 지난 것) 정리
 
 # 함께 채우기 (#fill-together): 사진은 DB(fill_images)에 두고 만료 뒤 배치가 지운다
 fill:
@@ -78,6 +80,12 @@ fill:
     create-window-seconds: 3600
     upload-limit: 30          # 칸 사진·프레임 요소·GIF 합산
     upload-window-seconds: 60
+
+# 카탈로그(디자이너 스튜디오, contracts/catalog-studio.md): 서버에서 내려주는 AI 네컷 프레임·홈 배너
+catalog:
+  studio-key: ""              # peakpic.app/studio 가 X-Studio-Key 로 보내는 키. 비면 스튜디오(쓰기) 전체 403. 운영은 prod yml/Secret
+  max-image-bytes: 8388608    # 프레임 PNG·배너 그림 상한(8MB)
+  public-base-url: https://api.peakpic.app   # 그림 URL 의 호스트 (fill.public-base-url 과 같은 이유로 고정)
 
 # 브라우저 클라이언트(peakpic.app 웹에서 채우기) 허용 출처. 로컬 개발은 프로파일에서 http://localhost:포트 를 덧붙인다
 cors:
