@@ -85,6 +85,7 @@ fill:
 catalog:
   studio-key: ""              # peakpic.app/studio 가 X-Studio-Key 로 보내는 키. 비면 스튜디오(쓰기) 전체 403. 운영은 prod yml/Secret
   max-image-bytes: 8388608    # 프레임 PNG·배너 그림 상한(8MB)
+  max-video-bytes: 15728640   # 홈 배너 동영상(MP4) 상한(15MB). catalog_images LONGBLOB 에 같이 두므로 RDS max_allowed_packet(기본 64MB)보다 작게
   public-base-url: https://api.peakpic.app   # 그림 URL 의 호스트 (fill.public-base-url 과 같은 이유로 고정)
   trash-days: 7               # 지운 프레임·배너·포즈 사진이 휴지통에 남는 날수. 지나면 정리 배치가 완전히 지운다(포즈 덧씌우기는 숨김으로 남김)
 

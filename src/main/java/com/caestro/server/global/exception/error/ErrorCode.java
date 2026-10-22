@@ -57,6 +57,8 @@ public enum ErrorCode {
     CATALOG_INVALID_FRAME(400, "프레임 값이 올바르지 않습니다 (제목, 창 4개, imageId)"),
     CATALOG_INVALID_BANNER(400, "배너 값이 올바르지 않습니다 (제목, action, linkUrl, imageId)"),
     CATALOG_IMAGE_TOO_LARGE(413, "그림이 너무 큽니다 (최대 8MB)"),
+    CATALOG_VIDEO_TOO_LARGE(413, "동영상이 너무 큽니다 (최대 15MB)"),
+    CATALOG_INVALID_VIDEO(400, "동영상 값이 올바르지 않습니다 (MP4, 폭·높이 1..4096, 길이 0.5..60초)"),
     CATALOG_LAST_BANNER(409, "홈 배너는 최소 한 개는 보여야 합니다"),
     CATALOG_NOT_IN_TRASH(404, "휴지통에 그 항목이 없습니다"),
     CATALOG_POSE_UPLOAD_NOT_FOUND(404, "포즈 사진을 찾을 수 없습니다"),

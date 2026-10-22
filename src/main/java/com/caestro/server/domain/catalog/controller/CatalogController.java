@@ -12,6 +12,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import java.time.Instant;
 import java.util.concurrent.TimeUnit;
 import lombok.RequiredArgsConstructor;
+import org.springframework.core.io.ByteArrayResource;
 import org.springframework.http.CacheControl;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -84,15 +85,18 @@ public class CatalogController implements CatalogApi {
         return ResponseEntity.ok().eTag(etag).cacheControl(CacheControl.noCache()).body(body);
     }
 
-    // 내용이 바뀌지 않는 난수 id 라 오래 캐시한다
+    // 내용이 바뀌지 않는 난수 id 라 오래 캐시한다. 동영상은 Resource 로 내줘 Spring 이 Range 요청에 206 으로 답한다
     @GetMapping("/images/{imageId}")
     @Override
-    public ResponseEntity<byte[]> image(@PathVariable String imageId) {
+    public ResponseEntity<?> image(@PathVariable String imageId) {
         StoredImage image = catalogService.image(imageId);
-        return ResponseEntity.ok()
+        ResponseEntity.BodyBuilder ok = ResponseEntity.ok()
                 .contentType(MediaType.parseMediaType(image.contentType()))
-                .cacheControl(CacheControl.maxAge(30, TimeUnit.DAYS).cachePublic())
-                .body(image.data());
+                .cacheControl(CacheControl.maxAge(30, TimeUnit.DAYS).cachePublic());
+        if (image.contentType().startsWith("video/")) {
+            return ok.body(new ByteArrayResource(image.data()));
+        }
+        return ok.body(image.data());
     }
 
     /** 약한 ETag: 가장 최근 수정 시각과 개수. 숨김 포함 여부가 다르면 다른 값이어야 하므로 섞는다. */

@@ -10,6 +10,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -17,6 +18,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.caestro.server.domain.catalog.dto.response.CatalogFrameListResponse;
 import com.caestro.server.domain.catalog.dto.response.CatalogImageResponse;
 import com.caestro.server.domain.catalog.dto.response.CatalogPoseResponse;
+import com.caestro.server.domain.catalog.dto.response.CatalogVideoResponse;
+import com.caestro.server.domain.fill.store.StoredImage;
 import com.caestro.server.domain.catalog.service.CatalogPoseService;
 import com.caestro.server.domain.catalog.service.CatalogService;
 import com.caestro.server.global.config.SecurityConfig;
@@ -43,7 +46,7 @@ import org.springframework.test.web.servlet.MockMvc;
  */
 @WebMvcTest(controllers = {CatalogController.class, CatalogStudioController.class})
 @Import({SecurityConfig.class, WebMvcConfig.class})
-@TestPropertySource(properties = {"catalog.studio-key=test-studio-key", "catalog.max-image-bytes=1024"})
+@TestPropertySource(properties = {"catalog.studio-key=test-studio-key", "catalog.max-image-bytes=1024", "catalog.max-video-bytes=2048"})
 class CatalogStudioSecurityWebTest {
 
     @Autowired private MockMvc mockMvc;
@@ -172,5 +175,58 @@ class CatalogStudioSecurityWebTest {
                 .andExpect(jsonPath("$.message").value(ErrorCode.CATALOG_IMAGE_TOO_LARGE.getMessage()));
 
         verifyNoInteractions(catalogService);
+    }
+
+    @Test
+    @DisplayName("동영상 올리기: 키 없이 403, 맞는 키면 201, 상한을 넘는 Content-Length 는 서비스 전에 413")
+    void uploadVideo() throws Exception {
+        MediaType mp4 = MediaType.parseMediaType("video/mp4");
+        mockMvc.perform(post("/catalog/studio/videos").param("width", "10").param("height", "10").param("durationMs", "1000")
+                        .contentType(mp4).content(new byte[100]))
+                .andExpect(status().isForbidden());
+
+        given(catalogService.storeVideo(any(byte[].class), anyString(), eq(1080), eq(1350), eq(8200)))
+                .willReturn(new CatalogVideoResponse("vid", "https://api.peakpic.app/catalog/images/vid", 1080, 1350, 8200, "video/mp4"));
+        mockMvc.perform(post("/catalog/studio/videos").header("X-Studio-Key", "test-studio-key")
+                        .param("width", "1080").param("height", "1350").param("durationMs", "8200")
+                        .contentType(mp4).content(new byte[100]))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.videoId").value("vid"))
+                .andExpect(jsonPath("$.durationMs").value(8200));
+
+        mockMvc.perform(post("/catalog/studio/videos").header("X-Studio-Key", "test-studio-key")
+                        .param("width", "1080").param("height", "1350").param("durationMs", "8200")
+                        .contentType(mp4).content(new byte[2049]))
+                .andExpect(status().is(413))
+                .andExpect(jsonPath("$.message").value(ErrorCode.CATALOG_VIDEO_TOO_LARGE.getMessage()));
+        verify(catalogService, org.mockito.Mockito.times(1)).storeVideo(any(byte[].class), anyString(), any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("동영상 바이트는 Range 요청에 206 과 Content-Range 로 답하고, 그림은 그대로 200")
+    void video_rangeRequest() throws Exception {
+        byte[] data = new byte[100];
+        for (int i = 0; i < data.length; i++) {
+            data[i] = (byte) i;
+        }
+        given(catalogService.image("vid")).willReturn(new StoredImage("vid", "video/mp4", data));
+        given(catalogService.image("img")).willReturn(new StoredImage("img", "image/png", new byte[]{1, 2, 3}));
+
+        mockMvc.perform(get("/catalog/images/vid").header("Range", "bytes=10-19"))
+                .andExpect(status().isPartialContent())
+                .andExpect(header().string("Accept-Ranges", "bytes"))
+                .andExpect(header().string("Content-Range", "bytes 10-19/100"))
+                .andExpect(content().bytes(java.util.Arrays.copyOfRange(data, 10, 20)));
+
+        mockMvc.perform(get("/catalog/images/vid"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Accept-Ranges", "bytes"))
+                .andExpect(content().contentType("video/mp4"))
+                .andExpect(content().bytes(data));
+
+        mockMvc.perform(get("/catalog/images/img"))
+                .andExpect(status().isOk())
+                .andExpect(content().contentType("image/png"))
+                .andExpect(content().bytes(new byte[]{1, 2, 3}));
     }
 }

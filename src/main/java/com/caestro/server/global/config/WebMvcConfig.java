@@ -2,6 +2,7 @@ package com.caestro.server.global.config;
 
 import com.caestro.server.domain.catalog.controller.CatalogUploadSizeInterceptor;
 import com.caestro.server.domain.fill.controller.FillUploadSizeInterceptor;
+import com.caestro.server.global.exception.error.ErrorCode;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
@@ -25,11 +26,17 @@ public class WebMvcConfig implements WebMvcConfigurer {
     @Value("${catalog.max-image-bytes:8388608}")
     private long maxCatalogImageBytes;
 
+    // 배너 동영상(MP4) 상한 — CatalogService 와 같은 키
+    @Value("${catalog.max-video-bytes:15728640}")
+    private long maxCatalogVideoBytes;
+
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
         registry.addInterceptor(new FillUploadSizeInterceptor(maxImageBytes, maxGifBytes, maxClipBytes))
                 .addPathPatterns("/fills/*/slots/*", "/fills/*/slots/*/clip", "/fills/*/frame-assets/*", "/fills/*/gif");
         registry.addInterceptor(new CatalogUploadSizeInterceptor(maxCatalogImageBytes))
                 .addPathPatterns("/catalog/studio/images");
+        registry.addInterceptor(new CatalogUploadSizeInterceptor(maxCatalogVideoBytes, ErrorCode.CATALOG_VIDEO_TOO_LARGE))
+                .addPathPatterns("/catalog/studio/videos");
     }
 }
