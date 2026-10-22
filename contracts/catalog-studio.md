@@ -185,12 +185,12 @@ GET /catalog/pose  (공개, ETag)   ?all=true + 스튜디오 키 → 숨김 포�
 }
 ```
 - 라벨 키는 앱의 meta 라벨과 같은 한국어 토큰: `장소`(필수, 값은 거리·계단·광장·자연·공원·전시·실내·카페·해변 또는 자유 입력 ≤ 20자),
-  `성별`(남자|여자), `인종`(≤ 20자 자유 입력; **앱에는 절대 보이지 않는 내부 분류**), `계절`(봄·가을|여름|겨울). 빈 값은 키를 뺀다.
+  `성별`(남자|여자), `인종`(동양|서양; **앱에는 절대 보이지 않는 내부 분류**), `계절`(봄·가을|여름|겨울). 빈 값은 키를 뺀다.
 - `PUT /catalog/studio/pose/overrides/{version}/{shot}` `{ "hidden"?: bool, "labels"?: {…}, "deleted"?: bool }` → 200 override.
   `deleted=true` 는 휴지통(숨김 + deletedAt/purgeAt, trash 목록 `poseOverrides` 에 나옴), 복구는 `POST /catalog/studio/pose/overrides/{version}/{shot}/restore`.
   purge 때는 S3 를 지울 수 없으므로 `hidden=true` 로 영구히 남긴다. hidden=false·labels 비어 있음·deleted 아님이면 행을 지운다.
 - `POST /catalog/studio/pose/uploads` `{ "imageId", "labels": {…}, "sortOrder"?, "hidden"? }` → 201. `PUT …/{id}` 부분 갱신, `DELETE …/{id}` 휴지통.
-- 검증(400 `CATALOG_INVALID_POSE`): 장소 필수, 성별·계절은 허용값, 이미지 존재.
+- 검증(400 `CATALOG_INVALID_POSE`): 장소 필수, 성별·계절·인종은 허용값, 이미지 존재.
 - 앱 규칙: 어떤 분류 축(장소·성별·계절)은 **보이는 사진을 가진 값이 2개 이상**일 때만 화면에 나온다. 성별은 파이프라인 샷의 `세트`("gpt_여자·1인")에서 여자/남자를 읽고 overrides 로 덮는다. `인종` 은 어디에도 표시하지 않는다.
 
 ### DDL

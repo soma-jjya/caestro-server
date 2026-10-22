@@ -46,6 +46,8 @@ public class CatalogPoseService {
     static final List<String> LABEL_KEYS = List.of(LABEL_PLACE, LABEL_GENDER, LABEL_RACE, LABEL_SEASON);
     static final Set<String> GENDERS = Set.of("남자", "여자");
     static final Set<String> SEASONS = Set.of("봄·가을", "여름", "겨울");
+    // 인종은 스튜디오에서 고르는 두 값만 (앱에는 보이지 않는 내부 분류)
+    static final Set<String> RACES = Set.of("동양", "서양");
     static final int LABEL_MAX = 20;
     private static final TypeReference<Map<String, String>> LABEL_MAP = new TypeReference<>() {
     };
@@ -248,7 +250,7 @@ public class CatalogPoseService {
 
     /**
      * 네 가지 키만 남기고 값을 다듬는다. 빈 값은 키를 뺀다. 장소는 {@code requirePlace} 일 때 필수,
-     * 성별·계절은 허용값만, 모두 20자 이하. 어긋나면 400.
+     * 성별·계절·인종은 허용값만, 모두 20자 이하. 어긋나면 400.
      */
     static Map<String, String> cleanLabels(Map<String, String> raw, boolean requirePlace) {
         Map<String, String> out = new LinkedHashMap<>();
@@ -272,6 +274,9 @@ public class CatalogPoseService {
             throw new CustomException(ErrorCode.CATALOG_INVALID_POSE);
         }
         if (out.containsKey(LABEL_SEASON) && !SEASONS.contains(out.get(LABEL_SEASON))) {
+            throw new CustomException(ErrorCode.CATALOG_INVALID_POSE);
+        }
+        if (out.containsKey(LABEL_RACE) && !RACES.contains(out.get(LABEL_RACE))) {
             throw new CustomException(ErrorCode.CATALOG_INVALID_POSE);
         }
         return out;

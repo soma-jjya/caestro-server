@@ -142,13 +142,14 @@ class CatalogPoseServiceTest {
     }
 
     @Test
-    @DisplayName("덧씌우기 검증: 허용되지 않는 성별·계절, 20자 넘는 값, 빈 version/shot 은 400")
+    @DisplayName("덧씌우기 검증: 허용되지 않는 성별·계절·인종, 20자 넘는 값, 빈 version/shot 은 400")
     void upsertOverride_validation() {
         lenient().when(overrideRepository.findByVersionAndShot(any(), any())).thenReturn(Optional.empty());
 
         assertInvalidOverride("v012", "s", new UpsertPoseOverrideRequest(null, Map.of("성별", "기타"), null));
         assertInvalidOverride("v012", "s", new UpsertPoseOverrideRequest(null, Map.of("계절", "장마"), null));
         assertInvalidOverride("v012", "s", new UpsertPoseOverrideRequest(null, Map.of("인종", "x".repeat(21)), null));
+        assertInvalidOverride("v012", "s", new UpsertPoseOverrideRequest(null, Map.of("인종", "남미"), null));
         assertInvalidOverride(" ", "s", new UpsertPoseOverrideRequest(true, null, null));
         assertInvalidOverride("v012", "", new UpsertPoseOverrideRequest(true, null, null));
         verify(overrideRepository, never()).save(any(CatalogPoseOverride.class));
