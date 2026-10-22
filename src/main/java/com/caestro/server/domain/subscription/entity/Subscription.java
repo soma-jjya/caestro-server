@@ -70,7 +70,7 @@ public class Subscription {
     @LastModifiedDate
     private LocalDateTime updatedAt;
 
-    // ---- 스토어 결제(contracts/subscription-google-play.md). 수동 부여(MANUAL) 행은 아래가 전부 비어 있다 ----
+    // ---- 스토어 결제(contracts/subscription-google-play.md · subscription-app-store.md). 수동 부여(MANUAL) 행은 아래가 전부 비어 있다 ----
 
     /** 결제가 일어난 곳. 새 값이 늘어도 ALTER 가 필요 없도록 MySQL ENUM 이 아닌 VARCHAR 로 둔다. */
     @Enumerated(EnumType.STRING)
@@ -78,11 +78,11 @@ public class Subscription {
     @Column(length = 20)
     private SubscriptionStore store;
 
-    /** Google Play 구매 토큰. 한 토큰은 한 계정에만 묶인다(유니크). */
+    /** Google Play 구매 토큰, App Store 는 originalTransactionId. 한 값은 한 계정에만 묶인다(유니크). */
     @Column(length = 512)
     private String purchaseToken;
 
-    /** 스토어 상품 ID (peakpic_pro) */
+    /** 스토어 상품 ID (Google Play peakpic_pro, App Store peakpic_pro_monthly 등) */
     @Column(length = 100)
     private String productId;
 
@@ -97,7 +97,7 @@ public class Subscription {
     /** 다음 결제일에 자동 갱신되는지. false 면 해지 예약(만료일까지는 이용 가능) */
     private Boolean autoRenewing;
 
-    /** 마지막 주문 번호 (GPA.xxxx). 환불·문의 대조용 */
+    /** 마지막 주문 번호 (Google Play GPA.xxxx, App Store 마지막 transactionId). 환불·문의 대조용 */
     @Column(length = 100)
     private String latestOrderId;
 

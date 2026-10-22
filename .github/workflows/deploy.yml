@@ -59,6 +59,10 @@ jobs:
             CATALOG_STUDIO_KEY=${{ secrets.CATALOG_STUDIO_KEY }}
             GOOGLE_PLAY_SERVICE_ACCOUNT_JSON=${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
             GOOGLE_PLAY_RTDN_TOKEN=${{ secrets.GOOGLE_PLAY_RTDN_TOKEN }}
+            APPLE_APP_STORE_ISSUER_ID=${{ secrets.APPLE_APP_STORE_ISSUER_ID }}
+            APPLE_APP_STORE_KEY_ID=${{ secrets.APPLE_APP_STORE_KEY_ID }}
+            APPLE_APP_STORE_PRIVATE_KEY=${{ secrets.APPLE_APP_STORE_PRIVATE_KEY }}
+            APPLE_APP_STORE_NOTIFICATION_TOKEN=${{ secrets.APPLE_APP_STORE_NOTIFICATION_TOKEN }}
 
       # 새 인스턴스가 부팅하며 ECR에서 최신 이미지를 pull → 롤링 교체.
       # 완료까지 러너를 20분 붙잡지 않고, refresh를 시작만 시킨다.

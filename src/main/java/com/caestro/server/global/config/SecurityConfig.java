@@ -54,6 +54,8 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/catalog/frames", "/catalog/frames/*", "/catalog/banners", "/catalog/pose", "/catalog/images/*").permitAll()
                         // Google Play 실시간 알림(Pub/Sub 푸시): JWT 가 없다. 컨트롤러가 URL 의 ?token= 으로 확인한다
                         .requestMatchers(HttpMethod.POST, "/subscriptions/google-play/notifications").permitAll()
+                        // App Store 서버 알림(V2): JWT 가 없다. 컨트롤러가 URL 의 ?token= 으로 확인한다
+                        .requestMatchers(HttpMethod.POST, "/subscriptions/app-store/notifications").permitAll()
                         // 스튜디오 쓰기: X-Studio-Key(ROLE_STUDIO) 또는 관리자 JWT
                         .requestMatchers("/catalog/studio/**").hasAnyRole("STUDIO", "ADMIN")
                         .requestMatchers(
