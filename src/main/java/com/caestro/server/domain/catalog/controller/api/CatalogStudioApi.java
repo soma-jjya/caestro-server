@@ -10,6 +10,7 @@ import com.caestro.server.domain.catalog.dto.response.CatalogImageResponse;
 import com.caestro.server.domain.catalog.dto.response.CatalogPoseOverrideResponse;
 import com.caestro.server.domain.catalog.dto.response.CatalogPoseUploadResponse;
 import com.caestro.server.domain.catalog.dto.response.CatalogTrashResponse;
+import com.caestro.server.domain.catalog.dto.response.CatalogVideoResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -33,6 +34,19 @@ public interface CatalogStudioApi {
             @ApiResponse(responseCode = "413", description = "8MB 초과")
     })
     ResponseEntity<CatalogImageResponse> uploadImage(byte[] body, String contentType);
+
+    @Operation(summary = "배너 동영상 올리기",
+            description = "본문은 MP4 바이트(Content-Type: video/mp4, 최대 15MB). 폭·높이·길이(ms)는 브라우저가 읽어 쿼리로 보냅니다"
+                    + "(width·height 1..4096, durationMs 500..60000). 배너를 만들거나 고칠 때 videoId 로 묶습니다.")
+    @SecurityRequirement(name = "StudioKey")
+    @ApiResponses({
+            @ApiResponse(responseCode = "201", description = "저장됨",
+                    content = @Content(schema = @Schema(implementation = CatalogVideoResponse.class))),
+            @ApiResponse(responseCode = "400", description = "MP4 가 아니거나 폭·높이·길이가 범위 밖(CATALOG_INVALID_VIDEO)"),
+            @ApiResponse(responseCode = "403", description = "스튜디오 키 없음/불일치"),
+            @ApiResponse(responseCode = "413", description = "15MB 초과(CATALOG_VIDEO_TOO_LARGE)")
+    })
+    ResponseEntity<CatalogVideoResponse> uploadVideo(byte[] body, String contentType, Integer width, Integer height, Integer durationMs);
 
     // ── 프레임 ──
 
@@ -73,7 +87,7 @@ public interface CatalogStudioApi {
 
     // ── 배너 ──
 
-    @Operation(summary = "배너 만들기", description = "title.ko 1..60자. action 은 poseGuide|fourCut|fillTogether|frameLibrary|url, url 이면 linkUrl(https) 필요.")
+    @Operation(summary = "배너 만들기", description = "title.ko 1..60자. action 은 poseGuide|fourCut|fillTogether|frameLibrary|url, url 이면 linkUrl(https) 필요. videoId(선택)는 /catalog/studio/videos 로 올린 동영상.")
     @SecurityRequirement(name = "StudioKey")
     @ApiResponses({
             @ApiResponse(responseCode = "201", description = "만들어짐",
@@ -82,7 +96,7 @@ public interface CatalogStudioApi {
     })
     ResponseEntity<CatalogBannerResponse> createBanner(UpsertBannerRequest request);
 
-    @Operation(summary = "배너 수정", description = "보낸 필드만 바뀝니다. 마지막으로 보이는 배너를 숨기면 409(홈 배너는 최소 한 개).")
+    @Operation(summary = "배너 수정", description = "보낸 필드만 바뀝니다. 마지막으로 보이는 배너를 숨기면 409(홈 배너는 최소 한 개). videoId 로 동영상을 붙이거나 바꾸고, clearVideo=true 면 뗍니다(쓰이지 않게 된 동영상은 지움).")
     @SecurityRequirement(name = "StudioKey")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "바뀐 배너"),

@@ -57,10 +57,11 @@ public interface CatalogApi {
     })
     ResponseEntity<CatalogPoseResponse> pose(boolean all, String ifNoneMatch, HttpServletRequest request);
 
-    @Operation(summary = "그림 바이트", description = "id 가 난수이고 내용이 안 바뀌므로 30일 캐시합니다.")
+    @Operation(summary = "그림·동영상 바이트", description = "id 가 난수이고 내용이 안 바뀌므로 30일 캐시합니다. 동영상(video/mp4)은 Range 요청을 받습니다(206, Accept-Ranges: bytes).")
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "이미지"),
+            @ApiResponse(responseCode = "200", description = "이미지 또는 동영상"),
+            @ApiResponse(responseCode = "206", description = "동영상의 요청한 범위"),
             @ApiResponse(responseCode = "404", description = "없음")
     })
-    ResponseEntity<byte[]> image(String imageId);
+    ResponseEntity<?> image(String imageId);
 }

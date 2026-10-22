@@ -9,6 +9,7 @@ import com.caestro.server.domain.catalog.dto.response.CatalogBannerResponse;
 import com.caestro.server.domain.catalog.dto.response.CatalogFrameListResponse;
 import com.caestro.server.domain.catalog.dto.response.CatalogFrameResponse;
 import com.caestro.server.domain.catalog.dto.response.CatalogImageResponse;
+import com.caestro.server.domain.catalog.dto.response.CatalogVideoResponse;
 import com.caestro.server.domain.catalog.entity.CatalogBanner;
 import com.caestro.server.domain.catalog.entity.CatalogFrame;
 import com.caestro.server.domain.catalog.entity.CatalogImage;
@@ -47,6 +48,10 @@ public class CatalogService {
 
     static final int WINDOWS = 4;
     static final Set<String> IMAGE_TYPES = Set.of("image/png", "image/jpeg");
+    static final String VIDEO_TYPE = "video/mp4";
+    static final int VIDEO_MAX_SIDE = 4096;
+    static final int VIDEO_MIN_MS = 500;
+    static final int VIDEO_MAX_MS = 60_000;
     static final Set<String> BANNER_ACTIONS = Set.of("poseGuide", "fourCut", "fillTogether", "frameLibrary", "url");
     private static final TypeReference<List<FrameWindowDto>> WINDOW_LIST = new TypeReference<>() {
     };
@@ -60,6 +65,9 @@ public class CatalogService {
 
     @Value("${catalog.max-image-bytes:8388608}")
     private long maxImageBytes;
+
+    @Value("${catalog.max-video-bytes:15728640}")
+    private long maxVideoBytes;
 
     @Value("${catalog.trash-days:7}")
     private int trashDays;
@@ -110,6 +118,41 @@ public class CatalogService {
                 .createdAt(LocalDateTime.now(clock))
                 .build());
         return new CatalogImageResponse(image.getId(), imageUrl(image.getId()), image.getWidth(), image.getHeight(), image.getContentType());
+    }
+
+    /**
+     * 배너 동영상(MP4) 바이트를 저장한다. 폭·높이·길이는 브라우저가 읽어 보낸 값을 범위만 보고 믿는다(서버는 디코딩하지 않는다).
+     * MP4 가 아니면(앞 8바이트의 ftyp 상자) 400, 상한 초과 413.
+     */
+    @Transactional
+    public CatalogVideoResponse storeVideo(byte[] body, String contentType, Integer width, Integer height, Integer durationMs) {
+        String type = contentType == null ? "" : contentType.split(";")[0].trim().toLowerCase();
+        if (body == null || body.length < 12 || !VIDEO_TYPE.equals(type)) {
+            throw new CustomException(ErrorCode.CATALOG_INVALID_VIDEO);
+        }
+        if (body.length > maxVideoBytes) {
+            throw new CustomException(ErrorCode.CATALOG_VIDEO_TOO_LARGE);
+        }
+        if (!(body[4] == 'f' && body[5] == 't' && body[6] == 'y' && body[7] == 'p')) {
+            throw new CustomException(ErrorCode.CATALOG_INVALID_VIDEO);
+        }
+        if (width == null || height == null || durationMs == null
+                || width < 1 || width > VIDEO_MAX_SIDE || height < 1 || height > VIDEO_MAX_SIDE
+                || durationMs < VIDEO_MIN_MS || durationMs > VIDEO_MAX_MS) {
+            throw new CustomException(ErrorCode.CATALOG_INVALID_VIDEO);
+        }
+        CatalogImage video = imageRepository.save(CatalogImage.builder()
+                .id(idGenerator.imageId())
+                .contentType(VIDEO_TYPE)
+                .data(body)
+                .sizeBytes(body.length)
+                .width(width)
+                .height(height)
+                .durationMs(durationMs)
+                .createdAt(LocalDateTime.now(clock))
+                .build());
+        return new CatalogVideoResponse(video.getId(), imageUrl(video.getId()), video.getWidth(), video.getHeight(),
+                video.getDurationMs(), video.getContentType());
     }
 
     @Transactional(readOnly = true)
@@ -261,6 +304,7 @@ public class CatalogService {
         LocalizedText chip = requireText(request.chip(), 20, false, ErrorCode.CATALOG_INVALID_BANNER);
         String action = validAction(request.action(), request.linkUrl());
         CatalogImage image = imageOf(request.imageId(), ErrorCode.CATALOG_INVALID_BANNER);
+        CatalogImage video = request.videoId() == null || request.videoId().isBlank() ? null : videoOf(request.videoId());
         LocalDateTime now = LocalDateTime.now(clock);
         CatalogBanner banner = bannerRepository.save(CatalogBanner.builder()
                 .id(idGenerator.bannerId())
@@ -268,6 +312,7 @@ public class CatalogService {
                 .bodyKo(body == null ? null : body.ko()).bodyEn(body == null ? null : body.en())
                 .chipKo(chip == null ? null : chip.ko()).chipEn(chip == null ? null : chip.en())
                 .image(image).width(image.getWidth()).height(image.getHeight())
+                .video(video)
                 .action(action).linkUrl("url".equals(action) ? request.linkUrl().trim() : null)
                 .sortOrder(request.sortOrder() == null ? 0 : request.sortOrder())
                 .hidden(Boolean.TRUE.equals(request.hidden()))
@@ -305,6 +350,19 @@ public class CatalogService {
             CatalogImage previous = banner.getImage();
             banner.replaceImage(imageOf(request.imageId(), ErrorCode.CATALOG_INVALID_BANNER));
             imageRepository.delete(previous);
+        }
+        // 동영상: clearVideo 가 먼저(떼기), 아니면 다른 videoId 로 바꾸기. 쓰이지 않게 된 동영상은 지운다
+        if (Boolean.TRUE.equals(request.clearVideo())) {
+            CatalogImage previous = banner.replaceVideo(null);
+            if (previous != null) {
+                imageRepository.delete(previous);
+            }
+        } else if (request.videoId() != null && !request.videoId().isBlank()
+                && (banner.getVideo() == null || !request.videoId().equals(banner.getVideo().getId()))) {
+            CatalogImage previous = banner.replaceVideo(videoOf(request.videoId()));
+            if (previous != null) {
+                imageRepository.delete(previous);
+            }
         }
         if (request.sortOrder() != null) {
             banner.setSortOrder(request.sortOrder());
@@ -348,8 +406,12 @@ public class CatalogService {
 
     private void eraseBanner(CatalogBanner banner) {
         CatalogImage image = banner.getImage();
+        CatalogImage video = banner.getVideo();
         bannerRepository.delete(banner);
         imageRepository.delete(image);
+        if (video != null) {
+            imageRepository.delete(video);
+        }
     }
 
     @Transactional(readOnly = true)
@@ -444,6 +506,16 @@ public class CatalogService {
         return imageRepository.findById(imageId).orElseThrow(() -> new CustomException(error));
     }
 
+    /** 배너에 붙일 동영상: /catalog/studio/videos 로 올린 video/mp4 행이어야 한다. */
+    private CatalogImage videoOf(String videoId) {
+        CatalogImage video = imageRepository.findById(videoId)
+                .orElseThrow(() -> new CustomException(ErrorCode.CATALOG_INVALID_BANNER));
+        if (!VIDEO_TYPE.equals(video.getContentType())) {
+            throw new CustomException(ErrorCode.CATALOG_INVALID_BANNER);
+        }
+        return video;
+    }
+
     /** 휴지통에 있어도 돌려준다(세션이 참조 중일 수 있다). */
     private CatalogFrame frameOf(String id) {
         return frameRepository.findById(id).orElseThrow(() -> new CustomException(ErrorCode.CATALOG_FRAME_NOT_FOUND));
@@ -482,7 +554,9 @@ public class CatalogService {
                 LocalizedText.of(b.getBodyKo(), b.getBodyEn()), LocalizedText.of(b.getChipKo(), b.getChipEn()),
                 imageUrl(b.getImage().getId()), b.getWidth(), b.getHeight(), b.getAction(), b.getLinkUrl(),
                 b.getSortOrder(), b.isHidden(), toInstant(b.getCreatedAt()), toInstant(b.getUpdatedAt()),
-                toInstant(b.getDeletedAt()), toInstant(b.getPurgeAt()));
+                toInstant(b.getDeletedAt()), toInstant(b.getPurgeAt()),
+                b.getVideo() == null ? null : imageUrl(b.getVideo().getId()),
+                b.getVideo() == null ? null : b.getVideo().getDurationMs());
     }
 
     public String imageUrl(String imageId) {
