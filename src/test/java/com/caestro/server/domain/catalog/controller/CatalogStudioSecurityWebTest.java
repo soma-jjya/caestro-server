@@ -16,6 +16,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.caestro.server.domain.catalog.dto.response.CatalogFrameListResponse;
 import com.caestro.server.domain.catalog.dto.response.CatalogImageResponse;
+import com.caestro.server.domain.catalog.dto.response.CatalogPoseResponse;
+import com.caestro.server.domain.catalog.service.CatalogPoseService;
 import com.caestro.server.domain.catalog.service.CatalogService;
 import com.caestro.server.global.config.SecurityConfig;
 import com.caestro.server.global.config.WebMvcConfig;
@@ -46,6 +48,7 @@ class CatalogStudioSecurityWebTest {
 
     @Autowired private MockMvc mockMvc;
     @MockitoBean private CatalogService catalogService;
+    @MockitoBean private CatalogPoseService poseService;
     @MockitoBean private JwtProvider jwtProvider;
     @MockitoBean private RedisTemplate<String, String> redisTemplate;
     @MockitoBean private JpaMetamodelMappingContext jpaMetamodelMappingContext;
@@ -86,6 +89,51 @@ class CatalogStudioSecurityWebTest {
     }
 
     @Test
+    @DisplayName("포즈추천 덧씌우기는 인증 없이 열리고, 키가 있을 때만 all=true 가 숨김을 포함한다")
+    void pose_public() throws Exception {
+        given(poseService.pose(anyBoolean())).willReturn(new CatalogPoseResponse(null, List.of(), List.of()));
+
+        mockMvc.perform(get("/catalog/pose").param("all", "true"))
+                .andExpect(status().isOk())
+                .andExpect(header().exists("ETag"))
+                .andExpect(jsonPath("$.overrides").isArray())
+                .andExpect(jsonPath("$.uploads").isArray());
+        verify(poseService).pose(false);
+
+        mockMvc.perform(get("/catalog/pose").param("all", "true").header("X-Studio-Key", "test-studio-key"))
+                .andExpect(status().isOk());
+        verify(poseService).pose(true);
+    }
+
+    @Test
+    @DisplayName("휴지통·복구·포즈 쓰기도 키 없이는 403")
+    void trashAndPose_forbiddenWithoutKey() throws Exception {
+        mockMvc.perform(get("/catalog/studio/trash")).andExpect(status().isForbidden());
+        mockMvc.perform(post("/catalog/studio/frames/af_x/restore")).andExpect(status().isForbidden());
+        mockMvc.perform(delete("/catalog/studio/trash/banners/hb_x")).andExpect(status().isForbidden());
+        mockMvc.perform(post("/catalog/studio/pose/uploads").contentType(MediaType.APPLICATION_JSON).content("{}"))
+                .andExpect(status().isForbidden());
+        verifyNoInteractions(catalogService, poseService);
+    }
+
+    @Test
+    @DisplayName("맞는 키면 휴지통 목록 200, 완전 삭제 204")
+    void trash_allowedWithKey() throws Exception {
+        given(catalogService.trashedFrames()).willReturn(List.of());
+        given(catalogService.trashedBanners()).willReturn(List.of());
+        given(poseService.trashedUploads()).willReturn(List.of());
+        given(poseService.trashedOverrides()).willReturn(List.of());
+
+        mockMvc.perform(get("/catalog/studio/trash").header("X-Studio-Key", "test-studio-key"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.frames").isArray())
+                .andExpect(jsonPath("$.poseOverrides").isArray());
+        mockMvc.perform(delete("/catalog/studio/trash/pose/uploads/pu_x").header("X-Studio-Key", "test-studio-key"))
+                .andExpect(status().isNoContent());
+        verify(poseService).purgeUpload(eq("pu_x"));
+    }
+
+    @Test
     @DisplayName("스튜디오 쓰기는 키 없이 403, 틀린 키도 403")
     void studio_forbiddenWithoutKey() throws Exception {
         mockMvc.perform(post("/catalog/studio/frames").contentType(MediaType.APPLICATION_JSON).content("{}"))
@@ -96,7 +144,7 @@ class CatalogStudioSecurityWebTest {
         mockMvc.perform(delete("/catalog/studio/banners/hb_x"))
                 .andExpect(status().isForbidden());
 
-        verifyNoInteractions(catalogService);
+        verifyNoInteractions(catalogService, poseService);
     }
 
     @Test

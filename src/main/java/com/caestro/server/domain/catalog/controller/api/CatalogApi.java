@@ -3,6 +3,7 @@ package com.caestro.server.domain.catalog.controller.api;
 import com.caestro.server.domain.catalog.dto.response.CatalogBannerListResponse;
 import com.caestro.server.domain.catalog.dto.response.CatalogFrameListResponse;
 import com.caestro.server.domain.catalog.dto.response.CatalogFrameResponse;
+import com.caestro.server.domain.catalog.dto.response.CatalogPoseResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.enums.ParameterIn;
@@ -14,7 +15,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.ResponseEntity;
 
-@Tag(name = "Catalog", description = "카탈로그 — 디자이너가 올린 AI 네컷 프레임과 홈 배너를 앱·웹이 내려받는다 (인증 없음)")
+@Tag(name = "Catalog", description = "카탈로그 — 디자이너가 올린 AI 네컷 프레임·홈 배너·포즈추천 덧씌우기를 앱·웹이 내려받는다 (인증 없음)")
 public interface CatalogApi {
 
     @Operation(summary = "프레임 목록",
@@ -44,6 +45,17 @@ public interface CatalogApi {
             @ApiResponse(responseCode = "304", description = "바뀐 것이 없음")
     })
     ResponseEntity<CatalogBannerListResponse> banners(boolean all, String ifNoneMatch, HttpServletRequest request);
+
+    @Operation(summary = "포즈추천 덧씌우기·스튜디오 업로드",
+            description = "overrides: 파이프라인 샷의 숨김·추가 라벨(숨김이거나 라벨이 있는 것만; 휴지통은 hidden=true). "
+                    + "uploads: 디자이너가 올린 AI 사진(숨김·휴지통 제외). ETag/If-None-Match 지원. 스튜디오 키 + all=true 면 숨긴 업로드도 포함. "
+                    + "라벨 키는 장소·성별·인종·계절(한국어 토큰); 인종은 앱에 보이지 않는 내부 분류입니다.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "덧씌우기와 업로드",
+                    content = @Content(schema = @Schema(implementation = CatalogPoseResponse.class))),
+            @ApiResponse(responseCode = "304", description = "바뀐 것이 없음")
+    })
+    ResponseEntity<CatalogPoseResponse> pose(boolean all, String ifNoneMatch, HttpServletRequest request);
 
     @Operation(summary = "그림 바이트", description = "id 가 난수이고 내용이 안 바뀌므로 30일 캐시합니다.")
     @ApiResponses({
