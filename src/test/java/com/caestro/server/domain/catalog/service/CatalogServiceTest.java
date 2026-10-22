@@ -46,7 +46,8 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 /**
  * 카탈로그 규칙: 그림은 PNG/JPEG 만, 프레임은 창 4개가 이미지 안에, 숨김은 목록에서만 빠지고 id 로는 열린다,
- * 그림을 바꾸거나 지우면 이전 그림도 지운다, 저장되지 않은 그림은 정리된다.
+ * 그림을 바꾸면 이전 그림도 지운다, 지우기는 휴지통(7일)으로 가고 복구·완전 삭제·기한 정리가 따로 있다,
+ * 홈 배너는 최소 한 개는 보여야 한다, 저장되지 않은 그림은 정리된다.
  */
 @ExtendWith(MockitoExtension.class)
 class CatalogServiceTest {
@@ -71,6 +72,7 @@ class CatalogServiceTest {
         service = new CatalogService(frameRepository, bannerRepository, imageRepository, idGenerator, new ObjectMapper(), clock);
         ReflectionTestUtils.setField(service, "maxImageBytes", 8L * 1024 * 1024);
         ReflectionTestUtils.setField(service, "publicBaseUrl", "https://api.peakpic.app");
+        ReflectionTestUtils.setField(service, "trashDays", 7);
         image = CatalogImage.builder().id("img000000000000000000A").contentType("image/png").data(new byte[10]).sizeBytes(10)
                 .width(1062).height(1481).createdAt(LocalDateTime.now(clock)).build();
         lenient().when(frameRepository.save(any(CatalogFrame.class))).thenAnswer(inv -> inv.getArgument(0));
@@ -178,7 +180,7 @@ class CatalogServiceTest {
     void frames_hiddenFiltering() {
         LocalDateTime t1 = LocalDateTime.of(2026, 10, 20, 0, 0);
         LocalDateTime t2 = LocalDateTime.of(2026, 10, 21, 0, 0);
-        given(frameRepository.findAllByOrderBySortOrderAscCreatedAtAsc())
+        given(frameRepository.findAllByDeletedAtIsNullOrderBySortOrderAscCreatedAtAsc())
                 .willReturn(List.of(frame("af_a", false, 0, t1), frame("af_b", true, 1, t2)));
 
         CatalogFrameListResponse visible = service.frames(false);
@@ -192,7 +194,7 @@ class CatalogServiceTest {
     @Test
     @DisplayName("빈 목록의 updatedAt 은 null")
     void frames_empty() {
-        given(frameRepository.findAllByOrderBySortOrderAscCreatedAtAsc()).willReturn(List.of());
+        given(frameRepository.findAllByDeletedAtIsNullOrderBySortOrderAscCreatedAtAsc()).willReturn(List.of());
 
         CatalogFrameListResponse res = service.frames(false);
 
@@ -243,15 +245,70 @@ class CatalogServiceTest {
     }
 
     @Test
-    @DisplayName("프레임을 지우면 그림도 지운다")
-    void deleteFrame_removesImage() {
+    @DisplayName("프레임 삭제는 휴지통으로: 행과 그림은 남고 deletedAt·purgeAt(7일 뒤)이 적힌다; id 로는 계속 열리고 수정은 404")
+    void deleteFrame_movesToTrash() {
         CatalogFrame frame = frame("af_a", false, 0, LocalDateTime.now(clock));
         given(frameRepository.findById("af_a")).willReturn(Optional.of(frame));
 
         service.deleteFrame("af_a");
 
-        verify(frameRepository).delete(frame);
+        verify(frameRepository, never()).delete(any(CatalogFrame.class));
+        verify(imageRepository, never()).delete(any(CatalogImage.class));
+        assertThat(frame.isTrashed()).isTrue();
+        assertThat(frame.getPurgeAt()).isEqualTo(LocalDateTime.now(clock).plusDays(7));
+        CatalogFrameResponse res = service.frame("af_a");
+        assertThat(res.deletedAt()).isEqualTo(Instant.parse("2026-10-22T06:00:00Z"));
+        assertThat(res.purgeAt()).isEqualTo(Instant.parse("2026-10-29T06:00:00Z"));
+        assertThatThrownBy(() -> service.deleteFrame("af_a"))
+                .extracting(e -> ((CustomException) e).getErrorCode()).isEqualTo(ErrorCode.CATALOG_FRAME_NOT_FOUND);
+        assertThatThrownBy(() -> service.updateFrame("af_a", new UpsertFrameRequest(null, null, null, null, 1, null)))
+                .extracting(e -> ((CustomException) e).getErrorCode()).isEqualTo(ErrorCode.CATALOG_FRAME_NOT_FOUND);
+    }
+
+    @Test
+    @DisplayName("휴지통 목록·복구·완전 삭제: 복구는 휴지통에 있을 때만, 완전 삭제는 그림까지")
+    void frameTrash_restoreAndPurge() {
+        CatalogFrame trashed = frame("af_t", false, 0, LocalDateTime.of(2026, 10, 20, 0, 0));
+        trashed.moveToTrash(LocalDateTime.of(2026, 10, 21, 0, 0), LocalDateTime.of(2026, 10, 28, 0, 0));
+        CatalogFrame live = frame("af_l", false, 0, LocalDateTime.now(clock));
+        given(frameRepository.findAllByDeletedAtIsNotNullOrderByDeletedAtDesc()).willReturn(List.of(trashed));
+        given(frameRepository.findById("af_t")).willReturn(Optional.of(trashed));
+        given(frameRepository.findById("af_l")).willReturn(Optional.of(live));
+
+        assertThat(service.trashedFrames()).extracting(CatalogFrameResponse::id).containsExactly("af_t");
+        assertThatThrownBy(() -> service.restoreFrame("af_l"))
+                .extracting(e -> ((CustomException) e).getErrorCode()).isEqualTo(ErrorCode.CATALOG_NOT_IN_TRASH);
+        assertThatThrownBy(() -> service.purgeFrame("af_l"))
+                .extracting(e -> ((CustomException) e).getErrorCode()).isEqualTo(ErrorCode.CATALOG_NOT_IN_TRASH);
+
+        CatalogFrameResponse restored = service.restoreFrame("af_t");
+        assertThat(restored.deletedAt()).isNull();
+        assertThat(restored.purgeAt()).isNull();
+        assertThat(restored.updatedAt()).isEqualTo(Instant.parse("2026-10-22T06:00:00Z"));
+
+        trashed.moveToTrash(LocalDateTime.now(clock), LocalDateTime.now(clock).plusDays(7));
+        service.purgeFrame("af_t");
+        verify(frameRepository).delete(trashed);
         verify(imageRepository).delete(image);
+    }
+
+    @Test
+    @DisplayName("기한 정리: purgeAt 이 지난 프레임·배너만 그림과 함께 지운다")
+    void purgeExpiredTrash() {
+        LocalDateTime now = LocalDateTime.now(clock);
+        CatalogFrame expired = frame("af_x", false, 0, now.minusDays(9));
+        expired.moveToTrash(now.minusDays(8), now.minusDays(1));
+        CatalogBanner expiredBanner = CatalogBanner.builder().id("hb_x").titleKo("제목").image(image).width(1).height(1)
+                .sortOrder(0).hidden(false).createdAt(now).updatedAt(now).build();
+        expiredBanner.moveToTrash(now.minusDays(8), now.minusDays(1));
+        given(frameRepository.findAllByPurgeAtBefore(now)).willReturn(List.of(expired));
+        given(bannerRepository.findAllByPurgeAtBefore(now)).willReturn(List.of(expiredBanner));
+
+        assertThat(service.purgeExpiredTrash(now)).isEqualTo(2);
+
+        verify(frameRepository).delete(expired);
+        verify(bannerRepository).delete(expiredBanner);
+        verify(imageRepository, org.mockito.Mockito.times(2)).delete(image);
     }
 
     // ── 배너 ──
@@ -282,19 +339,70 @@ class CatalogServiceTest {
                 .extracting(e -> ((CustomException) e).getErrorCode()).isEqualTo(ErrorCode.CATALOG_INVALID_BANNER);
     }
 
+    private CatalogBanner banner(String id, boolean hidden) {
+        return CatalogBanner.builder().id(id).titleKo("제목").image(image).width(1).height(1)
+                .sortOrder(0).hidden(hidden).createdAt(LocalDateTime.now(clock)).updatedAt(LocalDateTime.now(clock)).build();
+    }
+
     @Test
-    @DisplayName("배너 수정·삭제: 숨김만 바꾸거나, 지우면 그림도 지운다")
+    @DisplayName("배너 수정·삭제: 다른 배너가 보이고 있으면 숨길 수 있고, 지우면 휴지통으로 간다")
     void updateAndDeleteBanner() {
-        CatalogBanner banner = CatalogBanner.builder().id("hb_a").titleKo("제목").image(image).width(1).height(1)
-                .sortOrder(0).hidden(false).createdAt(LocalDateTime.now(clock)).updatedAt(LocalDateTime.now(clock)).build();
+        CatalogBanner banner = banner("hb_a", false);
         given(bannerRepository.findById("hb_a")).willReturn(Optional.of(banner));
+        given(bannerRepository.countByHiddenFalseAndDeletedAtIsNull()).willReturn(2L);
 
         CatalogBannerResponse res = service.updateBanner("hb_a", new UpsertBannerRequest(null, null, null, null, null, null, null, true));
         assertThat(res.hidden()).isTrue();
         assertThat(res.title()).isEqualTo(new LocalizedText("제목", "제목"));
 
         service.deleteBanner("hb_a");
-        verify(bannerRepository).delete(banner);
+        verify(bannerRepository, never()).delete(any(CatalogBanner.class));
+        verify(imageRepository, never()).delete(any(CatalogImage.class));
+        assertThat(banner.isTrashed()).isTrue();
+        assertThat(banner.getPurgeAt()).isEqualTo(LocalDateTime.now(clock).plusDays(7));
+    }
+
+    @Test
+    @DisplayName("홈 배너는 최소 한 개: 마지막으로 보이는 배너는 숨기거나 지우면 409, 이미 숨긴 배너는 지울 수 있다")
+    void lastVisibleBanner_protected() {
+        CatalogBanner last = banner("hb_last", false);
+        CatalogBanner hidden = banner("hb_hidden", true);
+        given(bannerRepository.findById("hb_last")).willReturn(Optional.of(last));
+        given(bannerRepository.findById("hb_hidden")).willReturn(Optional.of(hidden));
+        given(bannerRepository.countByHiddenFalseAndDeletedAtIsNull()).willReturn(1L);
+
+        assertThatThrownBy(() -> service.updateBanner("hb_last", new UpsertBannerRequest(null, null, null, null, null, null, null, true)))
+                .extracting(e -> ((CustomException) e).getErrorCode()).isEqualTo(ErrorCode.CATALOG_LAST_BANNER);
+        assertThatThrownBy(() -> service.deleteBanner("hb_last"))
+                .extracting(e -> ((CustomException) e).getErrorCode()).isEqualTo(ErrorCode.CATALOG_LAST_BANNER);
+        assertThat(last.isTrashed()).isFalse();
+        assertThat(last.isHidden()).isFalse();
+
+        // 제목만 바꾸는 수정은 막지 않는다
+        service.updateBanner("hb_last", new UpsertBannerRequest(new LocalizedText("새 제목", null), null, null, null, null, null, null, null));
+        assertThat(last.getTitleKo()).isEqualTo("새 제목");
+
+        service.deleteBanner("hb_hidden");
+        assertThat(hidden.isTrashed()).isTrue();
+    }
+
+    @Test
+    @DisplayName("배너 복구·완전 삭제")
+    void bannerTrash_restoreAndPurge() {
+        CatalogBanner trashed = banner("hb_t", false);
+        trashed.moveToTrash(LocalDateTime.now(clock).minusDays(1), LocalDateTime.now(clock).plusDays(6));
+        given(bannerRepository.findById("hb_t")).willReturn(Optional.of(trashed));
+        given(bannerRepository.findAllByDeletedAtIsNotNullOrderByDeletedAtDesc()).willReturn(List.of(trashed));
+
+        assertThat(service.trashedBanners()).extracting(CatalogBannerResponse::id).containsExactly("hb_t");
+        assertThat(service.restoreBanner("hb_t").deletedAt()).isNull();
+        assertThat(trashed.isTrashed()).isFalse();
+        assertThatThrownBy(() -> service.purgeBanner("hb_t"))
+                .extracting(e -> ((CustomException) e).getErrorCode()).isEqualTo(ErrorCode.CATALOG_NOT_IN_TRASH);
+
+        trashed.moveToTrash(LocalDateTime.now(clock), LocalDateTime.now(clock).plusDays(7));
+        service.purgeBanner("hb_t");
+        verify(bannerRepository).delete(trashed);
         verify(imageRepository).delete(image);
     }
 
@@ -314,10 +422,14 @@ class CatalogServiceTest {
     }
 
     @Test
-    @DisplayName("정리 스케줄러는 하루 지난 고아 그림을 지운다")
+    @DisplayName("정리 스케줄러는 기한 지난 휴지통을 비운 뒤 하루 지난 고아 그림을 지운다")
     void cleanupScheduler() {
-        given(imageRepository.findOrphanIds(LocalDateTime.now(clock).minusDays(1))).willReturn(List.of("x"));
+        LocalDateTime now = LocalDateTime.now(clock);
+        given(imageRepository.findOrphanIds(now.minusDays(1))).willReturn(List.of("x"));
+        CatalogPoseService poseService = org.mockito.Mockito.mock(CatalogPoseService.class);
+        given(poseService.purgeExpiredTrash(now)).willReturn(3);
 
-        assertThat(new CatalogCleanupScheduler(service, clock).runOnce(LocalDateTime.now(clock))).isEqualTo(1);
+        assertThat(new CatalogCleanupScheduler(service, poseService, clock).runOnce(now)).isEqualTo(4);
+        verify(poseService).purgeExpiredTrash(now);
     }
 }

@@ -4,6 +4,8 @@ import com.caestro.server.domain.catalog.controller.api.CatalogApi;
 import com.caestro.server.domain.catalog.dto.response.CatalogBannerListResponse;
 import com.caestro.server.domain.catalog.dto.response.CatalogFrameListResponse;
 import com.caestro.server.domain.catalog.dto.response.CatalogFrameResponse;
+import com.caestro.server.domain.catalog.dto.response.CatalogPoseResponse;
+import com.caestro.server.domain.catalog.service.CatalogPoseService;
 import com.caestro.server.domain.catalog.service.CatalogService;
 import com.caestro.server.domain.fill.store.StoredImage;
 import jakarta.servlet.http.HttpServletRequest;
@@ -29,6 +31,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class CatalogController implements CatalogApi {
 
     private final CatalogService catalogService;
+    private final CatalogPoseService poseService;
 
     @GetMapping("/frames")
     @Override
@@ -60,6 +63,21 @@ public class CatalogController implements CatalogApi {
         boolean includeHidden = all && isStudio(request);
         CatalogBannerListResponse body = catalogService.banners(includeHidden);
         String etag = etag("b", includeHidden, body.updatedAt(), body.banners().size());
+        if (etag.equals(ifNoneMatch)) {
+            return ResponseEntity.status(HttpStatus.NOT_MODIFIED).eTag(etag).build();
+        }
+        return ResponseEntity.ok().eTag(etag).cacheControl(CacheControl.noCache()).body(body);
+    }
+
+    @GetMapping("/pose")
+    @Override
+    public ResponseEntity<CatalogPoseResponse> pose(
+            @RequestParam(required = false, defaultValue = "false") boolean all,
+            @RequestHeader(value = HttpHeaders.IF_NONE_MATCH, required = false) String ifNoneMatch,
+            HttpServletRequest request) {
+        boolean includeHidden = all && isStudio(request);
+        CatalogPoseResponse body = poseService.pose(includeHidden);
+        String etag = etag("p", includeHidden, body.updatedAt(), body.overrides().size() + body.uploads().size());
         if (etag.equals(ifNoneMatch)) {
             return ResponseEntity.status(HttpStatus.NOT_MODIFIED).eTag(etag).build();
         }

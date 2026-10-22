@@ -39,7 +39,8 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * 카탈로그(디자이너 스튜디오): 서버에서 내려주는 일러스트 프레임과 홈 배너 (contracts/catalog-studio.md).
  * 읽기는 누구나(숨김은 목록에서 빠짐), 쓰기는 스튜디오 키. 그림은 따로 올린 뒤 id 로 묶고,
- * 프레임·배너를 지우거나 그림을 바꾸면 쓰이지 않게 된 그림도 함께 지운다.
+ * 그림을 바꾸면 쓰이지 않게 된 그림은 함께 지운다. 지우기는 휴지통({@code deletedAt}/{@code purgeAt})으로 가고
+ * 기한(catalog.trash-days)이 지나면 정리 배치가 그림과 함께 완전히 지운다. 홈 배너는 최소 한 개는 보여야 한다.
  */
 @Service
 public class CatalogService {
@@ -59,6 +60,9 @@ public class CatalogService {
 
     @Value("${catalog.max-image-bytes:8388608}")
     private long maxImageBytes;
+
+    @Value("${catalog.trash-days:7}")
+    private int trashDays;
 
     // 그림 주소의 호스트. fill 과 같이 요청에서 만들지 않고 고정한다(ALB 뒤에서는 요청 스킴을 믿을 수 없다)
     @Value("${catalog.public-base-url:https://api.peakpic.app}")
@@ -129,7 +133,7 @@ public class CatalogService {
 
     @Transactional(readOnly = true)
     public CatalogFrameListResponse frames(boolean includeHidden) {
-        List<CatalogFrame> all = frameRepository.findAllByOrderBySortOrderAscCreatedAtAsc();
+        List<CatalogFrame> all = frameRepository.findAllByDeletedAtIsNullOrderBySortOrderAscCreatedAtAsc();
         List<CatalogFrameResponse> rows = all.stream()
                 .filter(f -> includeHidden || !f.isHidden())
                 .map(this::toResponse)
@@ -168,7 +172,7 @@ public class CatalogService {
     /** 보낸 필드만 바꾼다. 그림을 바꾸면 이전 그림은 지운다. */
     @Transactional
     public CatalogFrameResponse updateFrame(String id, UpsertFrameRequest request) {
-        CatalogFrame frame = frameOf(id);
+        CatalogFrame frame = liveFrameOf(id);
         LocalizedText title = request.title() == null ? LocalizedText.of(frame.getTitleKo(), frame.getTitleEn())
                 : requireText(request.title(), 40, true, ErrorCode.CATALOG_INVALID_FRAME);
         LocalizedText subtitle = request.subtitle() == null ? LocalizedText.of(frame.getSubtitleKo(), frame.getSubtitleEn())
@@ -196,19 +200,53 @@ public class CatalogService {
         return toResponse(frame);
     }
 
+    /** 휴지통으로: 목록에서 빠지되 id 로는 계속 열린다. 이미 휴지통이면 404. */
     @Transactional
     public void deleteFrame(String id) {
         CatalogFrame frame = frameOf(id);
+        if (frame.isTrashed()) {
+            throw new CustomException(ErrorCode.CATALOG_FRAME_NOT_FOUND);
+        }
+        LocalDateTime now = LocalDateTime.now(clock);
+        frame.moveToTrash(now, now.plusDays(trashDays));
+    }
+
+    @Transactional
+    public CatalogFrameResponse restoreFrame(String id) {
+        CatalogFrame frame = frameOf(id);
+        if (!frame.isTrashed()) {
+            throw new CustomException(ErrorCode.CATALOG_NOT_IN_TRASH);
+        }
+        frame.restore(LocalDateTime.now(clock));
+        return toResponse(frame);
+    }
+
+    /** 휴지통에서 완전히: 그림도 지운다. */
+    @Transactional
+    public void purgeFrame(String id) {
+        CatalogFrame frame = frameOf(id);
+        if (!frame.isTrashed()) {
+            throw new CustomException(ErrorCode.CATALOG_NOT_IN_TRASH);
+        }
+        eraseFrame(frame);
+    }
+
+    private void eraseFrame(CatalogFrame frame) {
         CatalogImage image = frame.getImage();
         frameRepository.delete(frame);
         imageRepository.delete(image);
+    }
+
+    @Transactional(readOnly = true)
+    public List<CatalogFrameResponse> trashedFrames() {
+        return frameRepository.findAllByDeletedAtIsNotNullOrderByDeletedAtDesc().stream().map(this::toResponse).toList();
     }
 
     // ── 배너 ─────────────────────────────────────────────────────────────────
 
     @Transactional(readOnly = true)
     public CatalogBannerListResponse banners(boolean includeHidden) {
-        List<CatalogBanner> all = bannerRepository.findAllByOrderBySortOrderAscCreatedAtAsc();
+        List<CatalogBanner> all = bannerRepository.findAllByDeletedAtIsNullOrderBySortOrderAscCreatedAtAsc();
         List<CatalogBannerResponse> rows = all.stream()
                 .filter(b -> includeHidden || !b.isHidden())
                 .map(this::toResponse)
@@ -240,7 +278,11 @@ public class CatalogService {
 
     @Transactional
     public CatalogBannerResponse updateBanner(String id, UpsertBannerRequest request) {
-        CatalogBanner banner = bannerOf(id);
+        CatalogBanner banner = liveBannerOf(id);
+        // 홍보 자료는 최소 한 개: 마지막으로 보이는 배너는 숨길 수 없다
+        if (Boolean.TRUE.equals(request.hidden()) && !banner.isHidden()) {
+            requireAnotherVisibleBanner();
+        }
         if (request.title() != null) {
             LocalizedText t = requireText(request.title(), 60, true, ErrorCode.CATALOG_INVALID_BANNER);
             banner.setTitle(t.ko(), t.en());
@@ -274,12 +316,63 @@ public class CatalogService {
         return toResponse(banner);
     }
 
+    /** 휴지통으로. 마지막으로 보이는 배너는 지울 수 없다(409). */
     @Transactional
     public void deleteBanner(String id) {
+        CatalogBanner banner = liveBannerOf(id);
+        if (!banner.isHidden()) {
+            requireAnotherVisibleBanner();
+        }
+        LocalDateTime now = LocalDateTime.now(clock);
+        banner.moveToTrash(now, now.plusDays(trashDays));
+    }
+
+    @Transactional
+    public CatalogBannerResponse restoreBanner(String id) {
         CatalogBanner banner = bannerOf(id);
+        if (!banner.isTrashed()) {
+            throw new CustomException(ErrorCode.CATALOG_NOT_IN_TRASH);
+        }
+        banner.restore(LocalDateTime.now(clock));
+        return toResponse(banner);
+    }
+
+    @Transactional
+    public void purgeBanner(String id) {
+        CatalogBanner banner = bannerOf(id);
+        if (!banner.isTrashed()) {
+            throw new CustomException(ErrorCode.CATALOG_NOT_IN_TRASH);
+        }
+        eraseBanner(banner);
+    }
+
+    private void eraseBanner(CatalogBanner banner) {
         CatalogImage image = banner.getImage();
         bannerRepository.delete(banner);
         imageRepository.delete(image);
+    }
+
+    @Transactional(readOnly = true)
+    public List<CatalogBannerResponse> trashedBanners() {
+        return bannerRepository.findAllByDeletedAtIsNotNullOrderByDeletedAtDesc().stream().map(this::toResponse).toList();
+    }
+
+    private void requireAnotherVisibleBanner() {
+        if (bannerRepository.countByHiddenFalseAndDeletedAtIsNull() <= 1) {
+            throw new CustomException(ErrorCode.CATALOG_LAST_BANNER);
+        }
+    }
+
+    // ── 휴지통 정리 ───────────────────────────────────────────────────────────
+
+    /** 기한(purgeAt)이 지난 프레임·배너를 그림과 함께 완전히 지운다. 지운 수를 돌려준다. */
+    @Transactional
+    public int purgeExpiredTrash(LocalDateTime now) {
+        List<CatalogFrame> frames = frameRepository.findAllByPurgeAtBefore(now);
+        frames.forEach(this::eraseFrame);
+        List<CatalogBanner> banners = bannerRepository.findAllByPurgeAtBefore(now);
+        banners.forEach(this::eraseBanner);
+        return frames.size() + banners.size();
     }
 
     // ── 검증·변환 ─────────────────────────────────────────────────────────────
@@ -351,26 +444,45 @@ public class CatalogService {
         return imageRepository.findById(imageId).orElseThrow(() -> new CustomException(error));
     }
 
+    /** 휴지통에 있어도 돌려준다(세션이 참조 중일 수 있다). */
     private CatalogFrame frameOf(String id) {
         return frameRepository.findById(id).orElseThrow(() -> new CustomException(ErrorCode.CATALOG_FRAME_NOT_FOUND));
+    }
+
+    /** 수정·삭제용: 휴지통에 있으면 없는 것으로 본다. */
+    private CatalogFrame liveFrameOf(String id) {
+        CatalogFrame frame = frameOf(id);
+        if (frame.isTrashed()) {
+            throw new CustomException(ErrorCode.CATALOG_FRAME_NOT_FOUND);
+        }
+        return frame;
     }
 
     private CatalogBanner bannerOf(String id) {
         return bannerRepository.findById(id).orElseThrow(() -> new CustomException(ErrorCode.CATALOG_BANNER_NOT_FOUND));
     }
 
+    private CatalogBanner liveBannerOf(String id) {
+        CatalogBanner banner = bannerOf(id);
+        if (banner.isTrashed()) {
+            throw new CustomException(ErrorCode.CATALOG_BANNER_NOT_FOUND);
+        }
+        return banner;
+    }
+
     private CatalogFrameResponse toResponse(CatalogFrame f) {
         return new CatalogFrameResponse(f.getId(), LocalizedText.of(f.getTitleKo(), f.getTitleEn()),
                 LocalizedText.of(f.getSubtitleKo(), f.getSubtitleEn()), imageUrl(f.getImage().getId()),
                 f.getWidth(), f.getHeight(), fromJson(f.getWindowsJson()), f.getSortOrder(), f.isHidden(),
-                toInstant(f.getCreatedAt()), toInstant(f.getUpdatedAt()));
+                toInstant(f.getCreatedAt()), toInstant(f.getUpdatedAt()), toInstant(f.getDeletedAt()), toInstant(f.getPurgeAt()));
     }
 
     private CatalogBannerResponse toResponse(CatalogBanner b) {
         return new CatalogBannerResponse(b.getId(), LocalizedText.of(b.getTitleKo(), b.getTitleEn()),
                 LocalizedText.of(b.getBodyKo(), b.getBodyEn()), LocalizedText.of(b.getChipKo(), b.getChipEn()),
                 imageUrl(b.getImage().getId()), b.getWidth(), b.getHeight(), b.getAction(), b.getLinkUrl(),
-                b.getSortOrder(), b.isHidden(), toInstant(b.getCreatedAt()), toInstant(b.getUpdatedAt()));
+                b.getSortOrder(), b.isHidden(), toInstant(b.getCreatedAt()), toInstant(b.getUpdatedAt()),
+                toInstant(b.getDeletedAt()), toInstant(b.getPurgeAt()));
     }
 
     public String imageUrl(String imageId) {
@@ -381,7 +493,7 @@ public class CatalogService {
         return times.stream().filter(Objects::nonNull).max(Comparator.naturalOrder()).map(this::toInstant).orElse(null);
     }
 
-    private Instant toInstant(LocalDateTime t) {
+    Instant toInstant(LocalDateTime t) {
         return t == null ? null : t.atZone(clock.getZone()).toInstant();
     }
 
