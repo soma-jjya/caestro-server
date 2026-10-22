@@ -95,6 +95,20 @@ apple:
 3. 앱 › App 정보 › App Store 서버 알림: 버전 2, 운영·샌드박스 URL
    `https://api.peakpic.app/subscriptions/app-store/notifications?token=<APPLE_APP_STORE_NOTIFICATION_TOKEN>`. 등록 화면의 테스트 알림으로 확인.
 
+### 운영 반영 기록 (2026-10-23)
+
+- App Store Connect (사용자): 구독 그룹 `Peakpic Pro`(그룹 ID 22499460, 표시 이름 한국어·영어(미국) `Peakpic Pro`, 앱 이름 peakpic),
+  상품 등급 1 `peakpic_pro_yearly` · 2 `peakpic_pro_monthly` · 3 `peakpic_pro_weekly`, 가족 공유 끔(한 거래 = 한 계정이라), 유입 혜택 없음,
+  현지화 한국어·영어(미국), 심사용 스크린샷(iPhone 6.9″ 결제 화면). 첫 구독이라 새 앱 버전과 함께 심사 제출해야 한다.
+- 인앱 결제 키: Key ID `L426UQ2V98`. 키·Issuer ID·번들로 서명한 토큰으로 `POST /inApps/v1/notifications/test`(운영·샌드박스)를 불러
+  `4040007 No App Store Server Notification URL` — 인증은 통과(틀리면 401), 알림 URL 만 아직 없음.
+- GitHub Secret 4개 등록(`APPLE_APP_STORE_*`). 값은 어디에도 기록하지 않는다. 비밀키는 .p8 본문 한 줄 base64(build-args 가 줄 단위라).
+  알림 토큰은 난수 48자, 사용자 Mac 의 권한 600 파일에만 URL 과 함께 있다.
+- 샌드박스 결제(iOS 개발 빌드, 샌드박스 테스터): 1년 구매 → Pro, 구독 취소·다시 갱신, 1년 → 1주 변경(다른 등급이라 다음 갱신부터) 확인.
+- 남은 것: App Store Connect › App 정보 › App Store 서버 알림에 운영·샌드박스 URL 등록(사용자) → 등록 화면 또는 위 test API 로 TEST 알림 확인.
+- 참고: 같은 날 확인한 저장소 Secret 에 `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON` · `GOOGLE_PLAY_RTDN_TOKEN` 이 없다 — 운영의 Google Play 확인은 503,
+  RTDN 은 403 인 상태(contracts/subscription-google-play.md 의 설정 필요).
+
 ## DDL
 
 없음. `subscriptions.store` 는 VARCHAR 라 `APP_STORE` 를 더해도 ALTER 가 필요 없다(contracts/subscription-google-play.md 의 열을 그대로 쓴다).
