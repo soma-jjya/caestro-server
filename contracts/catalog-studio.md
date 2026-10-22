@@ -273,3 +273,32 @@ ALTER TABLE catalog_banners ADD COLUMN video_id VARCHAR(32) NULL,
 - 스튜디오: 배너 편집기에서 사진 또는 동영상(MP4). 동영상을 고르면 첫 장면을 잘라 JPEG 로 올려 imageId(대체 사진)로, 동영상은 videoId 로.
   미리보기·폰 미리보기에서 소리 없이 재생.
 - 앱: 동영상을 내려받아 캐시한 뒤 소리 없이 한 번 재생, 끝나면(또는 videoDurationMs 가 지나면) 다음 배너. 받기 전·실패 시에는 사진.
+
+# 4차: AI 네컷 프레임 Pro·무료 · 제목 배지 (2026-10-23)
+
+Peakpic Pro 구독(contracts/subscription-google-play.md)과 함께, 일부 AI 네컷 프레임은 Pro 구독자만 쓴다.
+무료 사용자에게 Pro 프레임은 앱에서 어둡게 덮이고 흰 자물쇠가 보이며, 누르면 결제 화면이 열린다(잠금은 앱이 판단).
+앱 번들 프레임은 갸루 야호·코지 패치워크만 무료(앱에 고정), 기본 색(검정·흰색)과 커스텀은 늘 무료. 스튜디오 프레임은 아래 `pro` 값을 따른다.
+
+## 프레임
+
+- 요청(`POST`·`PUT /catalog/studio/frames`)에 추가:
+  - `pro` (boolean, 선택): Pro 전용인가. 생성에서 생략하면 **true**. 수정은 보낸 때만 바뀐다.
+  - `badge` ({ko, en}, 선택): 제목 왼쪽 작은 상자 문구('이벤트'·'인기'). 한국어 8자, 영어 12자까지(넘으면 400 `CATALOG_INVALID_FRAME`).
+    수정에서 **한국어를 비워 보내면 배지를 지운다**. 보내지 않으면 그대로.
+- 응답(공개 `GET /catalog/frames` 와 스튜디오 목록 공통)에 추가: `pro` (boolean), `badge` ({ko, en} 또는 null, en 이 비면 ko 복사).
+- 4차 이전에 올린 프레임은 `pro` 열이 null 이고 **Pro 로 내려간다**(무료로 풀려면 스튜디오에서 바꾼다).
+
+## DDL
+
+```sql
+ALTER TABLE catalog_frames ADD COLUMN pro BIT(1) NULL,
+  ADD COLUMN badge_ko VARCHAR(20) NULL,
+  ADD COLUMN badge_en VARCHAR(40) NULL;
+```
+
+## 클라이언트
+
+- 스튜디오: 프레임 편집기에 '이용' Pro | 무료(새 프레임은 Pro)와 '배지' 입력란(한국어·English, 선택). 목록 카드에 PRO / 무료 표시,
+  선반·폰 미리보기는 무료 사용자의 앱 그대로(잠금·배지, 무료 프레임이 앞). 서버가 `pro` 를 내려주지 않으면(4차 전 서버) 토글을 막아 둔다.
+- 앱: `pro` 가 없으면 Pro 로 본다. 무료 사용자에게는 풀린 프레임이 잠긴 프레임보다 앞에 온다. 배지는 제목 왼쪽 빨간 상자, 없으면 안 보인다.

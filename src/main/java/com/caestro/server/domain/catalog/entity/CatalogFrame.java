@@ -19,6 +19,7 @@ import lombok.NoArgsConstructor;
  * 사진이 들어갈 창 4개는 디자이너가 배치한 비율 사각형(회전 포함)이며 JSON 으로 둔다 — 앱·웹이 그대로 그린다.
  * 숨김({@code hidden})은 목록에서만 빠지고 id 로는 계속 열린다(세션이 참조 중일 수 있다).
  * 지우면 바로 없어지지 않고 휴지통({@code deletedAt}, {@code purgeAt})에 들어갔다가 정리 배치가 완전히 지운다.
+ * Pro 프레임({@code pro})은 앱에서 Pro 구독자만 쓰고 무료 사용자에게는 잠겨 보인다. 제목 왼쪽 배지는 선택(4차).
  */
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
@@ -62,6 +63,17 @@ public class CatalogFrame {
 
     @Column(nullable = false)
     private boolean hidden;
+
+    /** Pro 전용인가. 4차 이전에 올린 행은 null 이고 Pro 로 본다(새 열은 기존 행에 값이 없으므로). */
+    @Column(name = "pro")
+    private Boolean pro;
+
+    /** 제목 왼쪽 작은 상자 문구('이벤트'·'인기'). null 이면 배지 없음 */
+    @Column(length = 20)
+    private String badgeKo;
+
+    @Column(length = 40)
+    private String badgeEn;
 
     // 휴지통: 둘 다 null 이면 살아 있는 행. purgeAt 이 지나면 정리 배치가 완전히 지운다
     private LocalDateTime deletedAt;
@@ -113,6 +125,20 @@ public class CatalogFrame {
 
     public void setHidden(boolean hidden) {
         this.hidden = hidden;
+    }
+
+    /** null(4차 이전 행)은 Pro. */
+    public boolean isPro() {
+        return pro == null || pro;
+    }
+
+    public void setPro(boolean pro) {
+        this.pro = pro;
+    }
+
+    public void setBadge(String badgeKo, String badgeEn) {
+        this.badgeKo = badgeKo;
+        this.badgeEn = badgeEn;
     }
 
     public void touch(LocalDateTime now) {
