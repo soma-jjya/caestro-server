@@ -16,6 +16,7 @@ import lombok.NoArgsConstructor;
 
 /**
  * 앱 홈 맨 위 배너 한 장: 그림 + 제목·본문·칩 문구(ko/en) + 누르면 가는 곳({@code action}).
+ * 동영상({@code video}, MP4)이 있으면 앱은 소리 없이 한 번 재생하고 그 길이만큼 보여 준다. 그림은 그때도 필수(첫 화면·대체).
  * 보이는 배너가 둘 이상이면 앱이 자동으로 넘긴다. 하나도 없으면 앱은 번들된 기본 배너를 보인다.
  * 지우면 바로 없어지지 않고 휴지통({@code deletedAt}, {@code purgeAt})에 들어갔다가 정리 배치가 완전히 지운다.
  */
@@ -52,6 +53,11 @@ public class CatalogBanner {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "image_id", nullable = false)
     private CatalogImage image;
+
+    // 선택: 배너 동영상(catalog_images 의 video/mp4 행)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "video_id")
+    private CatalogImage video;
 
     @Column(nullable = false)
     private int width;
@@ -118,6 +124,13 @@ public class CatalogBanner {
         this.image = image;
         this.width = image.getWidth();
         this.height = image.getHeight();
+    }
+
+    /** 동영상을 붙이거나(null 이면) 뗀다. 이전 동영상을 돌려준다 — 지우는 것은 서비스 몫. */
+    public CatalogImage replaceVideo(CatalogImage video) {
+        CatalogImage previous = this.video;
+        this.video = video;
+        return previous;
     }
 
     public void setAction(String action, String linkUrl) {

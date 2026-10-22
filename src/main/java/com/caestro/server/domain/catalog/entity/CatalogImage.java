@@ -13,7 +13,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 /**
- * 디자이너가 스튜디오에서 올린 그림 바이트(프레임 PNG, 배너 JPEG/PNG). 프레임은 수십 장 규모라 fill_images 와 같이
+ * 디자이너가 스튜디오에서 올린 그림 바이트(프레임 PNG, 배너 JPEG/PNG)와 배너 동영상(MP4, {@code durationMs} 가 있다). 프레임은 수십 장 규모라 fill_images 와 같이
  * DB(LONGBLOB)에 두고, 내용이 바뀌지 않는 난수 id 로 오래 캐시한다. 프레임·배너가 지워지면 함께 지우고,
  * 올리기만 하고 저장하지 않은 것은 하루 뒤 정리한다({@code CatalogCleanupScheduler}).
  */
@@ -44,6 +44,13 @@ public class CatalogImage {
 
     @Column(nullable = false)
     private int height;
+
+    // 동영상(video/mp4)일 때만: 재생 길이(ms). 앱이 배너를 이 길이만큼 보여 준다
+    private Integer durationMs;
+
+    public boolean isVideo() {
+        return contentType != null && contentType.startsWith("video/");
+    }
 
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;

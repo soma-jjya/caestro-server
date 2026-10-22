@@ -16,6 +16,7 @@ import com.caestro.server.domain.catalog.dto.response.CatalogBannerResponse;
 import com.caestro.server.domain.catalog.dto.response.CatalogFrameListResponse;
 import com.caestro.server.domain.catalog.dto.response.CatalogFrameResponse;
 import com.caestro.server.domain.catalog.dto.response.CatalogImageResponse;
+import com.caestro.server.domain.catalog.dto.response.CatalogVideoResponse;
 import com.caestro.server.domain.catalog.entity.CatalogBanner;
 import com.caestro.server.domain.catalog.entity.CatalogFrame;
 import com.caestro.server.domain.catalog.entity.CatalogImage;
@@ -71,6 +72,7 @@ class CatalogServiceTest {
     void setUp() {
         service = new CatalogService(frameRepository, bannerRepository, imageRepository, idGenerator, new ObjectMapper(), clock);
         ReflectionTestUtils.setField(service, "maxImageBytes", 8L * 1024 * 1024);
+        ReflectionTestUtils.setField(service, "maxVideoBytes", 1024L);
         ReflectionTestUtils.setField(service, "publicBaseUrl", "https://api.peakpic.app");
         ReflectionTestUtils.setField(service, "trashDays", 7);
         image = CatalogImage.builder().id("img000000000000000000A").contentType("image/png").data(new byte[10]).sizeBytes(10)
@@ -320,22 +322,22 @@ class CatalogServiceTest {
         LocalizedText title = new LocalizedText("포즈 고민 없이", "No more pose worries");
 
         CatalogBannerResponse pose = service.createBanner(new UpsertBannerRequest(title, new LocalizedText("본문", null),
-                new LocalizedText("포즈추천", null), image.getId(), "poseGuide", "https://ignored.example", null, null));
+                new LocalizedText("포즈추천", null), image.getId(), "poseGuide", "https://ignored.example", null, null, null, null));
         assertThat(pose.action()).isEqualTo("poseGuide");
         assertThat(pose.linkUrl()).isNull();
         assertThat(pose.chip()).isEqualTo(new LocalizedText("포즈추천", "포즈추천"));
         assertThat(pose.title().en()).isEqualTo("No more pose worries");
 
         CatalogBannerResponse link = service.createBanner(new UpsertBannerRequest(title, null, null, image.getId(), "url",
-                " https://peakpic.app/event ", 2, false));
+                " https://peakpic.app/event ", 2, false, null, null));
         assertThat(link.linkUrl()).isEqualTo("https://peakpic.app/event");
         assertThat(link.body()).isNull();
 
-        assertThatThrownBy(() -> service.createBanner(new UpsertBannerRequest(title, null, null, image.getId(), "url", "http://x", null, null)))
+        assertThatThrownBy(() -> service.createBanner(new UpsertBannerRequest(title, null, null, image.getId(), "url", "http://x", null, null, null, null)))
                 .extracting(e -> ((CustomException) e).getErrorCode()).isEqualTo(ErrorCode.CATALOG_INVALID_BANNER);
-        assertThatThrownBy(() -> service.createBanner(new UpsertBannerRequest(title, null, null, image.getId(), "teleport", null, null, null)))
+        assertThatThrownBy(() -> service.createBanner(new UpsertBannerRequest(title, null, null, image.getId(), "teleport", null, null, null, null, null)))
                 .extracting(e -> ((CustomException) e).getErrorCode()).isEqualTo(ErrorCode.CATALOG_INVALID_BANNER);
-        assertThatThrownBy(() -> service.createBanner(new UpsertBannerRequest(null, null, null, image.getId(), null, null, null, null)))
+        assertThatThrownBy(() -> service.createBanner(new UpsertBannerRequest(null, null, null, image.getId(), null, null, null, null, null, null)))
                 .extracting(e -> ((CustomException) e).getErrorCode()).isEqualTo(ErrorCode.CATALOG_INVALID_BANNER);
     }
 
@@ -351,7 +353,7 @@ class CatalogServiceTest {
         given(bannerRepository.findById("hb_a")).willReturn(Optional.of(banner));
         given(bannerRepository.countByHiddenFalseAndDeletedAtIsNull()).willReturn(2L);
 
-        CatalogBannerResponse res = service.updateBanner("hb_a", new UpsertBannerRequest(null, null, null, null, null, null, null, true));
+        CatalogBannerResponse res = service.updateBanner("hb_a", new UpsertBannerRequest(null, null, null, null, null, null, null, true, null, null));
         assertThat(res.hidden()).isTrue();
         assertThat(res.title()).isEqualTo(new LocalizedText("제목", "제목"));
 
@@ -371,7 +373,7 @@ class CatalogServiceTest {
         given(bannerRepository.findById("hb_hidden")).willReturn(Optional.of(hidden));
         given(bannerRepository.countByHiddenFalseAndDeletedAtIsNull()).willReturn(1L);
 
-        assertThatThrownBy(() -> service.updateBanner("hb_last", new UpsertBannerRequest(null, null, null, null, null, null, null, true)))
+        assertThatThrownBy(() -> service.updateBanner("hb_last", new UpsertBannerRequest(null, null, null, null, null, null, null, true, null, null)))
                 .extracting(e -> ((CustomException) e).getErrorCode()).isEqualTo(ErrorCode.CATALOG_LAST_BANNER);
         assertThatThrownBy(() -> service.deleteBanner("hb_last"))
                 .extracting(e -> ((CustomException) e).getErrorCode()).isEqualTo(ErrorCode.CATALOG_LAST_BANNER);
@@ -379,7 +381,7 @@ class CatalogServiceTest {
         assertThat(last.isHidden()).isFalse();
 
         // 제목만 바꾸는 수정은 막지 않는다
-        service.updateBanner("hb_last", new UpsertBannerRequest(new LocalizedText("새 제목", null), null, null, null, null, null, null, null));
+        service.updateBanner("hb_last", new UpsertBannerRequest(new LocalizedText("새 제목", null), null, null, null, null, null, null, null, null, null));
         assertThat(last.getTitleKo()).isEqualTo("새 제목");
 
         service.deleteBanner("hb_hidden");
@@ -404,6 +406,124 @@ class CatalogServiceTest {
         service.purgeBanner("hb_t");
         verify(bannerRepository).delete(trashed);
         verify(imageRepository).delete(image);
+    }
+
+    // ── 배너 동영상 ──
+
+    /** 앞 8바이트에 ftyp 상자가 있는 MP4 흉내 */
+    private static byte[] mp4(int size) {
+        byte[] b = new byte[size];
+        b[3] = 0x18;
+        b[4] = 'f'; b[5] = 't'; b[6] = 'y'; b[7] = 'p';
+        b[8] = 'i'; b[9] = 's'; b[10] = 'o'; b[11] = 'm';
+        return b;
+    }
+
+    private CatalogImage video(String id, int durationMs) {
+        return CatalogImage.builder().id(id).contentType("video/mp4").data(mp4(64)).sizeBytes(64)
+                .width(1080).height(1350).durationMs(durationMs).createdAt(LocalDateTime.now(clock)).build();
+    }
+
+    @Test
+    @DisplayName("MP4 를 올리면 브라우저가 보낸 폭·높이·길이로 저장하고 주소를 돌려준다")
+    void storeVideo_ok() {
+        CatalogVideoResponse res = service.storeVideo(mp4(200), "video/mp4", 1080, 1350, 8200);
+
+        assertThat(res.videoId()).isEqualTo("img000000000000000000B");
+        assertThat(res.url()).isEqualTo("https://api.peakpic.app/catalog/images/img000000000000000000B");
+        assertThat(res.durationMs()).isEqualTo(8200);
+        assertThat(res.contentType()).isEqualTo("video/mp4");
+        ArgumentCaptor<CatalogImage> saved = ArgumentCaptor.forClass(CatalogImage.class);
+        verify(imageRepository).save(saved.capture());
+        assertThat(saved.getValue().getDurationMs()).isEqualTo(8200);
+        assertThat(saved.getValue().isVideo()).isTrue();
+        assertThat(saved.getValue().getWidth()).isEqualTo(1080);
+    }
+
+    @Test
+    @DisplayName("동영상 검증: MP4 형식·ftyp 가 아니거나 폭·높이·길이가 범위 밖이면 400, 상한 초과 413")
+    void storeVideo_validation() {
+        assertInvalidVideo(() -> service.storeVideo(mp4(200), "image/png", 1080, 1350, 8200));
+        assertInvalidVideo(() -> service.storeVideo(new byte[200], "video/mp4", 1080, 1350, 8200));   // ftyp 없음
+        assertInvalidVideo(() -> service.storeVideo(mp4(200), "video/mp4", null, 1350, 8200));
+        assertInvalidVideo(() -> service.storeVideo(mp4(200), "video/mp4", 0, 1350, 8200));
+        assertInvalidVideo(() -> service.storeVideo(mp4(200), "video/mp4", 1080, 5000, 8200));
+        assertInvalidVideo(() -> service.storeVideo(mp4(200), "video/mp4", 1080, 1350, 300));
+        assertInvalidVideo(() -> service.storeVideo(mp4(200), "video/mp4", 1080, 1350, 61_000));
+        assertThatThrownBy(() -> service.storeVideo(mp4(2048), "video/mp4", 1080, 1350, 8200))
+                .extracting(e -> ((CustomException) e).getErrorCode()).isEqualTo(ErrorCode.CATALOG_VIDEO_TOO_LARGE);
+        verify(imageRepository, never()).save(any(CatalogImage.class));
+    }
+
+    private void assertInvalidVideo(org.assertj.core.api.ThrowableAssert.ThrowingCallable call) {
+        assertThatThrownBy(call).isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode()).isEqualTo(ErrorCode.CATALOG_INVALID_VIDEO);
+    }
+
+    @Test
+    @DisplayName("동영상 배너: 만들면 videoUrl·길이가 나오고, 사진 id 를 동영상으로 쓰면 400")
+    void createBanner_withVideo() {
+        CatalogImage vid = video("vid00000000000000000A", 8200);
+        given(imageRepository.findById(image.getId())).willReturn(Optional.of(image));
+        given(imageRepository.findById(vid.getId())).willReturn(Optional.of(vid));
+        LocalizedText title = new LocalizedText("여름 바다", "Summer sea");
+
+        CatalogBannerResponse res = service.createBanner(new UpsertBannerRequest(title, null, null, image.getId(), null, null, null, null,
+                vid.getId(), null));
+        assertThat(res.videoUrl()).isEqualTo("https://api.peakpic.app/catalog/images/vid00000000000000000A");
+        assertThat(res.videoDurationMs()).isEqualTo(8200);
+        assertThat(res.imageUrl()).endsWith(image.getId());
+
+        CatalogBannerResponse plain = service.createBanner(new UpsertBannerRequest(title, null, null, image.getId(), null, null, null, null,
+                null, null));
+        assertThat(plain.videoUrl()).isNull();
+        assertThat(plain.videoDurationMs()).isNull();
+
+        assertThatThrownBy(() -> service.createBanner(new UpsertBannerRequest(title, null, null, image.getId(), null, null, null, null,
+                image.getId(), null)))
+                .extracting(e -> ((CustomException) e).getErrorCode()).isEqualTo(ErrorCode.CATALOG_INVALID_BANNER);
+    }
+
+    @Test
+    @DisplayName("동영상 배너 수정: 다른 동영상으로 바꾸거나 떼면 이전 동영상 바이트를 지우고, 같은 id 면 그대로")
+    void updateBanner_videoReplaceAndClear() {
+        CatalogImage first = video("vid00000000000000000A", 8200);
+        CatalogImage second = video("vid00000000000000000B", 5000);
+        CatalogBanner banner = CatalogBanner.builder().id("hb_v").titleKo("제목").image(image).video(first).width(1).height(1)
+                .sortOrder(0).hidden(false).createdAt(LocalDateTime.now(clock)).updatedAt(LocalDateTime.now(clock)).build();
+        given(bannerRepository.findById("hb_v")).willReturn(Optional.of(banner));
+        given(imageRepository.findById(second.getId())).willReturn(Optional.of(second));
+
+        service.updateBanner("hb_v", new UpsertBannerRequest(null, null, null, null, null, null, null, null, first.getId(), null));
+        verify(imageRepository, never()).delete(any(CatalogImage.class));
+
+        CatalogBannerResponse swapped = service.updateBanner("hb_v",
+                new UpsertBannerRequest(null, null, null, null, null, null, null, null, second.getId(), null));
+        assertThat(swapped.videoDurationMs()).isEqualTo(5000);
+        verify(imageRepository).delete(first);
+
+        CatalogBannerResponse cleared = service.updateBanner("hb_v",
+                new UpsertBannerRequest(null, null, null, null, null, null, null, null, null, true));
+        assertThat(cleared.videoUrl()).isNull();
+        assertThat(banner.getVideo()).isNull();
+        verify(imageRepository).delete(second);
+        verify(imageRepository, never()).delete(image);
+    }
+
+    @Test
+    @DisplayName("동영상 배너를 휴지통에서 완전히 지우면 그림과 동영상을 모두 지운다")
+    void purgeBanner_deletesVideo() {
+        CatalogImage vid = video("vid00000000000000000A", 8200);
+        CatalogBanner banner = CatalogBanner.builder().id("hb_v").titleKo("제목").image(image).video(vid).width(1).height(1)
+                .sortOrder(0).hidden(true).createdAt(LocalDateTime.now(clock)).updatedAt(LocalDateTime.now(clock)).build();
+        banner.moveToTrash(LocalDateTime.now(clock), LocalDateTime.now(clock).plusDays(7));
+        given(bannerRepository.findById("hb_v")).willReturn(Optional.of(banner));
+
+        service.purgeBanner("hb_v");
+
+        verify(bannerRepository).delete(banner);
+        verify(imageRepository).delete(image);
+        verify(imageRepository).delete(vid);
     }
 
     // ── 정리 ──

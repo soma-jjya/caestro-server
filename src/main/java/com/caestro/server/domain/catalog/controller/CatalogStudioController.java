@@ -11,6 +11,7 @@ import com.caestro.server.domain.catalog.dto.response.CatalogImageResponse;
 import com.caestro.server.domain.catalog.dto.response.CatalogPoseOverrideResponse;
 import com.caestro.server.domain.catalog.dto.response.CatalogPoseUploadResponse;
 import com.caestro.server.domain.catalog.dto.response.CatalogTrashResponse;
+import com.caestro.server.domain.catalog.dto.response.CatalogVideoResponse;
 import com.caestro.server.domain.catalog.service.CatalogPoseService;
 import com.caestro.server.domain.catalog.service.CatalogService;
 import lombok.RequiredArgsConstructor;
@@ -26,6 +27,7 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
@@ -46,6 +48,18 @@ public class CatalogStudioController implements CatalogStudioApi {
             @RequestBody byte[] body,
             @RequestHeader(value = HttpHeaders.CONTENT_TYPE, required = false) String contentType) {
         return ResponseEntity.status(HttpStatus.CREATED).body(catalogService.storeImage(body, contentType));
+    }
+
+    // 배너 동영상. 형식이 빠진 요청도 받아 서비스가 400 으로 답하게 한다(415 대신)
+    @PostMapping(value = "/videos", consumes = {"video/mp4", MediaType.APPLICATION_OCTET_STREAM_VALUE})
+    @Override
+    public ResponseEntity<CatalogVideoResponse> uploadVideo(
+            @RequestBody byte[] body,
+            @RequestHeader(value = HttpHeaders.CONTENT_TYPE, required = false) String contentType,
+            @RequestParam(required = false) Integer width,
+            @RequestParam(required = false) Integer height,
+            @RequestParam(required = false) Integer durationMs) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(catalogService.storeVideo(body, contentType, width, height, durationMs));
     }
 
     // ── 프레임 ──
