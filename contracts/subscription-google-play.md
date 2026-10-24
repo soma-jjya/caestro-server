@@ -81,8 +81,9 @@ google:
     rtdn-token: ""             # Pub/Sub 푸시 URL 의 ?token=. 비면 알림 403
 ```
 
-운영: GitHub Secret `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON`(키 JSON 의 base64 한 줄), `GOOGLE_PLAY_RTDN_TOKEN`(난수) →
-deploy.yml build-args → Dockerfile ENV (CATALOG_STUDIO_KEY 와 같은 방식). 키가 잘못돼도 서버는 뜨고 확인만 503 이다.
+운영: Secrets Manager `peakpic/prod/app`에 `google.play.service-account-json`(키 JSON 의 base64 한 줄), `google.play.rtdn-token`(난수)을 넣는다.
+서버가 기동할 때 읽으므로 값을 바꾸면 배포(재기동)가 필요하다. 키가 잘못돼도 서버는 뜨고 확인만 503 이다.
+GitHub Secret → build-args → Dockerfile ENV 경로는 #188 에서 없앴다 — 빌드 인자는 이미지 설정과 공개 저장소의 빌드 증명에 평문으로 남는다.
 
 ### 처음 한 번 (콘솔)
 
@@ -90,7 +91,7 @@ deploy.yml build-args → Dockerfile ENV (CATALOG_STUDIO_KEY 와 같은 방식).
 2. Play Console › 사용자 및 권한 › 새 사용자 초대: 서비스 계정 이메일, 앱 권한 **재무 데이터 보기**, **주문 및 구독 관리**.
 3. Pub/Sub 주제(예: `play-rtdn`)를 만들고 `google-play-developer-notifications@system.gserviceaccount.com` 에 게시자 역할을 준다.
 4. Play Console › 수익 창출 설정 › 실시간 개발자 알림: 주제 `projects/<프로젝트>/topics/play-rtdn`, 테스트 알림 보내기.
-5. 그 주제에 **푸시** 구독: 엔드포인트 `https://api.peakpic.app/subscriptions/google-play/notifications?token=<GOOGLE_PLAY_RTDN_TOKEN>`.
+5. 그 주제에 **푸시** 구독: 엔드포인트 `https://api.peakpic.app/subscriptions/google-play/notifications?token=<google.play.rtdn-token>`.
 
 ## DDL (ddl-auto 가 update 가 아닌 환경용)
 

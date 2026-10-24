@@ -85,15 +85,16 @@ apple:
 
 로그인용 애플 키(`apple.key-id` · `apple.private-key`, Sign in with Apple)와는 **다른 키**다. App Store Server API 는 인앱 결제 키만 받는다.
 
-운영: GitHub Secret `APPLE_APP_STORE_ISSUER_ID` · `APPLE_APP_STORE_KEY_ID` · `APPLE_APP_STORE_PRIVATE_KEY`(.p8 본문 한 줄 base64) ·
-`APPLE_APP_STORE_NOTIFICATION_TOKEN`(난수) → deploy.yml build-args → Dockerfile ENV (Google Play 와 같은 방식). 비어 있어도 서버는 뜬다.
+운영: Secrets Manager `peakpic/prod/app`에 `apple.app-store.issuer-id` · `apple.app-store.key-id` · `apple.app-store.private-key`(.p8 본문 한 줄) ·
+`apple.app-store.notification-token`(난수)을 넣는다. 기동 때 읽으므로 값을 바꾸면 배포가 필요하다. 비어 있어도 서버는 뜬다.
+GitHub Secret → build-args → Dockerfile ENV 경로는 #188 에서 없앴다 (Google Play 와 같은 이유).
 
 ### 처음 한 번 (App Store Connect)
 
 1. 사용자 및 액세스 › 통합 › 인앱 결제: 키를 만들고 .p8 을 받는다(한 번만 받을 수 있다). Issuer ID 와 키 ID 를 적는다.
 2. 앱 › 구독: 그룹 `Peakpic Pro`, 상품 `peakpic_pro_yearly` · `peakpic_pro_monthly` · `peakpic_pro_weekly` (20,500 · 2,790 · 990원).
 3. 앱 › App 정보 › App Store 서버 알림: 버전 2, 운영·샌드박스 URL
-   `https://api.peakpic.app/subscriptions/app-store/notifications?token=<APPLE_APP_STORE_NOTIFICATION_TOKEN>`. 등록 화면의 테스트 알림으로 확인.
+   `https://api.peakpic.app/subscriptions/app-store/notifications?token=<apple.app-store.notification-token>`. 등록 화면의 테스트 알림으로 확인.
 
 ### 운영 반영 기록 (2026-10-23)
 
@@ -108,6 +109,14 @@ apple:
 - 남은 것: App Store Connect › App 정보 › App Store 서버 알림에 운영·샌드박스 URL 등록(사용자) → 등록 화면 또는 위 test API 로 TEST 알림 확인.
 - 참고: 같은 날 확인한 저장소 Secret 에 `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON` · `GOOGLE_PLAY_RTDN_TOKEN` 이 없다 — 운영의 Google Play 확인은 503,
   RTDN 은 403 인 상태(contracts/subscription-google-play.md 의 설정 필요).
+
+### 운영 반영 기록 (2026-10-25, #188)
+
+- 비밀값 주입 경로를 바꿨다: Dockerfile ARG/ENV 와 deploy.yml build-args 를 지우고, 값은 Secrets Manager `peakpic/prod/app`에 넣는다.
+  이유: 빌드 인자로 넣은 값은 이미지 설정(`docker inspect`)과 공개 저장소의 빌드 증명에 평문으로 남아, 이미지를 받을 수 있으면 읽힌다.
+- 인앱 결제 키는 새로 발급해 교체했고 알림 토큰도 새 난수로 바꿨다. 스튜디오 키도 같이 교체.
+- 남은 것(배포 뒤 순서대로): 컨테이너 환경변수에 접두사 없음 확인 → 옛 키 `L426UQ2V98` 폐기 → GitHub Secret `APPLE_APP_STORE_*`·`CATALOG_STUDIO_KEY` 삭제
+  → 10/22 이후 ECR 이미지 삭제 → 알림 URL 등록(새 토큰) → TEST 알림 확인.
 
 ## DDL
 

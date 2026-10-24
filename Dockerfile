@@ -15,25 +15,5 @@ RUN ./gradlew clean bootJar --no-daemon
 FROM eclipse-temurin:21-jre-alpine
 WORKDIR /app
 COPY --from=builder /workspace/build/libs/*.jar app.jar
-# 디자이너 스튜디오 키(catalog.studio-key): 배포 워크플로가 GitHub Secret 에서 build-arg 로 넘긴다.
-# Spring 이 환경변수 CATALOG_STUDIO_KEY 를 catalog.studio-key 로 읽는다(relaxed binding). 비면 스튜디오 쓰기 전체가 403.
-# 운영 시크릿을 Secrets Manager 로 옮기면 이 두 줄과 워크플로의 build-args 를 지우면 된다.
-ARG CATALOG_STUDIO_KEY=""
-ENV CATALOG_STUDIO_KEY=${CATALOG_STUDIO_KEY}
-# Google Play 구독 확인(contracts/subscription-google-play.md): 서비스 계정 키(base64)와 실시간 알림 URL 토큰.
-# google.play.service-account-json / google.play.rtdn-token 으로 읽힌다. 비면 확인 503, 알림 403 (서버는 정상 기동)
-ARG GOOGLE_PLAY_SERVICE_ACCOUNT_JSON=""
-ENV GOOGLE_PLAY_SERVICE_ACCOUNT_JSON=${GOOGLE_PLAY_SERVICE_ACCOUNT_JSON}
-ARG GOOGLE_PLAY_RTDN_TOKEN=""
-ENV GOOGLE_PLAY_RTDN_TOKEN=${GOOGLE_PLAY_RTDN_TOKEN}
-# App Store 구독 확인(contracts/subscription-app-store.md): 인앱 결제 키(Issuer ID · Key ID · .p8 한 줄 base64)와 서버 알림 URL 토큰.
-# apple.app-store.issuer-id / key-id / private-key / notification-token 으로 읽힌다. 비면 확인 503, 알림 403 (서버는 정상 기동)
-ARG APPLE_APP_STORE_ISSUER_ID=""
-ENV APPLE_APP_STORE_ISSUER_ID=${APPLE_APP_STORE_ISSUER_ID}
-ARG APPLE_APP_STORE_KEY_ID=""
-ENV APPLE_APP_STORE_KEY_ID=${APPLE_APP_STORE_KEY_ID}
-ARG APPLE_APP_STORE_PRIVATE_KEY=""
-ENV APPLE_APP_STORE_PRIVATE_KEY=${APPLE_APP_STORE_PRIVATE_KEY}
-ARG APPLE_APP_STORE_NOTIFICATION_TOKEN=""
-ENV APPLE_APP_STORE_NOTIFICATION_TOKEN=${APPLE_APP_STORE_NOTIFICATION_TOKEN}
+# 설정·비밀값은 이미지에 넣지 않는다(ARG/ENV 금지). 운영 값은 Secrets Manager 에서 기동 시 주입한다 (#188)
 ENTRYPOINT ["java", "-XX:MaxRAMPercentage=60.0", "-jar", "app.jar"]
