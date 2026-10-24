@@ -58,6 +58,9 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/subscriptions/app-store/notifications").permitAll()
                         // 스튜디오 쓰기: X-Studio-Key(ROLE_STUDIO) 또는 관리자 JWT
                         .requestMatchers("/catalog/studio/**").hasAnyRole("STUDIO", "ADMIN")
+                        // B2B 운영자는 같은 서버 전용 키를 사용한다. 공개 프로젝트와 이미지 읽기만 비인증이다.
+                        .requestMatchers("/b2b/admin/**").hasAnyRole("STUDIO", "ADMIN")
+                        .requestMatchers(HttpMethod.GET, "/b2b/projects/*", "/b2b/images/*").permitAll()
                         .requestMatchers(
                                 "/auth/**",
                                 "/signaling",

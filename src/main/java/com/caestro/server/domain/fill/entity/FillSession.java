@@ -72,6 +72,10 @@ public class FillSession {
     @Column(nullable = false)
     private boolean borderless;
 
+    // 운영자가 고정한 프레임. 기존 B2C 세션은 false이며 공개 생성 요청으로 지정할 수 없다.
+    @Column(nullable = false, columnDefinition = "boolean default false")
+    private boolean frameLocked;
+
     // 완성된 네컷의 움직이는 GIF(앱이 링크로 공유할 때 올림). FillImage id; 칸이나 프레임이 바뀌면 지운다.
     @Column(length = 32)
     private String gifImageId;

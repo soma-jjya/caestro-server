@@ -82,6 +82,16 @@ public class FillService {
 
     @Transactional
     public FillResponse create(Long ownerId, CreateFillRequest request) {
+        return create(ownerId, request, false);
+    }
+
+    /** 운영자 설정을 쓰는 세션 생성. 공개 생성 API에는 잠금 옵션을 노출하지 않는다. */
+    @Transactional
+    public FillResponse createWithLockedFrame(Long ownerId, CreateFillRequest request) {
+        return create(ownerId, request, true);
+    }
+
+    private FillResponse create(Long ownerId, CreateFillRequest request, boolean frameLocked) {
         if (!FRAMES.contains(request.frame()) || !LAYOUTS.contains(request.layout())) {
             throw new CustomException(ErrorCode.FILL_INVALID_FRAME);
         }
@@ -97,6 +107,7 @@ public class FillService {
                 .customFrameJson(request.customFrame() == null ? null : toJson(request.customFrame()))
                 .title(normalizeTitle(request.title()))
                 .borderless(resolveBorderless(request.borderless(), request.customFrame()))
+                .frameLocked(frameLocked)
                 .expiresAt(now.plusDays(ttlDays))
                 .build());
         List<FillSlot> slots = new ArrayList<>(SLOTS);
@@ -199,6 +210,9 @@ public class FillService {
         if (!session.isOwnedBy(userId)) {
             throw new CustomException(ErrorCode.FILL_ACCESS_DENIED);
         }
+        if (session.isFrameLocked()) {
+            throw new CustomException(ErrorCode.FILL_FRAME_LOCKED);
+        }
         dropGif(session);
         if (!FRAMES.contains(request.frame()) || !LAYOUTS.contains(request.layout())) {
             throw new CustomException(ErrorCode.FILL_INVALID_FRAME);
@@ -281,6 +295,9 @@ public class FillService {
         FillSession session = liveSession(code);
         if (!session.isOwnedBy(userId)) {
             throw new CustomException(ErrorCode.FILL_ACCESS_DENIED);
+        }
+        if (session.isFrameLocked()) {
+            throw new CustomException(ErrorCode.FILL_FRAME_LOCKED);
         }
         FillCustomFrameDto custom = parseCustom(session.getCustomFrameJson());
         if (custom == null || custom.layers() == null || k < 0 || k >= custom.layers().size()) {
