@@ -44,6 +44,7 @@ jobs:
 
       # 멀티스테이지 Dockerfile로 이미지 빌드 후 ECR push.
       # cache-from/to(gha)로 GitHub Actions 캐시에 도커 레이어를 저장 → 다음 빌드 가속.
+      # 비밀값은 build-args 로 넘기지 않는다 — 이미지 설정과 빌드 증명에 평문으로 남는다. 운영 값은 Secrets Manager (#188)
       - name: Build and push image to ECR
         uses: docker/build-push-action@v6
         with:
@@ -54,15 +55,6 @@ jobs:
             ${{ steps.ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
-          # 디자이너 스튜디오 키(catalog.studio-key). 이미지 환경변수로 들어간다 — Dockerfile 참고
-          build-args: |
-            CATALOG_STUDIO_KEY=${{ secrets.CATALOG_STUDIO_KEY }}
-            GOOGLE_PLAY_SERVICE_ACCOUNT_JSON=${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
-            GOOGLE_PLAY_RTDN_TOKEN=${{ secrets.GOOGLE_PLAY_RTDN_TOKEN }}
-            APPLE_APP_STORE_ISSUER_ID=${{ secrets.APPLE_APP_STORE_ISSUER_ID }}
-            APPLE_APP_STORE_KEY_ID=${{ secrets.APPLE_APP_STORE_KEY_ID }}
-            APPLE_APP_STORE_PRIVATE_KEY=${{ secrets.APPLE_APP_STORE_PRIVATE_KEY }}
-            APPLE_APP_STORE_NOTIFICATION_TOKEN=${{ secrets.APPLE_APP_STORE_NOTIFICATION_TOKEN }}
 
       # 새 인스턴스가 부팅하며 ECR에서 최신 이미지를 pull → 롤링 교체.
       # 완료까지 러너를 20분 붙잡지 않고, refresh를 시작만 시킨다.

@@ -86,7 +86,7 @@ GET /catalog/banners → 200 (ETag)
 
 ```yaml
 catalog:
-  studio-key: ""            # 비면 스튜디오(쓰기) 전체 403. 운영은 prod yml/Secret
+  studio-key: ""            # 비면 스튜디오(쓰기) 전체 403. 운영 값은 Secrets Manager(peakpic/prod/app), 기동 때 읽는다
   max-image-bytes: 8388608
   public-base-url: https://api.peakpic.app
 ```
