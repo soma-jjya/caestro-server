@@ -14,8 +14,11 @@ import com.caestro.server.domain.user.entity.User;
 import com.caestro.server.domain.user.repository.UserRepository;
 import com.caestro.server.global.exception.CustomException;
 import com.caestro.server.global.exception.error.ErrorCode;
+import com.caestro.server.global.resilience.ExternalApiGuard;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.github.resilience4j.circuitbreaker.CallNotPermittedException;
+import io.micrometer.core.instrument.MeterRegistry;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -24,10 +27,13 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.function.Supplier;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * App Store 구독을 계정에 묶고 최신 상태로 유지한다 (contracts/subscription-app-store.md).
@@ -38,16 +44,25 @@ import org.springframework.transaction.annotation.Transactional;
  *   <li>갱신·해지·환불은 App Store Server Notifications V2 로 들어오고, 알림 내용은 믿지 않고 거래 번호로 Apple 에 다시 묻는다.</li>
  * </ul>
  * 행의 purchaseToken 은 originalTransactionId — 요금제를 바꾸거나 갱신해도 같은, 구독 한 줄의 번호다.
+ *
+ * <p>처리 순서는 세 토막이다(#184): 읽기 트랜잭션(자체 검사) → 트랜잭션 없이 Apple 조회 → 짧은 쓰기 트랜잭션(반영).
+ * Apple 응답을 기다리는 동안 DB 커넥션을 쥐지 않기 위해서다. Apple 조회는 서킷브레이커 뒤에 있어 장애 때 즉시 503 이 된다.
  */
 @Slf4j
 @Service
 public class AppStoreSubscriptionService {
 
     static final String STATE_REVOKED = "REVOKED";
+    static final String CIRCUIT = "app-store";
+    static final String STORE_TAG = "app_store";
 
     private final SubscriptionRepository subscriptionRepository;
     private final UserRepository userRepository;
     private final AppStoreServerApi appStore;
+    private final ExternalApiGuard guard;
+    private final SubscriptionMetrics metrics;
+    private final TransactionTemplate readOnly;
+    private final TransactionTemplate write;
     private final ObjectMapper objectMapper;
     private final Clock clock;
     private final String bundleId;
@@ -56,6 +71,9 @@ public class AppStoreSubscriptionService {
     public AppStoreSubscriptionService(SubscriptionRepository subscriptionRepository,
                                        UserRepository userRepository,
                                        AppStoreServerApi appStore,
+                                       ExternalApiGuard guard,
+                                       PlatformTransactionManager transactionManager,
+                                       MeterRegistry meterRegistry,
                                        ObjectMapper objectMapper,
                                        Clock clock,
                                        @Value("${apple.app-store.bundle-id:soma.project.caestro}") String bundleId,
@@ -63,6 +81,11 @@ public class AppStoreSubscriptionService {
         this.subscriptionRepository = subscriptionRepository;
         this.userRepository = userRepository;
         this.appStore = appStore;
+        this.guard = guard;
+        this.metrics = new SubscriptionMetrics(meterRegistry, STORE_TAG);
+        this.readOnly = new TransactionTemplate(transactionManager);
+        this.readOnly.setReadOnly(true);
+        this.write = new TransactionTemplate(transactionManager);
         this.objectMapper = objectMapper;
         this.clock = clock;
         this.bundleId = bundleId;
@@ -75,22 +98,38 @@ public class AppStoreSubscriptionService {
      * @throws CustomException GUEST_ACCOUNT_NOT_ALLOWED(403) · SUBSCRIPTION_PURCHASE_INVALID(400)
      *                         · SUBSCRIPTION_PURCHASE_OWNED_BY_OTHER(409) · SUBSCRIPTION_VERIFICATION_UNAVAILABLE(503)
      */
-    @Transactional
     public SubscriptionResponse verify(Long userId, AppStorePurchaseRequest request) {
+        try {
+            SubscriptionResponse response = doVerify(userId, request);
+            metrics.verified("ok");
+            return response;
+        } catch (CustomException e) {
+            metrics.verified(SubscriptionMetrics.resultOf(e.getErrorCode()));
+            throw e;
+        }
+    }
+
+    private SubscriptionResponse doVerify(Long userId, AppStorePurchaseRequest request) {
         if (request.productId() != null && !request.productId().startsWith(productPrefix)) {
             throw new CustomException(ErrorCode.SUBSCRIPTION_PURCHASE_INVALID);
         }
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
-        // 게스트 계정은 기기에 묶여 있어 결제를 다른 기기로 옮길 수 없다: 소셜 로그인이 먼저다.
-        // (iOS 는 게스트도 살 수 있고 이 기기에서는 App Store 가 Pro 를 지킨다. 로그인 뒤 앱이 다시 보내면 그때 묶인다)
-        if (user.isGuest()) {
-            throw new CustomException(ErrorCode.GUEST_ACCOUNT_NOT_ALLOWED);
-        }
+
+        // 1. 읽기 트랜잭션: 계정 검사. Apple 을 부르기 전에 끝낼 수 있는 거절은 여기서 끝낸다
+        User user = readOnly.execute(status -> {
+            User found = userRepository.findById(userId)
+                    .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
+            // 게스트 계정은 기기에 묶여 있어 결제를 다른 기기로 옮길 수 없다: 소셜 로그인이 먼저다.
+            // (iOS 는 게스트도 살 수 있고 이 기기에서는 App Store 가 Pro 를 지킨다. 로그인 뒤 앱이 다시 보내면 그때 묶인다)
+            if (found.isGuest()) {
+                throw new CustomException(ErrorCode.GUEST_ACCOUNT_NOT_ALLOWED);
+            }
+            return found;
+        });
         // 앱이 보낸 JWS 는 서명을 확인하지 않는다: 거래 번호만 꺼내고, 상태는 Apple 에 직접 묻는다
         String transactionId = transactionIdOf(request.signedTransaction())
                 .orElseThrow(() -> new CustomException(ErrorCode.SUBSCRIPTION_PURCHASE_INVALID));
 
+        // 2. 트랜잭션 없이 Apple 에 묻는다 — 응답을 기다리는 동안 DB 커넥션을 쥐지 않는다
         AppStoreSubscription purchase = fetch(transactionId)
                 .orElseThrow(() -> new CustomException(ErrorCode.SUBSCRIPTION_PURCHASE_INVALID));
         if (purchase.bundleId() != null && !bundleId.equals(purchase.bundleId())) {
@@ -102,14 +141,18 @@ public class AppStoreSubscriptionService {
             throw new CustomException(ErrorCode.SUBSCRIPTION_PURCHASE_OWNED_BY_OTHER);
         }
         String key = purchase.originalTransactionId();
-        Optional<Subscription> existing = subscriptionRepository.findByPurchaseToken(key);
-        if (existing.isPresent() && !existing.get().getUser().getId().equals(userId)) {
-            throw new CustomException(ErrorCode.SUBSCRIPTION_PURCHASE_OWNED_BY_OTHER);
-        }
 
-        Subscription subscription = existing.orElseGet(() -> newRow(user, key));
-        apply(subscription, purchase);
-        subscriptionRepository.save(subscription);
+        // 3. 짧은 쓰기 트랜잭션: 행을 찾거나 만들어 Apple 상태를 덮어쓴다. 다른 계정에 묶인 구독이면 409
+        Subscription subscription = writeRetryingOnConflict(() -> {
+            Subscription row = subscriptionRepository.findByPurchaseToken(key).orElseGet(() -> newRow(user, key));
+            if (!row.getUser().getId().equals(userId)) {
+                throw new CustomException(ErrorCode.SUBSCRIPTION_PURCHASE_OWNED_BY_OTHER);
+            }
+            apply(row, purchase);
+            subscriptionRepository.save(row);
+            subscriptionRepository.flush();   // 같은 구독의 동시 INSERT 는 여기서 유니크에 걸린다 → 다시 읽어 그 행에 반영
+            return row;
+        });
         log.info("App Store subscription verified: user={} state={} product={} env={}",
                 userId, purchase.stateName(), purchase.productId(), purchase.environment());
         return SubscriptionResponse.from(subscription, isActive(subscription));
@@ -121,43 +164,62 @@ public class AppStoreSubscriptionService {
      *
      * @throws AppStoreUnavailableException Apple 에 물을 수 없을 때 (알림이 다시 오도록 호출자가 실패로 답한다)
      */
-    @Transactional
     public void onNotification(String signedPayload) {
         JsonNode notification = payload(signedPayload);
         if (notification == null) {
             log.warn("App Store notification unreadable; ignored");
+            metrics.notified("ignored");
             return;
         }
         String type = notification.path("notificationType").asText();
         JsonNode data = notification.path("data");
         if ("TEST".equals(type)) {
             log.info("App Store test notification received");
+            metrics.notified("test");
             return;
         }
         if (data.hasNonNull("bundleId") && !bundleId.equals(data.path("bundleId").asText())) {
             log.warn("App Store notification for another app: {}", data.path("bundleId").asText());
+            metrics.notified("ignored");
             return;
         }
         JsonNode transaction = payload(data.path("signedTransactionInfo").asText(null));
         if (transaction == null || !transaction.hasNonNull("originalTransactionId")) {
             log.info("App Store notification {} without a transaction; ignored", type);
+            metrics.notified("ignored");
             return;
         }
         String key = transaction.path("originalTransactionId").asText();
-        Optional<Subscription> row = subscriptionRepository.findByPurchaseToken(key);
-        if (row.isEmpty()) {
+        // 1. 아는 구독인지 먼저 본다(단건 조회) — 모르는 구독이면 Apple 에 묻지 않는다
+        if (subscriptionRepository.findByPurchaseToken(key).isEmpty()) {
             log.info("App Store notification {} for a subscription not linked to any account yet; waiting for the app", type);
+            metrics.notified("ignored");
             return;
         }
-        Optional<AppStoreSubscription> fetched = appStore.getSubscription(key);
+        // 2. 트랜잭션 없이 Apple 에 묻는다
+        Optional<AppStoreSubscription> fetched;
+        try {
+            fetched = askApple(key);
+        } catch (AppStoreUnavailableException e) {
+            metrics.notified("unavailable");
+            throw e;
+        }
         if (fetched.isEmpty()) {
             log.info("App Store notification {} for a transaction Apple does not know; ignored", type);
+            metrics.notified("ignored");
             return;
         }
-        Subscription subscription = row.get();
-        apply(subscription, fetched.get());
-        subscriptionRepository.save(subscription);
-        log.info("App Store notification {}: subscription={} state={}", type, subscription.getId(), fetched.get().stateName());
+        // 3. 짧은 쓰기 트랜잭션: 행을 다시 읽어 반영한다
+        Optional<Subscription> applied = writeRetryingOnConflict(() -> subscriptionRepository.findByPurchaseToken(key)
+                .map(row -> {
+                    apply(row, fetched.get());
+                    subscriptionRepository.save(row);
+                    subscriptionRepository.flush();
+                    return row;
+                }));
+        applied.ifPresent(row -> log.info("App Store notification {}: subscription={} state={}",
+                type, row.getId(), fetched.get().stateName()));
+        metrics.notified(applied.isPresent() ? "applied" : "ignored");
     }
 
     /**
@@ -198,15 +260,35 @@ public class AppStoreSubscriptionService {
         return AppStoreSubscription.AppStoreJws.payload(jws, objectMapper);
     }
 
+    /** 확인 요청용: 키가 없거나 Apple 에 물을 수 없으면 503. */
     private Optional<AppStoreSubscription> fetch(String transactionId) {
         if (!appStore.configured()) {
             throw new CustomException(ErrorCode.SUBSCRIPTION_VERIFICATION_UNAVAILABLE);
         }
         try {
-            return appStore.getSubscription(transactionId);
+            return askApple(transactionId);
         } catch (AppStoreUnavailableException e) {
             log.warn("App Store verification unavailable: {}", e.getMessage());
             throw new CustomException(ErrorCode.SUBSCRIPTION_VERIFICATION_UNAVAILABLE);
+        }
+    }
+
+    /** Apple 조회를 서킷브레이커 뒤에서. 서킷이 열려 있으면 기다리지 않고 "지금은 못 묻는다"로 끝낸다. 재시도는 없다(사용자가 기다린다). */
+    private Optional<AppStoreSubscription> askApple(String transactionId) {
+        try {
+            return guard.noRetry(CIRCUIT, () -> appStore.getSubscription(transactionId));
+        } catch (CallNotPermittedException e) {
+            throw new AppStoreUnavailableException("circuit open: " + e.getMessage(), e);
+        }
+    }
+
+    /** 쓰기 트랜잭션. 같은 구독의 행을 다른 요청이 먼저 넣어 유니크에 걸리면, 새 트랜잭션에서 한 번 다시 읽어 그 행에 반영한다. */
+    private <T> T writeRetryingOnConflict(Supplier<T> work) {
+        try {
+            return write.execute(status -> work.get());
+        } catch (DataIntegrityViolationException e) {
+            log.debug("Subscription row conflict; retrying once: {}", e.getMessage());
+            return write.execute(status -> work.get());
         }
     }
 

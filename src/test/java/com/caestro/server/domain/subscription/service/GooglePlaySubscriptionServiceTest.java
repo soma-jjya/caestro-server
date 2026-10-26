@@ -1,5 +1,11 @@
 package com.caestro.server.domain.subscription.service;
 
+import com.caestro.server.global.resilience.ExternalApiGuard;
+import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import org.springframework.transaction.PlatformTransactionManager;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
@@ -54,12 +60,17 @@ class GooglePlaySubscriptionServiceTest {
     private UserRepository userRepository;
     @Mock
     private GooglePlayPublisher publisher;
+    @Mock
+    private PlatformTransactionManager transactionManager;
+
+    private final MeterRegistry meterRegistry = new SimpleMeterRegistry();
 
     private GooglePlaySubscriptionService service;
 
     @BeforeEach
     void setUp() {
         service = new GooglePlaySubscriptionService(subscriptionRepository, userRepository, publisher,
+                new ExternalApiGuard(CircuitBreakerRegistry.ofDefaults()), transactionManager, meterRegistry,
                 Clock.fixed(NOW, ZONE), PRODUCT);
     }
 
@@ -312,5 +323,19 @@ class GooglePlaySubscriptionServiceTest {
         // printf '7' | shasum -a 256
         assertThat(GooglePlaySubscriptionService.accountHash(7L))
                 .isEqualTo("7902699be42c8a8e46fbbb4501726517e86b22c56a189f7625a6da49081b2451");
+    }
+
+    @Test
+    @DisplayName("지표: 확인 결과가 subscription.verify{store,result} 로 집계된다 (#184)")
+    void metrics_countVerifyResults() {
+        signedIn();
+        given(subscriptionRepository.findByPurchaseToken(TOKEN)).willReturn(Optional.empty());
+        given(publisher.getSubscription(TOKEN)).willReturn(Optional.of(active(null)));
+
+        service.verify(USER_ID, new GooglePlayPurchaseRequest(TOKEN, PRODUCT));
+        assertThatThrownBy(() -> service.verify(USER_ID, new GooglePlayPurchaseRequest(TOKEN, "other_product")));
+
+        assertThat(meterRegistry.counter("subscription.verify", "store", "google_play", "result", "ok").count()).isEqualTo(1);
+        assertThat(meterRegistry.counter("subscription.verify", "store", "google_play", "result", "invalid").count()).isEqualTo(1);
     }
 }
