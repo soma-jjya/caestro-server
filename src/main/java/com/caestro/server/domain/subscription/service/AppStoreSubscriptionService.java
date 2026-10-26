@@ -190,36 +190,50 @@ public class AppStoreSubscriptionService {
             return;
         }
         String key = transaction.path("originalTransactionId").asText();
-        // 1. 아는 구독인지 먼저 본다(단건 조회) — 모르는 구독이면 Apple 에 묻지 않는다
-        if (subscriptionRepository.findByPurchaseToken(key).isEmpty()) {
-            log.info("App Store notification {} for a subscription not linked to any account yet; waiting for the app", type);
-            metrics.notified("ignored");
-            return;
-        }
-        // 2. 트랜잭션 없이 Apple 에 묻는다
-        Optional<AppStoreSubscription> fetched;
         try {
-            fetched = askApple(key);
+            SubscriptionRefresh result = refresh(key);
+            log.info("App Store notification {}: {}", type, result);
+            metrics.notified(result == SubscriptionRefresh.SKIPPED ? "ignored" : "applied");
         } catch (AppStoreUnavailableException e) {
             metrics.notified("unavailable");
             throw e;
         }
+    }
+
+    /**
+     * 구독 한 줄(originalTransactionId)의 지금 상태를 Apple 에 다시 물어 아는 행에 반영한다. 서버 알림과 대사 배치(#185)가 같이 쓴다.
+     *
+     * @return CHANGED 권한 기준(status·만료·갱신 여부)이 바뀜 · UNCHANGED 같음 · SKIPPED 아직 계정에 안 묶였거나 Apple 이 모르는 구독
+     * @throws AppStoreUnavailableException Apple 에 물을 수 없을 때
+     */
+    public SubscriptionRefresh refresh(String originalTransactionId) {
+        // 1. 아는 구독인지 먼저 본다(단건 조회) — 모르는 구독이면 Apple 에 묻지 않는다
+        if (subscriptionRepository.findByPurchaseToken(originalTransactionId).isEmpty()) {
+            log.info("App Store subscription not linked to any account yet; waiting for the app");
+            return SubscriptionRefresh.SKIPPED;
+        }
+        // 2. 트랜잭션 없이 Apple 에 묻는다
+        Optional<AppStoreSubscription> fetched = askApple(originalTransactionId);
         if (fetched.isEmpty()) {
-            log.info("App Store notification {} for a transaction Apple does not know; ignored", type);
-            metrics.notified("ignored");
-            return;
+            log.info("App Store does not know the transaction; ignored");
+            return SubscriptionRefresh.SKIPPED;
         }
         // 3. 짧은 쓰기 트랜잭션: 행을 다시 읽어 반영한다
-        Optional<Subscription> applied = writeRetryingOnConflict(() -> subscriptionRepository.findByPurchaseToken(key)
+        return writeRetryingOnConflict(() -> subscriptionRepository.findByPurchaseToken(originalTransactionId)
                 .map(row -> {
+                    String before = SubscriptionRefresh.snapshot(row);
                     apply(row, fetched.get());
                     subscriptionRepository.save(row);
                     subscriptionRepository.flush();
-                    return row;
-                }));
-        applied.ifPresent(row -> log.info("App Store notification {}: subscription={} state={}",
-                type, row.getId(), fetched.get().stateName()));
-        metrics.notified(applied.isPresent() ? "applied" : "ignored");
+                    return before.equals(SubscriptionRefresh.snapshot(row))
+                            ? SubscriptionRefresh.UNCHANGED : SubscriptionRefresh.CHANGED;
+                })
+                .orElse(SubscriptionRefresh.SKIPPED));
+    }
+
+    /** 인앱 결제 키가 있어 Apple 에 물을 수 있는가. 대사 배치가 묻기 전에 본다. */
+    public boolean configured() {
+        return appStore.configured();
     }
 
     /**

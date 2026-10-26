@@ -96,6 +96,11 @@ catalog:
 # 아래 비밀값(서비스 계정 키·알림 토큰·인앱 결제 키)은 Secrets Manager 에서 기동 시 주입한다. 이미지에 넣지 않는다 (#188)
 subscription:
   manual-grant-enabled: false   # POST /subscriptions(결제 없이 부여). 운영에서 켜면 누구나 무료로 프리미엄이 된다
+  reconcile:                    # 대사 배치(#185): 스토어 알림을 놓친 구독을 골라 스토어에 다시 묻는다 (SubscriptionReconcileScheduler)
+    cron: "0 40 4 * * *"       # 다른 정리 배치들 사이(04:30 fill, 04:50 catalog)
+    window-hours: 24            # ACTIVE 인데 만료가 이 시간 안이면 대상
+    lookback-days: 3            # 최근 이 기간에 만료된 행도 대상(갱신을 놓쳐 이미 풀린 사용자)
+    max-rows: 200               # 1회 실행 상한(스토어 API 호출 한도)
 google:
   play:
     package-name: soma.project.caestro
