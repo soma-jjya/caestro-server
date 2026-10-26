@@ -84,6 +84,19 @@ Google 이 느리면 요청 하나가 커넥션을 최대 8초 점유했다).
 `subscription_notification_total{store="google_play",result}` result = applied · ignored · unavailable.
 서킷 상태는 `resilience4j_circuitbreaker_state{name="google-play"}`.
 
+## 대사 배치 (#185)
+
+알림(RTDN)을 놓쳐도 결제한 사용자가 Pro 를 잃지 않게, 매일 한 번(`subscription.reconcile.cron`, 기본 04:40 UTC)
+`SubscriptionReconcileScheduler` 가 어긋날 수 있는 행만 골라 Google 에 지금 상태를 다시 묻는다(ShedLock, 인스턴스 하나만). 대상은 세 종류다.
+
+- ACTIVE 인데 만료가 24시간(`window-hours`) 안 — 갱신 알림을 놓쳤다면 지금 안 늘리면 내일 풀린다.
+- 최근 3일(`lookback-days`) 안에 만료됐고 REVOKED·REPLACED 가 아닌 행 — 이미 풀린 사용자의 갱신을 되살린다.
+- 결제 대기(`SUBSCRIPTION_STATE_PENDING`) — 느린 결제 수단의 완료는 알림 없이는 모른다.
+
+행마다 격리하고(한 행의 실패가 다른 행을 막지 않음), 1회 상한 200행(`max-rows`), 서비스 계정 키가 없으면 실패가 아니라 건너뜀.
+재조회는 알림과 같은 `refresh(token)` 경로(서킷, 재시도 없음)라 승인(acknowledge)도 다시 시도된다.
+로그 `Subscription reconcile end (checked=N, changed=M, skipped=S, failed=K)`, 카운터 `subscription_reconcile_failed_total`(0 이어야 정상).
+
 ## 설정
 
 ```yaml

@@ -157,52 +157,67 @@ public class GooglePlaySubscriptionService {
      * @throws GooglePlayUnavailableException Google 에 물을 수 없을 때 (알림이 다시 오도록 호출자가 실패로 답한다)
      */
     public void onSubscriptionNotification(String token) {
-        // 1. 트랜잭션 없이 Google 에 묻는다
-        Optional<GooglePlaySubscription> fetched;
         try {
-            fetched = askGoogle(token);
+            SubscriptionRefresh result = refresh(token);
+            metrics.notified(result == SubscriptionRefresh.SKIPPED ? "ignored" : "applied");
         } catch (GooglePlayUnavailableException e) {
             metrics.notified("unavailable");
             throw e;
         }
+    }
+
+    /**
+     * 토큰의 지금 상태를 Google 에 다시 물어 아는 행에 반영한다. 실시간 알림과 대사 배치(#185)가 같이 쓴다.
+     *
+     * @return CHANGED 권한 기준(status·만료·갱신 여부)이 바뀜 · UNCHANGED 같음 · SKIPPED 모르는 토큰·다른 상품·아직 계정에 안 묶인 토큰
+     * @throws GooglePlayUnavailableException Google 에 물을 수 없을 때
+     */
+    public SubscriptionRefresh refresh(String token) {
+        // 1. 트랜잭션 없이 Google 에 묻는다
+        Optional<GooglePlaySubscription> fetched = askGoogle(token);
         if (fetched.isEmpty()) {
-            log.info("RTDN for a token Google does not know; ignored");
-            metrics.notified("ignored");
-            return;
+            log.info("Google Play does not know the token; ignored");
+            return SubscriptionRefresh.SKIPPED;
         }
         GooglePlaySubscription purchase = fetched.get();
         Optional<GooglePlaySubscription.LineItem> line = purchase.lineFor(productId);
         if (line.isEmpty()) {
-            metrics.notified("ignored");
-            return;  // 다른 구독 상품
+            return SubscriptionRefresh.SKIPPED;  // 다른 구독 상품
         }
 
         // 2. 짧은 쓰기 트랜잭션: 아는 행(또는 이전 토큰의 계정)에만 반영한다
-        Optional<Subscription> applied = writeRetryingOnConflict(() -> {
+        SubscriptionRefresh result = writeRetryingOnConflict(() -> {
             Optional<Subscription> row = subscriptionRepository.findByPurchaseToken(token);
-            if (row.isEmpty() && purchase.linkedPurchaseToken() != null) {
+            boolean carriedOver = row.isEmpty() && purchase.linkedPurchaseToken() != null;
+            if (carriedOver) {
                 row = subscriptionRepository.findByPurchaseToken(purchase.linkedPurchaseToken())
                         .map(previous -> newRow(previous.getUser(), token));
             }
             if (row.isEmpty()) {
-                return Optional.empty();
+                return SubscriptionRefresh.SKIPPED;
             }
             Subscription subscription = row.get();
+            String before = SubscriptionRefresh.snapshot(subscription);
             apply(subscription, purchase, line.get());
             subscriptionRepository.save(subscription);
             subscriptionRepository.flush();
             replaceLinked(purchase, subscription.getUser().getId());
-            return Optional.of(subscription);
+            return carriedOver || !before.equals(SubscriptionRefresh.snapshot(subscription))
+                    ? SubscriptionRefresh.CHANGED : SubscriptionRefresh.UNCHANGED;
         });
-        if (applied.isEmpty()) {
+        if (result == SubscriptionRefresh.SKIPPED) {
             // 앱이 아직 토큰을 보내지 않았다: 결제 직후 앱의 확인 요청이 계정에 묶는다
-            log.info("RTDN for a token not linked to any account yet ({}); waiting for the app", purchase.subscriptionState());
-            metrics.notified("ignored");
-            return;
+            log.info("Google Play token not linked to any account yet ({}); waiting for the app", purchase.subscriptionState());
+            return result;
         }
         // 3. 커밋 뒤에 Google 승인
         acknowledgeIfNeeded(purchase, token);
-        metrics.notified("applied");
+        return result;
+    }
+
+    /** 서비스 계정 키가 있어 Google 에 물을 수 있는가. 대사 배치가 묻기 전에 본다. */
+    public boolean configured() {
+        return publisher.configured();
     }
 
     /**
