@@ -14,6 +14,9 @@ import com.caestro.server.domain.user.entity.User;
 import com.caestro.server.domain.user.repository.UserRepository;
 import com.caestro.server.global.exception.CustomException;
 import com.caestro.server.global.exception.error.ErrorCode;
+import com.caestro.server.global.resilience.ExternalApiGuard;
+import io.github.resilience4j.circuitbreaker.CallNotPermittedException;
+import io.micrometer.core.instrument.MeterRegistry;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -22,10 +25,14 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.HexFormat;
 import java.util.Optional;
+import java.util.function.Supplier;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * Google Play 구독을 계정에 묶고 최신 상태로 유지한다 (contracts/subscription-google-play.md).
@@ -35,27 +42,44 @@ import org.springframework.transaction.annotation.Transactional;
  *   <li>갱신·해지·환불은 Google 실시간 알림(RTDN)으로 들어오고, 알림 내용은 믿지 않고 토큰으로 Google 에 다시 묻는다.</li>
  * </ul>
  * 권한 판단은 기존과 같다: status=ACTIVE 이고 expiresAt 이 지금 이후 (SubscriptionService#isActivePremium).
+ *
+ * <p>처리 순서는 세 토막이다(#184): 읽기 트랜잭션(자체 검사) → 트랜잭션 없이 Google 조회 → 짧은 쓰기 트랜잭션(반영).
+ * Google 응답을 기다리는 동안 DB 커넥션을 쥐지 않기 위해서다. Google 조회는 서킷브레이커 뒤에 있어 장애 때 즉시 503 이 된다.
  */
 @Slf4j
 @Service
 public class GooglePlaySubscriptionService {
 
     static final String STATE_REVOKED = "REVOKED";
+    static final String CIRCUIT = "google-play";
+    static final String STORE_TAG = "google_play";
 
     private final SubscriptionRepository subscriptionRepository;
     private final UserRepository userRepository;
     private final GooglePlayPublisher publisher;
+    private final ExternalApiGuard guard;
+    private final SubscriptionMetrics metrics;
+    private final TransactionTemplate readOnly;
+    private final TransactionTemplate write;
     private final Clock clock;
     private final String productId;
 
     public GooglePlaySubscriptionService(SubscriptionRepository subscriptionRepository,
                                          UserRepository userRepository,
                                          GooglePlayPublisher publisher,
+                                         ExternalApiGuard guard,
+                                         PlatformTransactionManager transactionManager,
+                                         MeterRegistry meterRegistry,
                                          Clock clock,
                                          @Value("${google.play.product-id:peakpic_pro}") String productId) {
         this.subscriptionRepository = subscriptionRepository;
         this.userRepository = userRepository;
         this.publisher = publisher;
+        this.guard = guard;
+        this.metrics = new SubscriptionMetrics(meterRegistry, STORE_TAG);
+        this.readOnly = new TransactionTemplate(transactionManager);
+        this.readOnly.setReadOnly(true);
+        this.write = new TransactionTemplate(transactionManager);
         this.clock = clock;
         this.productId = productId;
     }
@@ -66,23 +90,36 @@ public class GooglePlaySubscriptionService {
      * @throws CustomException GUEST_ACCOUNT_NOT_ALLOWED(403) · SUBSCRIPTION_PURCHASE_INVALID(400)
      *                         · SUBSCRIPTION_PURCHASE_OWNED_BY_OTHER(409) · SUBSCRIPTION_VERIFICATION_UNAVAILABLE(503)
      */
-    @Transactional
     public SubscriptionResponse verify(Long userId, GooglePlayPurchaseRequest request) {
+        try {
+            SubscriptionResponse response = doVerify(userId, request);
+            metrics.verified("ok");
+            return response;
+        } catch (CustomException e) {
+            metrics.verified(SubscriptionMetrics.resultOf(e.getErrorCode()));
+            throw e;
+        }
+    }
+
+    private SubscriptionResponse doVerify(Long userId, GooglePlayPurchaseRequest request) {
         if (request.productId() != null && !productId.equals(request.productId())) {
             throw new CustomException(ErrorCode.SUBSCRIPTION_PURCHASE_INVALID);
         }
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
-        // 게스트 계정은 기기에 묶여 있어 결제를 다른 기기로 옮길 수 없다: 소셜 로그인이 먼저다
-        if (user.isGuest()) {
-            throw new CustomException(ErrorCode.GUEST_ACCOUNT_NOT_ALLOWED);
-        }
         String token = request.purchaseToken();
-        Optional<Subscription> existing = subscriptionRepository.findByPurchaseToken(token);
-        if (existing.isPresent() && !existing.get().getUser().getId().equals(userId)) {
-            throw new CustomException(ErrorCode.SUBSCRIPTION_PURCHASE_OWNED_BY_OTHER);
-        }
 
+        // 1. 읽기 트랜잭션: 계정·소유자 검사. Google 을 부르기 전에 끝낼 수 있는 거절은 여기서 끝낸다
+        User user = readOnly.execute(status -> {
+            User found = userRepository.findById(userId)
+                    .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
+            // 게스트 계정은 기기에 묶여 있어 결제를 다른 기기로 옮길 수 없다: 소셜 로그인이 먼저다
+            if (found.isGuest()) {
+                throw new CustomException(ErrorCode.GUEST_ACCOUNT_NOT_ALLOWED);
+            }
+            rejectIfOwnedByOther(token, userId);
+            return found;
+        });
+
+        // 2. 트랜잭션 없이 Google 에 묻는다 — 응답을 기다리는 동안 DB 커넥션을 쥐지 않는다
         GooglePlaySubscription purchase = fetch(token)
                 .orElseThrow(() -> new CustomException(ErrorCode.SUBSCRIPTION_PURCHASE_INVALID));
         GooglePlaySubscription.LineItem line = purchase.lineFor(productId)
@@ -93,10 +130,20 @@ public class GooglePlaySubscriptionService {
             throw new CustomException(ErrorCode.SUBSCRIPTION_PURCHASE_OWNED_BY_OTHER);
         }
 
-        Subscription subscription = existing.orElseGet(() -> newRow(user, token));
-        apply(subscription, purchase, line);
-        subscriptionRepository.save(subscription);
-        replaceLinked(purchase, userId);
+        // 3. 짧은 쓰기 트랜잭션: 행을 찾거나 만들어 Google 상태를 덮어쓴다
+        Subscription subscription = writeRetryingOnConflict(() -> {
+            Subscription row = subscriptionRepository.findByPurchaseToken(token).orElseGet(() -> newRow(user, token));
+            if (!row.getUser().getId().equals(userId)) {
+                throw new CustomException(ErrorCode.SUBSCRIPTION_PURCHASE_OWNED_BY_OTHER);
+            }
+            apply(row, purchase, line);
+            subscriptionRepository.save(row);
+            subscriptionRepository.flush();   // 같은 토큰의 동시 INSERT 는 여기서 유니크에 걸린다 → 다시 읽어 그 행에 반영
+            replaceLinked(purchase, userId);
+            return row;
+        });
+
+        // 4. 커밋 뒤에 Google 승인 — 실패해도 행은 남고, 앱도 승인한다
         acknowledgeIfNeeded(purchase, token);
         log.info("Google Play subscription verified: user={} state={} plan={} test={}",
                 userId, purchase.subscriptionState(), line.basePlanId(), purchase.testPurchase());
@@ -109,45 +156,67 @@ public class GooglePlaySubscriptionService {
      *
      * @throws GooglePlayUnavailableException Google 에 물을 수 없을 때 (알림이 다시 오도록 호출자가 실패로 답한다)
      */
-    @Transactional
     public void onSubscriptionNotification(String token) {
-        Optional<GooglePlaySubscription> fetched = publisher.getSubscription(token);
+        // 1. 트랜잭션 없이 Google 에 묻는다
+        Optional<GooglePlaySubscription> fetched;
+        try {
+            fetched = askGoogle(token);
+        } catch (GooglePlayUnavailableException e) {
+            metrics.notified("unavailable");
+            throw e;
+        }
         if (fetched.isEmpty()) {
             log.info("RTDN for a token Google does not know; ignored");
+            metrics.notified("ignored");
             return;
         }
         GooglePlaySubscription purchase = fetched.get();
         Optional<GooglePlaySubscription.LineItem> line = purchase.lineFor(productId);
         if (line.isEmpty()) {
+            metrics.notified("ignored");
             return;  // 다른 구독 상품
         }
-        Optional<Subscription> row = subscriptionRepository.findByPurchaseToken(token);
-        if (row.isEmpty() && purchase.linkedPurchaseToken() != null) {
-            row = subscriptionRepository.findByPurchaseToken(purchase.linkedPurchaseToken())
-                    .map(previous -> newRow(previous.getUser(), token));
-        }
-        if (row.isEmpty()) {
+
+        // 2. 짧은 쓰기 트랜잭션: 아는 행(또는 이전 토큰의 계정)에만 반영한다
+        Optional<Subscription> applied = writeRetryingOnConflict(() -> {
+            Optional<Subscription> row = subscriptionRepository.findByPurchaseToken(token);
+            if (row.isEmpty() && purchase.linkedPurchaseToken() != null) {
+                row = subscriptionRepository.findByPurchaseToken(purchase.linkedPurchaseToken())
+                        .map(previous -> newRow(previous.getUser(), token));
+            }
+            if (row.isEmpty()) {
+                return Optional.empty();
+            }
+            Subscription subscription = row.get();
+            apply(subscription, purchase, line.get());
+            subscriptionRepository.save(subscription);
+            subscriptionRepository.flush();
+            replaceLinked(purchase, subscription.getUser().getId());
+            return Optional.of(subscription);
+        });
+        if (applied.isEmpty()) {
             // 앱이 아직 토큰을 보내지 않았다: 결제 직후 앱의 확인 요청이 계정에 묶는다
             log.info("RTDN for a token not linked to any account yet ({}); waiting for the app", purchase.subscriptionState());
+            metrics.notified("ignored");
             return;
         }
-        Subscription subscription = row.get();
-        apply(subscription, purchase, line.get());
-        subscriptionRepository.save(subscription);
-        replaceLinked(purchase, subscription.getUser().getId());
+        // 3. 커밋 뒤에 Google 승인
         acknowledgeIfNeeded(purchase, token);
+        metrics.notified("applied");
     }
 
     /**
-     * 실시간 알림(무효화된 구매: 환불·지불 거절): 남은 기간과 관계없이 바로 끝낸다.
+     * 실시간 알림(무효화된 구매: 환불·지불 거절): 남은 기간과 관계없이 바로 끝낸다. 외부 호출이 없어 트랜잭션 하나로 충분하다.
      */
     @Transactional
     public void onVoidedPurchase(String token) {
-        subscriptionRepository.findByPurchaseToken(token).ifPresent(subscription -> {
+        Optional<Subscription> row = subscriptionRepository.findByPurchaseToken(token);
+        row.ifPresent(subscription -> {
             subscription.revoke(now());
             subscriptionRepository.save(subscription);
             log.info("Google Play purchase voided: subscription={} user={}", subscription.getId(), subscription.getUser().getId());
         });
+        metrics.notified(row.isPresent() ? "applied" : "ignored");
     }
 
     /** 앱이 결제에 넣는 계정 식별자: 사용자 id(문자열)의 SHA-256 hex. 앱(ProRepository.accountHash)과 같은 계산이다. */
@@ -161,15 +230,42 @@ public class GooglePlaySubscriptionService {
         }
     }
 
+    private void rejectIfOwnedByOther(String token, Long userId) {
+        Optional<Subscription> existing = subscriptionRepository.findByPurchaseToken(token);
+        if (existing.isPresent() && !existing.get().getUser().getId().equals(userId)) {
+            throw new CustomException(ErrorCode.SUBSCRIPTION_PURCHASE_OWNED_BY_OTHER);
+        }
+    }
+
+    /** 확인 요청용: 키가 없거나 Google 에 물을 수 없으면 503. */
     private Optional<GooglePlaySubscription> fetch(String token) {
         if (!publisher.configured()) {
             throw new CustomException(ErrorCode.SUBSCRIPTION_VERIFICATION_UNAVAILABLE);
         }
         try {
-            return publisher.getSubscription(token);
+            return askGoogle(token);
         } catch (GooglePlayUnavailableException e) {
             log.warn("Google Play verification unavailable: {}", e.getMessage());
             throw new CustomException(ErrorCode.SUBSCRIPTION_VERIFICATION_UNAVAILABLE);
+        }
+    }
+
+    /** Google 조회를 서킷브레이커 뒤에서. 서킷이 열려 있으면 기다리지 않고 "지금은 못 묻는다"로 끝낸다. 재시도는 없다(사용자가 기다린다). */
+    private Optional<GooglePlaySubscription> askGoogle(String token) {
+        try {
+            return guard.noRetry(CIRCUIT, () -> publisher.getSubscription(token));
+        } catch (CallNotPermittedException e) {
+            throw new GooglePlayUnavailableException("circuit open: " + e.getMessage(), e);
+        }
+    }
+
+    /** 쓰기 트랜잭션. 같은 토큰의 행을 다른 요청이 먼저 넣어 유니크에 걸리면, 새 트랜잭션에서 한 번 다시 읽어 그 행에 반영한다. */
+    private <T> T writeRetryingOnConflict(Supplier<T> work) {
+        try {
+            return write.execute(status -> work.get());
+        } catch (DataIntegrityViolationException e) {
+            log.debug("Subscription row conflict; retrying once: {}", e.getMessage());
+            return write.execute(status -> work.get());
         }
     }
 

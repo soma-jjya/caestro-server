@@ -68,6 +68,22 @@ POST /subscriptions/google-play
 - `testNotification`, 다른 패키지, 읽을 수 없는 메시지: 204 로 끝낸다.
 - 응답: 처리·무시 모두 204. Google 에 물을 수 없을 때만 503 (Pub/Sub 이 백오프로 다시 보낸다).
 
+## 처리 순서와 격리 (#184)
+
+결제 확인과 알림 처리는 세 토막이다 — Google 응답을 기다리는 동안 DB 커넥션을 쥐지 않기 위해서다(전에는 메서드 전체가 한 트랜잭션이라
+Google 이 느리면 요청 하나가 커넥션을 최대 8초 점유했다).
+
+1. **읽기 트랜잭션**: 계정·게스트·토큰 소유자 검사. Google 을 부르기 전에 끝낼 수 있는 거절(400·403·409)은 여기서 끝낸다.
+2. **트랜잭션 없이 Google 조회**. 서킷브레이커 `google-play`(`ExternalApiGuard.noRetry`, 재시도 없음) 뒤에 있어 Google 이 연속 실패하면
+   10초 동안 기다리지 않고 바로 503(확인) · 503 재전송(알림)이다. 사용자가 기다리는 호출이라 재시도는 하지 않는다.
+3. **짧은 쓰기 트랜잭션**: 토큰의 행을 찾거나 만들어 상태를 덮어쓴다. 같은 토큰의 요청 둘이 동시에 INSERT 해 유니크
+   (`uk_subscriptions_purchase_token`)에 걸리면 새 트랜잭션에서 한 번 다시 읽어 그 행에 반영한다 — 둘 다 200.
+4. 커밋 뒤에 Google 승인(acknowledge). 실패해도 행은 남고 앱도 승인한다.
+
+지표(Prometheus 이름): `subscription_verify_total{store="google_play",result}` result = ok · invalid · rejected · conflict · unavailable · error,
+`subscription_notification_total{store="google_play",result}` result = applied · ignored · unavailable.
+서킷 상태는 `resilience4j_circuitbreaker_state{name="google-play"}`.
+
 ## 설정
 
 ```yaml

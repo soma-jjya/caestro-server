@@ -43,6 +43,14 @@ public class ExternalApiGuard {
     }
 
     /**
+     * 사용자가 응답을 기다리는 멱등 호출(결제 확인 등, #184): 서킷브레이커만 — 재시도로 대기를 두 배로 늘리지 않는다.
+     * 일시 장애의 재시도는 호출자(앱·스토어 알림 재전송)가 이미 한다.
+     */
+    public <T> T noRetry(String name, Supplier<T> call) {
+        return oneShot(name, call);
+    }
+
+    /**
      * 비멱등 호출(인가코드 교환 등 1회성 자원 소비): 서킷브레이커만 — 재시도는 금지.
      * 인가코드는 1회용이라 재시도가 성공은커녕 invalid_grant를 만든다.
      */

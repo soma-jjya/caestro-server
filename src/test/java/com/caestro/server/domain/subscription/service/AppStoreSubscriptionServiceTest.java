@@ -1,5 +1,11 @@
 package com.caestro.server.domain.subscription.service;
 
+import com.caestro.server.global.resilience.ExternalApiGuard;
+import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import org.springframework.transaction.PlatformTransactionManager;
+
 import static com.caestro.server.domain.subscription.appstore.AppStoreFixtures.jws;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -58,13 +64,18 @@ class AppStoreSubscriptionServiceTest {
     private UserRepository userRepository;
     @Mock
     private AppStoreServerApi appStore;
+    @Mock
+    private PlatformTransactionManager transactionManager;
+
+    private final MeterRegistry meterRegistry = new SimpleMeterRegistry();
 
     private AppStoreSubscriptionService service;
 
     @BeforeEach
     void setUp() {
-        service = new AppStoreSubscriptionService(subscriptionRepository, userRepository, appStore, new ObjectMapper(),
-                Clock.fixed(NOW, ZONE), BUNDLE, "peakpic_pro_");
+        service = new AppStoreSubscriptionService(subscriptionRepository, userRepository, appStore,
+                new ExternalApiGuard(CircuitBreakerRegistry.ofDefaults()), transactionManager, meterRegistry,
+                new ObjectMapper(), Clock.fixed(NOW, ZONE), BUNDLE, "peakpic_pro_");
     }
 
     private static User user(Long id, boolean guest) {
@@ -295,5 +306,16 @@ class AppStoreSubscriptionServiceTest {
 
         verify(appStore, never()).getSubscription(anyString());
         verify(subscriptionRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("지표: 알림 처리 결과가 subscription.notification{store,result} 로 집계된다 (#184)")
+    void metrics_countNotificationResults() {
+        given(subscriptionRepository.findByPurchaseToken(ORIGINAL)).willReturn(Optional.empty());
+        service.onNotification(notification("SUBSCRIBED", BUNDLE));
+        service.onNotification(jws("{\"notificationType\":\"TEST\",\"data\":{\"bundleId\":\"" + BUNDLE + "\"}}"));
+
+        assertThat(meterRegistry.counter("subscription.notification", "store", "app_store", "result", "ignored").count()).isEqualTo(1);
+        assertThat(meterRegistry.counter("subscription.notification", "store", "app_store", "result", "test").count()).isEqualTo(1);
     }
 }
