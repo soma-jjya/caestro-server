@@ -84,6 +84,13 @@ Google Play 와 같은 세 토막이다 — Apple 응답을 기다리는 동안 
 `subscription_notification_total{store="app_store",result}` result = applied · ignored · test · unavailable.
 서킷 상태는 `resilience4j_circuitbreaker_state{name="app-store"}`.
 
+## 대사 배치 (#185)
+
+Google Play 와 같은 배치(`SubscriptionReconcileScheduler`, contracts/subscription-google-play.md 의 "대사 배치")가 APP_STORE 행도 함께 본다.
+대상(ACTIVE 이고 만료 24시간 안 · 최근 3일 만료 · 환불·대체 제외)과 격리·상한 규칙은 같고, 재조회는 서버 알림과 같은
+`refresh(originalTransactionId)` 경로다. 알림 URL 을 등록하기 전이나 Apple 의 재전송 기간(최대 5회·3일)을 넘긴 공백을 이 배치가 메운다.
+인앱 결제 키가 없으면 건너뜀으로 센다.
+
 ## 설정
 
 ```yaml
