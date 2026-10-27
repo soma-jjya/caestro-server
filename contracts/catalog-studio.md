@@ -82,6 +82,34 @@ GET /catalog/banners → 200 (ETag)
 `CATALOG_FRAME_NOT_FOUND(404)`, `CATALOG_BANNER_NOT_FOUND(404)`, `CATALOG_IMAGE_NOT_FOUND(404)`,
 `CATALOG_INVALID_IMAGE(400)`, `CATALOG_INVALID_FRAME(400)`, `CATALOG_INVALID_BANNER(400)`, `CATALOG_IMAGE_TOO_LARGE(413)`.
 
+## 자산 저장소 (#186)
+
+그림·동영상의 **바이트**는 `catalog_images` 행이 아니라 `CatalogAssetStore`(`domain/catalog/store`) 뒤에 있다. `catalog_images`(와 B2B 의
+`b2b_images`)는 폭·높이·종류·올린 시각 같은 메타데이터만 들고, 바이트는 같은 id 로 저장소에 있다. 함께 채우기 `FillImageStore`(#152)와 같은 분리다.
+
+| `catalog.asset-store` | 바이트 위치 | 그림 주소 | 어디서 |
+|---|---|---|---|
+| `rds` (기본) | `catalog_blobs` 테이블 | `https://api.peakpic.app/catalog/images/{id}` (서버가 중계) | 로컬·CI |
+| `s3` (2단계) | S3 버킷 + CloudFront | CDN 주소 | 운영 |
+
+- 올리기: 메타 행 저장 → 저장소 `put`. 같은 트랜잭션이라 저장소가 실패하면 행도 남지 않는다.
+- 지우기(그림 교체·휴지통 비우기·고아 정리): 행 삭제 → 저장소 `delete`. 행이 먼저라 저장소 삭제가 실패해도 목록에서는 사라진 뒤다.
+- B2B 사본: `copy(sourceId, b2bId)` 로 저장소 안에서 뜬다. 카탈로그 원본이 지워져도 사본은 남는다.
+- RDS 구현은 `catalog_blobs` 에 없으면 옛 자리(메타 행의 `data` 컬럼)를 한 번 더 본다 — 1단계 배포 직후 아직 옮기지 않은 행용. 컬럼을 지우면 자연히 꺼진다.
+
+### 1단계 배포 전후 SQL (ddl-auto=update 인 기존 DB)
+
+엔티티가 `data` 컬럼을 더 이상 매핑하지 않는다. `update` 는 컬럼을 지우지 않으므로 NOT NULL 인 채 남아 새 코드의 INSERT 가 실패한다.
+**배포 전에** 먼저 풀어 둔다(옛 코드는 계속 바이트를 쓰고, 새 코드는 이 컬럼 없이 INSERT 한다 — 어느 순서로 배포돼도 안전):
+
+```sql
+ALTER TABLE catalog_images MODIFY data LONGBLOB NULL;
+ALTER TABLE b2b_images     MODIFY data LONGBLOB NULL;
+```
+
+배포 뒤 기존 바이트는 새 저장소로 옮긴 다음 컬럼을 지운다. 운영은 S3(2단계)로 바로 옮기므로 이전과 컬럼 삭제는 2단계 배포와 함께 한다.
+로컬 DB 는 기존 그림이 필요 없으면 바로 `ALTER TABLE catalog_images DROP COLUMN data; ALTER TABLE b2b_images DROP COLUMN data;`.
+
 ## 설정
 
 ```yaml
