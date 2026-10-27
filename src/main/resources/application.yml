@@ -87,7 +87,12 @@ fill:
 # 카탈로그(디자이너 스튜디오, contracts/catalog-studio.md): 서버에서 내려주는 AI 네컷 프레임·홈 배너
 catalog:
   studio-key: ""              # peakpic.app/studio 가 X-Studio-Key 로 보내는 키. 비면 스튜디오(쓰기) 전체 403. 운영 값은 Secrets Manager(peakpic/prod/app)
-  asset-store: rds            # 자산 바이트 저장소(#186): rds(catalog_blobs, 로컬·CI 기본) | s3(운영, 2단계). 메타 행은 어느 쪽이든 catalog_images
+  asset-store: rds            # 자산 바이트 저장소(#186): rds(catalog_blobs, 로컬·CI 기본) | s3(운영). 메타 행은 어느 쪽이든 catalog_images
+  cdn-base-url: https://di519bna44kn1.cloudfront.net   # s3 일 때 그림 주소의 호스트(CloudFront, 경로 패턴 /catalog/* → 아래 버킷)
+  s3:
+    bucket: peakpic-catalog-assets-063562646825       # 비공개 버킷, CloudFront 가 OAC 로만 읽는다
+    key-prefix: catalog                                # 객체 키 {prefix}/{id} = CDN 경로
+  migrate-legacy: false       # true 면 기동 직후 RDS 에 남은 바이트를 S3 로 한 번 옮긴다(CatalogAssetMigration). 옮긴 뒤 false 로
   max-image-bytes: 8388608    # 프레임 PNG·배너 그림 상한(8MB)
   max-video-bytes: 15728640   # 홈 배너 동영상(MP4) 상한(15MB). catalog_images LONGBLOB 에 같이 두므로 RDS max_allowed_packet(기본 64MB)보다 작게
   public-base-url: https://api.peakpic.app   # 그림 URL 의 호스트 (fill.public-base-url 과 같은 이유로 고정)

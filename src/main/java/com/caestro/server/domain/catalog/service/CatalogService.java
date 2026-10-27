@@ -1,4 +1,6 @@
 package com.caestro.server.domain.catalog.service;
+import java.util.Optional;
+import java.net.URI;
 
 import com.caestro.server.domain.catalog.dto.FrameWindowDto;
 import com.caestro.server.domain.catalog.dto.LocalizedText;
@@ -162,6 +164,15 @@ public class CatalogService {
             throw new CustomException(ErrorCode.CATALOG_IMAGE_NOT_FOUND);
         }
         return assetStore.load(imageId);
+    }
+
+    /** 저장소가 직접 내줄 수 있으면 그 주소(S3 + CDN). 비어 있으면 {@link #image} 로 바이트를 중계한다. 메타 행이 없는 id 는 404. */
+    @Transactional(readOnly = true)
+    public Optional<URI> imageRedirect(String imageId) {
+        if (!imageRepository.existsById(imageId)) {
+            throw new CustomException(ErrorCode.CATALOG_IMAGE_NOT_FOUND);
+        }
+        return assetStore.redirectUrl(imageId);
     }
 
     /** 그림 행과 바이트를 함께 지운다. 행이 먼저다 — 저장소 삭제가 실패해도 목록에서는 이미 사라진 뒤다. */

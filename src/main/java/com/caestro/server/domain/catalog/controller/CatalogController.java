@@ -1,4 +1,6 @@
 package com.caestro.server.domain.catalog.controller;
+import java.util.Optional;
+import java.net.URI;
 
 import com.caestro.server.domain.catalog.controller.api.CatalogApi;
 import com.caestro.server.domain.catalog.dto.response.CatalogBannerListResponse;
@@ -87,10 +89,16 @@ public class CatalogController implements CatalogApi {
         return ResponseEntity.ok().eTag(etag).cacheControl(CacheControl.noCache()).body(body);
     }
 
-    // 내용이 바뀌지 않는 난수 id 라 오래 캐시한다. 동영상은 Resource 로 내줘 Spring 이 Range 요청에 206 으로 답한다
+    // 내용이 바뀌지 않는 난수 id 라 오래 캐시한다. 저장소가 CDN 주소를 주면(S3, #186) 302 로 보내고 그 302 도 오래 캐시한다 —
+    // 주소가 바뀌지 않으니 브라우저는 다음부터 우리 서버를 거치지 않는다. 중계할 때 동영상은 Resource 로 내줘 Spring 이 Range 요청에 206 으로 답한다
     @GetMapping("/images/{imageId}")
     @Override
     public ResponseEntity<?> image(@PathVariable String imageId) {
+        Optional<URI> redirect = catalogService.imageRedirect(imageId);
+        if (redirect.isPresent()) {
+            return ResponseEntity.status(HttpStatus.FOUND).location(redirect.get())
+                    .cacheControl(CacheControl.maxAge(30, TimeUnit.DAYS).cachePublic()).build();
+        }
         CatalogAsset image = catalogService.image(imageId);
         ResponseEntity.BodyBuilder ok = ResponseEntity.ok()
                 .contentType(MediaType.parseMediaType(image.contentType()))
