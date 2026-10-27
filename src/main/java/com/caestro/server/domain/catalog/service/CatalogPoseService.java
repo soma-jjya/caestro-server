@@ -185,7 +185,7 @@ public class CatalogPoseService {
         if (request.imageId() != null && !request.imageId().equals(upload.getImage().getId())) {
             CatalogImage previous = upload.getImage();
             upload.replaceImage(imageOf(request.imageId()));
-            imageRepository.delete(previous);
+            catalogService.deleteImage(previous);
         }
         if (request.sortOrder() != null) {
             upload.setSortOrder(request.sortOrder());
@@ -243,7 +243,7 @@ public class CatalogPoseService {
     private void eraseUpload(CatalogPoseUpload upload) {
         CatalogImage image = upload.getImage();
         uploadRepository.delete(upload);
-        imageRepository.delete(image);
+        catalogService.deleteImage(image);
     }
 
     // ── 검증·변환 ─────────────────────────────────────────────────────────────

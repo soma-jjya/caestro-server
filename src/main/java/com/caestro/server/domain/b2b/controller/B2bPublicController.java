@@ -8,7 +8,7 @@ import com.caestro.server.domain.b2b.service.B2bFillService;
 import com.caestro.server.domain.b2b.service.B2bImageService;
 import com.caestro.server.domain.b2b.service.B2bProjectService;
 import com.caestro.server.domain.fill.service.FillWriteGuard;
-import com.caestro.server.domain.fill.store.StoredImage;
+import com.caestro.server.domain.catalog.store.CatalogAsset;
 import com.caestro.server.global.security.CustomUserDetails;
 import jakarta.validation.Valid;
 import java.util.concurrent.TimeUnit;
@@ -46,7 +46,7 @@ public class B2bPublicController implements B2bPublicApi {
 
     @Override @GetMapping("/images/{id}")
     public ResponseEntity<byte[]> image(@PathVariable String id) {
-        StoredImage image = images.image(id);
+        CatalogAsset image = images.image(id);
         return ResponseEntity.ok().contentType(MediaType.parseMediaType(image.contentType()))
                 .cacheControl(CacheControl.maxAge(30, TimeUnit.DAYS).cachePublic()).body(image.data());
     }

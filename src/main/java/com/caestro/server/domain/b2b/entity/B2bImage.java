@@ -6,7 +6,7 @@ import lombok.*;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
-/** 카탈로그 업로드에서 가져온 불변 사본. B2C 휴지통·정리 배치와 수명을 공유하지 않는다. */
+/** 카탈로그 업로드에서 가져온 불변 사본의 메타데이터. 바이트는 CatalogAssetStore 에 같은 id 로 있다(#186). B2C 휴지통·정리 배치와 수명을 공유하지 않는다. */
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @AllArgsConstructor
@@ -22,8 +22,6 @@ public class B2bImage {
     private String sourceImageId;
     @Column(nullable = false, length = 40)
     private String contentType;
-    @Lob @Column(nullable = false, columnDefinition = "LONGBLOB")
-    private byte[] data;
     @Column(nullable = false)
     private int width;
     @Column(nullable = false)

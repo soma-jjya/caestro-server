@@ -95,7 +95,7 @@ class CatalogBuiltinServiceTest {
     @Test
     @DisplayName("AI 프레임은 그림과 창을 함께 바꾸고, 창만 고치거나 원래 그림으로 돌릴 수 있다")
     void artworkForArtFrames() {
-        CatalogImage image = CatalogImage.builder().id("img000000000000000000A").contentType("image/png").data(new byte[1])
+        CatalogImage image = CatalogImage.builder().id("img000000000000000000A").contentType("image/png")
                 .sizeBytes(1).width(1500).height(2000).createdAt(LocalDateTime.now(clock)).build();
         given(repository.findById("street")).willReturn(Optional.empty());
         given(imageRepository.findById(image.getId())).willReturn(Optional.of(image));

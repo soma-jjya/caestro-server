@@ -11,6 +11,8 @@ import com.caestro.server.domain.catalog.dto.FrameWindowDto;
 import com.caestro.server.domain.catalog.entity.CatalogImage;
 import com.caestro.server.domain.catalog.repository.CatalogFrameRepository;
 import com.caestro.server.domain.catalog.repository.CatalogImageRepository;
+import com.caestro.server.domain.catalog.store.CatalogAssetStore;
+import com.caestro.server.domain.catalog.store.RdsCatalogAssetStore;
 import com.caestro.server.domain.fill.dto.request.UpdateFrameRequest;
 import com.caestro.server.domain.fill.entity.FillSession;
 import com.caestro.server.domain.fill.repository.*;
@@ -51,7 +53,7 @@ class B2bPersistenceTest {
     @EnableJpaRepositories(basePackageClasses = {B2bProjectRepository.class, FillSessionRepository.class,
             UserRepository.class, CatalogImageRepository.class})
     @Import({B2bProjectService.class, B2bFillService.class, B2bImageService.class, B2bFrameMapper.class,
-            FillService.class, FillCodeGenerator.class})
+            FillService.class, FillCodeGenerator.class, RdsCatalogAssetStore.class})
     static class Config {
         @Bean Clock clock() { return Clock.fixed(Instant.parse("2026-10-22T12:00:00Z"), ZoneOffset.UTC); }
         @Bean ObjectMapper objectMapper() { return new ObjectMapper(); }
@@ -72,6 +74,7 @@ class B2bPersistenceTest {
     @Autowired FillSlotRepository slotRows;
     @Autowired FillQueueRepository queueRows;
     @Autowired CatalogImageRepository catalogImages;
+    @Autowired CatalogAssetStore store;
     @Autowired CatalogFrameRepository catalogFrames;
     @Autowired UserRepository users;
     @MockitoBean FillImageStore imageStore;
@@ -96,8 +99,9 @@ class B2bPersistenceTest {
 
     private String upload(String type) {
         String id = UUID.randomUUID().toString().replace("-", "");
-        catalogImages.saveAndFlush(CatalogImage.builder().id(id).contentType(type).data(new byte[]{1, 2, 3})
+        catalogImages.saveAndFlush(CatalogImage.builder().id(id).contentType(type)
                 .sizeBytes(3).width(400).height(1200).createdAt(LocalDateTime.of(2026, 10, 20, 0, 0)).build());
+        store.put(id, type, new byte[]{1, 2, 3});
         return id;
     }
 

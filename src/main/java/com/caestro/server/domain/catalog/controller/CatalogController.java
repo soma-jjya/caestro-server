@@ -7,7 +7,7 @@ import com.caestro.server.domain.catalog.dto.response.CatalogFrameResponse;
 import com.caestro.server.domain.catalog.dto.response.CatalogPoseResponse;
 import com.caestro.server.domain.catalog.service.CatalogPoseService;
 import com.caestro.server.domain.catalog.service.CatalogService;
-import com.caestro.server.domain.fill.store.StoredImage;
+import com.caestro.server.domain.catalog.store.CatalogAsset;
 import jakarta.servlet.http.HttpServletRequest;
 import java.time.Instant;
 import java.util.concurrent.TimeUnit;
@@ -91,7 +91,7 @@ public class CatalogController implements CatalogApi {
     @GetMapping("/images/{imageId}")
     @Override
     public ResponseEntity<?> image(@PathVariable String imageId) {
-        StoredImage image = catalogService.image(imageId);
+        CatalogAsset image = catalogService.image(imageId);
         ResponseEntity.BodyBuilder ok = ResponseEntity.ok()
                 .contentType(MediaType.parseMediaType(image.contentType()))
                 .cacheControl(CacheControl.maxAge(30, TimeUnit.DAYS).cachePublic());
