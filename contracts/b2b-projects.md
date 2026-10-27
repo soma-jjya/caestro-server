@@ -1,6 +1,6 @@
 # B2B 프로젝트·프레임·함께 채우기 (#174)
 
-상태: 작업 브랜치 `feat/#174`에서 구현했다. 2026-10-24 기준 `develop`의 `8d605a7`을 반영했으며, 통합 후 전체 빌드 재검증은 진행 전이다. 이전 기준점 `c7a8a55`에서는 전체 Gradle 빌드/348개 테스트가 통과했다(MySQL/Redis 통합 포함). PR 검토·DB 스키마 반영·운영 배포는 아직 진행 전이다. 아래는 구현된 코드의 연동 계약이며 운영 API 반영 완료를 의미하지 않는다.
+아래는 B2B API의 연동 계약이다. 기본 구현은 PR #191로 병합됐다. 2026-10-28 후속 변경은 개인 공유 주소의 `/go` 경로와 CDN 이미지의 캔버스 사용 설정이며, 운영 반영 여부는 별도로 검증한다.
 
 운영 API 기준 주소: `https://api.peakpic.app`. FE는 기준 주소를 환경 변수로 분리하고, 배포된 환경의 `/v3/api-docs`에서 B2B 경로가 반영됐는지 확인한 뒤 실제 연결한다.
 
@@ -10,9 +10,9 @@
 |---|---|---|
 | 운영자 | `https://peakpic.app/admin` | `/b2b/admin/projects/**` |
 | 축제·매장 입장 | `https://peakpic.app/admin/go/{slug}` | `GET /b2b/projects/{slug}` |
-| 개인 네컷 | FE 경로 확인 필요. 현재 `shareUrl` 기본값은 `https://peakpic.app/{slug}/{code}` | `POST /b2b/projects/{slug}/fills`, `GET /b2b/projects/{slug}/fills/{code}` |
+| 개인 네컷 | `https://peakpic.app/go/{slug}/{code}` | `POST /b2b/projects/{slug}/fills`, `GET /b2b/projects/{slug}/fills/{code}` |
 
-운영자/입장 경로는 현재 FE 전달 내용을 기준으로 한다. 개인 네컷 경로는 배포 전에 FE와 맞춘다. 서버는 `${b2b.web-base-url}/{slug}/{code}`로 `shareUrl`을 만든다. FE 개인 페이지가 `/admin/go/{slug}/{code}`라면 서버 실행 환경의 `B2B_WEB_BASE_URL=https://peakpic.app/admin/go`로 맞출 수 있다. 기본값은 `https://peakpic.app`이며 입장 경로만으로 개인 경로를 추정해 변경하지 않는다.
+운영자/입장 경로는 FE에서 관리한다. 서버는 `${b2b.web-base-url}/{slug}/{code}`로 `shareUrl`을 만들며, 기본값은 `https://peakpic.app/go`다. 운영 환경에서 `B2B_WEB_BASE_URL` 또는 `b2b.web-base-url`을 따로 지정했다면 같은 값으로 수정하고 서버 인스턴스를 교체해야 한다. 생성과 조회 응답 모두 현재 설정으로 URL을 만들며 DB에 저장된 code나 프레임 스냅샷은 바꾸지 않는다.
 
 서버는 API와 공유 URL을 제공한다. FE의 동적 라우트/페이지 자체를 생성하거나 배포하지 않는다.
 QR에는 입장 URL만 넣는다. 사용자 계정의 B2B 링크 목록은 없으므로 사용자가 개인 URL을 보관·공유한다.
@@ -116,7 +116,7 @@ LIVE에서 프레임을 저장할 때도 같은 조건을 유지해야 한다. D
 ```json
 {
   "slug": "yuja",
-  "shareUrl": "https://peakpic.app/yuja/K7X2MQ",
+  "shareUrl": "https://peakpic.app/go/yuja/K7X2MQ",
   "frame": {"id":"bf_...", "name":"유자 1", "layout":"STRIP", "imageId":"...", "imageUrl":"https://api.peakpic.app/b2b/images/bi_...", "width":400, "height":1200, "windows":[], "displayOrder":0, "version":1},
   "fill": {"code":"K7X2MQ", "ownerMe":true, "frame":"White", "layout":"Strip", "artFrameId":null, "customFrame":null, "title":"우리 네컷", "borderless":false, "slots":[], "gifUrl":null, "expiresAt":"2026-10-29T12:00:00Z", "createdAt":"2026-10-22T12:00:00Z", "queue":[]}
 }
@@ -144,7 +144,8 @@ B2B 세션은 생성 시 frameLocked=true다. 기존 `PUT /fills/{code}/frame` �
 - `b2b_fills`는 기존 fill session을 참조하며 **ON DELETE CASCADE**가 필수다. 기존 소유자 삭제/만료 배치가 세션을 지우면 B2B 연결도 함께 정리한다.
 - 참여 당시 프레임 응답 JSON과 이미지 사본을 b2b_fills에 고정한다. 현재 선택 프레임을 수정/삭제해도 기존 세션에는 적용하지 않는다.
 - B2B 이미지 정리 배치는 현재 프레임과 세션 스냅샷 양쪽에서 참조하지 않는 사본만 삭제한다. 생성 후 1일 유예, `cleanup.b2b.cron` 기본 매일 05:00(서버 시간대), ShedLock 적용.
-- 이미지 URL 호스트는 기존 `catalog.public-base-url`을 사용한다. 웹 공유 URL은 신규 `b2b.web-base-url`, 기본 `https://peakpic.app`이다.
+- 이미지 URL 호스트는 기존 `catalog.public-base-url`을 사용한다. 웹 공유 URL은 `b2b.web-base-url`, 기본 `https://peakpic.app/go`다.
+- S3 모드의 이미지 GET은 CloudFront로 리다이렉트된다. CDN의 `/catalog/*` 응답은 요청의 Origin 유무와 무관하게 `Access-Control-Allow-Origin: *`를 포함해야 한다. [공유 URL·CloudFront 운영 적용 절차](../infra/cloudfront/README.md)를 따른다.
 - 추가 DB 변경은 [검토용 SQL](sql/174-b2b.sql)을 확인한다. 스키마/외래키 반영 → 백엔드 → FE 순서로 배포한다. 이 작업에서 운영 DB에 SQL을 실행하지 않는다.
 
 에러 응답은 기존 `{"status":409,"message":"..."}` 형식이다. 에러 코드 이름은 서버 코드 식별자이며 응답에 새 code 필드를 추가하지 않는다.

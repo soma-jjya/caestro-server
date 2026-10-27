@@ -35,7 +35,7 @@ public class B2bFillService {
     private final FillService fills;
     private final B2bFrameMapper mapper;
     private final Clock clock;
-    @Value("${b2b.web-base-url:https://peakpic.app}")
+    @Value("${b2b.web-base-url:https://peakpic.app/go}")
     private String webBaseUrl;
 
     /**
