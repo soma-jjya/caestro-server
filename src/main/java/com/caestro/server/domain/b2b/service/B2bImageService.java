@@ -4,7 +4,9 @@ import com.caestro.server.domain.b2b.entity.B2bImage;
 import com.caestro.server.domain.b2b.repository.B2bImageRepository;
 import com.caestro.server.domain.catalog.entity.CatalogImage;
 import com.caestro.server.domain.catalog.repository.CatalogImageRepository;
-import com.caestro.server.domain.fill.store.StoredImage;
+import com.caestro.server.domain.catalog.store.CatalogAsset;
+import com.caestro.server.domain.catalog.store.CatalogAssetStore;
+import java.util.List;
 import com.caestro.server.global.exception.CustomException;
 import com.caestro.server.global.exception.error.ErrorCode;
 import java.time.Clock;
@@ -20,6 +22,7 @@ public class B2bImageService {
     private static final Set<String> TYPES = Set.of("image/png", "image/jpeg");
     private final CatalogImageRepository catalogImages;
     private final B2bImageRepository images;
+    private final CatalogAssetStore assets;
     private final Clock clock;
 
     /**
@@ -38,19 +41,29 @@ public class B2bImageService {
         if (!TYPES.contains(source.getContentType()) || source.getWidth() < 1 || source.getHeight() < 1) {
             throw new CustomException(ErrorCode.B2B_INVALID_IMAGE);
         }
-        return images.save(B2bImage.builder().id(B2bPolicy.id("bi_")).sourceImageId(sourceId)
-                .contentType(source.getContentType()).data(source.getData().clone())
+        // 바이트는 저장소 안에서 사본을 뜬다(#186): 카탈로그 원본이 지워져도 B2B 사본은 남는다
+        String id = B2bPolicy.id("bi_");
+        assets.copy(sourceId, id);
+        return images.save(B2bImage.builder().id(id).sourceImageId(sourceId)
+                .contentType(source.getContentType())
                 .width(source.getWidth()).height(source.getHeight()).createdAt(LocalDateTime.now(clock)).build());
     }
 
     /** 난수 id로 불변 이미지 바이트를 제공한다. 없는 사본은 404. */
     @Transactional(readOnly = true)
-    public StoredImage image(String id) {
-        B2bImage image = images.findById(id).orElseThrow(() -> new CustomException(ErrorCode.B2B_IMAGE_NOT_FOUND));
-        return new StoredImage(image.getId(), image.getContentType(), image.getData());
+    public CatalogAsset image(String id) {
+        if (!images.existsById(id)) throw new CustomException(ErrorCode.B2B_IMAGE_NOT_FOUND);
+        return assets.load(id);
     }
 
     /** 선택 목록/기존 세션 양쪽에서 해제된 사본만 삭제한다. catalog_images에는 쓰지 않는다. */
     @Transactional
-    public int purgeUnreferenced(LocalDateTime before) { return images.deleteUnreferencedBefore(before); }
+    public int purgeUnreferenced(LocalDateTime before) {
+        List<String> ids = images.findUnreferencedIdsBefore(before);
+        for (String id : ids) {
+            images.deleteById(id);
+            assets.delete(id);
+        }
+        return ids.size();
+    }
 }

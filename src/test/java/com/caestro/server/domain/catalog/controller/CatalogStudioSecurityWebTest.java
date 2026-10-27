@@ -19,7 +19,7 @@ import com.caestro.server.domain.catalog.dto.response.CatalogFrameListResponse;
 import com.caestro.server.domain.catalog.dto.response.CatalogImageResponse;
 import com.caestro.server.domain.catalog.dto.response.CatalogPoseResponse;
 import com.caestro.server.domain.catalog.dto.response.CatalogVideoResponse;
-import com.caestro.server.domain.fill.store.StoredImage;
+import com.caestro.server.domain.catalog.store.CatalogAsset;
 import com.caestro.server.domain.catalog.service.CatalogPoseService;
 import com.caestro.server.domain.catalog.service.CatalogService;
 import com.caestro.server.global.config.SecurityConfig;
@@ -210,8 +210,8 @@ class CatalogStudioSecurityWebTest {
         for (int i = 0; i < data.length; i++) {
             data[i] = (byte) i;
         }
-        given(catalogService.image("vid")).willReturn(new StoredImage("vid", "video/mp4", data));
-        given(catalogService.image("img")).willReturn(new StoredImage("img", "image/png", new byte[]{1, 2, 3}));
+        given(catalogService.image("vid")).willReturn(new CatalogAsset("vid", "video/mp4", data));
+        given(catalogService.image("img")).willReturn(new CatalogAsset("img", "image/png", new byte[]{1, 2, 3}));
 
         mockMvc.perform(get("/catalog/images/vid").header("Range", "bytes=10-19"))
                 .andExpect(status().isPartialContent())

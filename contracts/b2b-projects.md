@@ -139,6 +139,7 @@ B2B 세션은 생성 시 frameLocked=true다. 기존 `PUT /fills/{code}/frame` �
 ## 데이터 수명과 배포
 
 - 신규 테이블: `b2b_projects`, `b2b_frames`, `b2b_images`, `b2b_fills`.
+- `b2b_images` 는 메타데이터만 든다(#186). 바이트는 카탈로그와 같은 `CatalogAssetStore` 에 같은 id 로 있고, 사본은 저장소 안에서 `copy` 로 뜬다 — contracts/catalog-studio.md "자산 저장소".
 - 기존 테이블 추가 컬럼: `fill_sessions.frame_locked NOT NULL DEFAULT false`.
 - `b2b_fills`는 기존 fill session을 참조하며 **ON DELETE CASCADE**가 필수다. 기존 소유자 삭제/만료 배치가 세션을 지우면 B2B 연결도 함께 정리한다.
 - 참여 당시 프레임 응답 JSON과 이미지 사본을 b2b_fills에 고정한다. 현재 선택 프레임을 수정/삭제해도 기존 세션에는 적용하지 않는다.
