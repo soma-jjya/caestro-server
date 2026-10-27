@@ -190,7 +190,7 @@ class B2bPersistenceTest {
     void snapshotSurvivesReplacementCatalogDeletionAndPause() {
         var p = projects.publish(ready("yuja").id());
         var first = b2b.create("yuja", userId, choose(p.frames().getFirst()));
-        assertThat(first.shareUrl()).isEqualTo("https://peakpic.app/yuja/" + first.fill().code());
+        assertThat(first.shareUrl()).isEqualTo("https://peakpic.app/go/yuja/" + first.fill().code());
         assertThat(first.fill().slots()).hasSize(4);
         assertThat(first.fill().expiresAt()).isEqualTo(Instant.parse("2026-10-29T12:00:00Z"));
         catalogImages.deleteById(uploadedId);

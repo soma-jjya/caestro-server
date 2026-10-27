@@ -1,0 +1,14 @@
+{
+  "Name": "peakpic-catalog-canvas-cors",
+  "Comment": "Always allow anonymous canvas reads of public catalog and B2B frame images, including requests without Origin.",
+  "CustomHeadersConfig": {
+    "Quantity": 1,
+    "Items": [
+      {
+        "Header": "Access-Control-Allow-Origin",
+        "Value": "*",
+        "Override": true
+      }
+    ]
+  }
+}
