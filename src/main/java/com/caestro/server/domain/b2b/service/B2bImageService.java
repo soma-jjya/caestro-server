@@ -1,4 +1,6 @@
 package com.caestro.server.domain.b2b.service;
+import java.util.Optional;
+import java.net.URI;
 
 import com.caestro.server.domain.b2b.entity.B2bImage;
 import com.caestro.server.domain.b2b.repository.B2bImageRepository;
@@ -54,6 +56,13 @@ public class B2bImageService {
     public CatalogAsset image(String id) {
         if (!images.existsById(id)) throw new CustomException(ErrorCode.B2B_IMAGE_NOT_FOUND);
         return assets.load(id);
+    }
+
+    /** 저장소가 직접 내줄 수 있으면 그 주소(S3 + CDN, #186). 비어 있으면 {@link #image} 로 중계한다. 없는 사본은 404. */
+    @Transactional(readOnly = true)
+    public Optional<URI> imageRedirect(String id) {
+        if (!images.existsById(id)) throw new CustomException(ErrorCode.B2B_IMAGE_NOT_FOUND);
+        return assets.redirectUrl(id);
     }
 
     /** 선택 목록/기존 세션 양쪽에서 해제된 사본만 삭제한다. catalog_images에는 쓰지 않는다. */
