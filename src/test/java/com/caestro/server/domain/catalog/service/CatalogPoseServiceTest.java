@@ -3,6 +3,7 @@ package com.caestro.server.domain.catalog.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
@@ -19,6 +20,7 @@ import com.caestro.server.domain.catalog.entity.CatalogPoseUpload;
 import com.caestro.server.domain.catalog.repository.CatalogBannerRepository;
 import com.caestro.server.domain.catalog.repository.CatalogFrameRepository;
 import com.caestro.server.domain.catalog.repository.CatalogImageRepository;
+import com.caestro.server.domain.catalog.store.CatalogAssetStore;
 import com.caestro.server.domain.catalog.repository.CatalogPoseOverrideRepository;
 import com.caestro.server.domain.catalog.repository.CatalogPoseUploadRepository;
 import com.caestro.server.global.exception.CustomException;
@@ -53,6 +55,7 @@ class CatalogPoseServiceTest {
     @Mock private CatalogFrameRepository frameRepository;
     @Mock private CatalogBannerRepository bannerRepository;
     @Mock private CatalogIdGenerator idGenerator;
+    @Mock private CatalogAssetStore assetStore;
 
     private final Clock clock = Clock.fixed(Instant.parse("2026-10-22T06:00:00Z"), ZoneOffset.UTC);
     private CatalogPoseService service;
@@ -61,11 +64,11 @@ class CatalogPoseServiceTest {
     @BeforeEach
     void setUp() {
         ObjectMapper mapper = new ObjectMapper();
-        CatalogService catalogService = new CatalogService(frameRepository, bannerRepository, imageRepository, idGenerator, mapper, clock);
-        ReflectionTestUtils.setField(catalogService, "publicBaseUrl", "https://api.peakpic.app");
+        CatalogService catalogService = new CatalogService(frameRepository, bannerRepository, imageRepository, assetStore, idGenerator, mapper, clock);
+        lenient().when(assetStore.urlOf(anyString())).thenAnswer(inv -> "https://api.peakpic.app/catalog/images/" + inv.getArgument(0));
         service = new CatalogPoseService(overrideRepository, uploadRepository, imageRepository, idGenerator, catalogService, mapper, clock);
         ReflectionTestUtils.setField(service, "trashDays", 7);
-        image = CatalogImage.builder().id("img000000000000000000A").contentType("image/jpeg").data(new byte[10]).sizeBytes(10)
+        image = CatalogImage.builder().id("img000000000000000000A").contentType("image/jpeg").sizeBytes(10)
                 .width(1024).height(1365).createdAt(LocalDateTime.now(clock)).build();
         lenient().when(overrideRepository.save(any(CatalogPoseOverride.class))).thenAnswer(inv -> inv.getArgument(0));
         lenient().when(uploadRepository.save(any(CatalogPoseUpload.class))).thenAnswer(inv -> inv.getArgument(0));
@@ -263,7 +266,7 @@ class CatalogPoseServiceTest {
     @DisplayName("업로드 수정: 라벨은 통째로 교체, 그림을 바꾸면 이전 그림은 지운다; 삭제는 휴지통, 복구·완전 삭제")
     void upload_updateTrashRestorePurge() {
         CatalogPoseUpload u = upload("pu_a", false);
-        CatalogImage replacement = CatalogImage.builder().id("img000000000000000000C").contentType("image/jpeg").data(new byte[1])
+        CatalogImage replacement = CatalogImage.builder().id("img000000000000000000C").contentType("image/jpeg")
                 .sizeBytes(1).width(800).height(1000).createdAt(LocalDateTime.now(clock)).build();
         given(uploadRepository.findById("pu_a")).willReturn(Optional.of(u));
         given(imageRepository.findById(replacement.getId())).willReturn(Optional.of(replacement));

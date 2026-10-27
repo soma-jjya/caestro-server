@@ -82,6 +82,64 @@ GET /catalog/banners → 200 (ETag)
 `CATALOG_FRAME_NOT_FOUND(404)`, `CATALOG_BANNER_NOT_FOUND(404)`, `CATALOG_IMAGE_NOT_FOUND(404)`,
 `CATALOG_INVALID_IMAGE(400)`, `CATALOG_INVALID_FRAME(400)`, `CATALOG_INVALID_BANNER(400)`, `CATALOG_IMAGE_TOO_LARGE(413)`.
 
+## 자산 저장소 (#186)
+
+그림·동영상의 **바이트**는 `catalog_images` 행이 아니라 `CatalogAssetStore`(`domain/catalog/store`) 뒤에 있다. `catalog_images`(와 B2B 의
+`b2b_images`)는 폭·높이·종류·올린 시각 같은 메타데이터만 들고, 바이트는 같은 id 로 저장소에 있다. 함께 채우기 `FillImageStore`(#152)와 같은 분리다.
+
+| `catalog.asset-store` | 바이트 위치 | 그림 주소 | 어디서 |
+|---|---|---|---|
+| `rds` (기본) | `catalog_blobs` 테이블 | `https://api.peakpic.app/catalog/images/{id}` (서버가 중계) | 로컬·CI |
+| `s3` (2단계) | S3 버킷 + CloudFront | CDN 주소 | 운영 |
+
+- 올리기: 메타 행 저장 → 저장소 `put`. 같은 트랜잭션이라 저장소가 실패하면 행도 남지 않는다.
+- 지우기(그림 교체·휴지통 비우기·고아 정리): 행 삭제 → 저장소 `delete`. 행이 먼저라 저장소 삭제가 실패해도 목록에서는 사라진 뒤다.
+- B2B 사본: `copy(sourceId, b2bId)` 로 저장소 안에서 뜬다. 카탈로그 원본이 지워져도 사본은 남는다.
+- RDS 구현은 `catalog_blobs` 에 없으면 옛 자리(메타 행의 `data` 컬럼)를 한 번 더 본다 — 1단계 배포 직후 아직 옮기지 않은 행용. 컬럼을 지우면 자연히 꺼진다.
+
+### 1단계 배포 전후 SQL (ddl-auto=update 인 기존 DB)
+
+엔티티가 `data` 컬럼을 더 이상 매핑하지 않는다. `update` 는 컬럼을 지우지 않으므로 NOT NULL 인 채 남아 새 코드의 INSERT 가 실패한다.
+**배포 전에** 먼저 풀어 둔다(옛 코드는 계속 바이트를 쓰고, 새 코드는 이 컬럼 없이 INSERT 한다 — 어느 순서로 배포돼도 안전):
+
+```sql
+ALTER TABLE catalog_images MODIFY data LONGBLOB NULL;
+ALTER TABLE b2b_images     MODIFY data LONGBLOB NULL;
+```
+
+배포 뒤 기존 바이트는 아래 2단계 절차로 S3 에 옮기고, 그 뒤 컬럼을 지운다.
+로컬 DB 는 기존 그림이 필요 없으면 바로 `ALTER TABLE catalog_images DROP COLUMN data; ALTER TABLE b2b_images DROP COLUMN data;`.
+
+### 2단계 운영 전환 (S3 + CloudFront)
+
+S3 구현(`S3CatalogAssetStore`)은 객체 키 `{key-prefix}/{id}`, 공개 주소 `{cdn-base-url}/{key-prefix}/{id}`. 버킷은 비공개이고
+기존 CloudFront 배포(`peakpic-pose-assets`)가 OAC 로 읽으며 경로 패턴 `/catalog/*` 가 이 버킷을 가리킨다. 객체에
+`Cache-Control: public, max-age=31536000, immutable` 을 싣는다. B2B 사본은 `CopyObject` 로 S3 안에서 뜬다(서버를 거치지 않음).
+
+- 새 응답의 `imageUrl`·`videoUrl` 은 처음부터 CDN 주소다.
+- 옛 주소 `GET /catalog/images/{id}`·`GET /b2b/images/{id}` 는 CDN 주소로 **302(30일 캐시)** — 옛 응답을 들고 있는 클라이언트 호환용.
+  메타 행이 없는 id 는 302 대신 404(없는 id 로 CDN 의 403 화면을 보여 주지 않는다).
+- 지우기는 행 삭제 뒤 `DeleteObject`. S3 삭제가 실패하면 객체만 남고 행은 없다 — 주소를 아는 사람만 열 수 있고 다시 쓰이지 않는 id 라 해롭지 않다.
+
+```yaml
+catalog:
+  asset-store: s3
+  cdn-base-url: https://di519bna44kn1.cloudfront.net
+  s3:
+    bucket: peakpic-catalog-assets-063562646825
+    key-prefix: catalog
+  migrate-legacy: false
+```
+
+전환 순서(사용자가 깨진 그림을 보는 순간이 없도록 두 번 배포한다):
+
+1. `asset-store: rds` 인 채로 `migrate-legacy: true` 와 S3 설정을 넣고 배포. 기동 직후 `CatalogAssetMigration` 이 옛 컬럼과
+   `catalog_blobs` 의 바이트를 S3 로 올리고 HEAD 로 크기를 대조한 뒤에만 원본을 비운다(옛 컬럼 NULL, 블롭 행 삭제). 두 번 돌아도 안전.
+   로그 `Catalog asset migration end (moved=N, failed=K)` 의 N 이 옮길 수(배포 전 `SELECT COUNT(*) … WHERE data IS NOT NULL`)와 같고
+   S3 `catalog/` 객체 수가 같은지 확인.
+2. `asset-store: s3`, `migrate-legacy: false` 로 바꿔 배포. 응답 주소가 CDN 으로 바뀐다.
+3. 일주일 뒤 `ALTER TABLE catalog_images DROP COLUMN data; ALTER TABLE b2b_images DROP COLUMN data;`. `catalog_blobs` 는 운영에서 비어 있다.
+
 ## 설정
 
 ```yaml

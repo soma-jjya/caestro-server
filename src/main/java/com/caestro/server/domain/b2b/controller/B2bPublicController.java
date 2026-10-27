@@ -1,4 +1,7 @@
 package com.caestro.server.domain.b2b.controller;
+import org.springframework.http.HttpStatus;
+import java.util.Optional;
+import java.net.URI;
 
 import com.caestro.server.domain.b2b.controller.api.B2bPublicApi;
 import com.caestro.server.domain.b2b.dto.request.CreateB2bFillRequest;
@@ -8,7 +11,7 @@ import com.caestro.server.domain.b2b.service.B2bFillService;
 import com.caestro.server.domain.b2b.service.B2bImageService;
 import com.caestro.server.domain.b2b.service.B2bProjectService;
 import com.caestro.server.domain.fill.service.FillWriteGuard;
-import com.caestro.server.domain.fill.store.StoredImage;
+import com.caestro.server.domain.catalog.store.CatalogAsset;
 import com.caestro.server.global.security.CustomUserDetails;
 import jakarta.validation.Valid;
 import java.util.concurrent.TimeUnit;
@@ -46,7 +49,13 @@ public class B2bPublicController implements B2bPublicApi {
 
     @Override @GetMapping("/images/{id}")
     public ResponseEntity<byte[]> image(@PathVariable String id) {
-        StoredImage image = images.image(id);
+        // 저장소가 CDN 주소를 주면(S3, #186) 302. 주소가 바뀌지 않아 302 도 오래 캐시한다
+        Optional<URI> redirect = images.imageRedirect(id);
+        if (redirect.isPresent()) {
+            return ResponseEntity.status(HttpStatus.FOUND).location(redirect.get())
+                    .cacheControl(CacheControl.maxAge(30, TimeUnit.DAYS).cachePublic()).build();
+        }
+        CatalogAsset image = images.image(id);
         return ResponseEntity.ok().contentType(MediaType.parseMediaType(image.contentType()))
                 .cacheControl(CacheControl.maxAge(30, TimeUnit.DAYS).cachePublic()).body(image.data());
     }

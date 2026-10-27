@@ -3,6 +3,7 @@ package com.caestro.server.domain.catalog.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
@@ -23,6 +24,7 @@ import com.caestro.server.domain.catalog.entity.CatalogImage;
 import com.caestro.server.domain.catalog.repository.CatalogBannerRepository;
 import com.caestro.server.domain.catalog.repository.CatalogFrameRepository;
 import com.caestro.server.domain.catalog.repository.CatalogImageRepository;
+import com.caestro.server.domain.catalog.store.CatalogAssetStore;
 import com.caestro.server.global.exception.CustomException;
 import com.caestro.server.global.exception.error.ErrorCode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -57,6 +59,7 @@ class CatalogServiceTest {
     @Mock private CatalogBannerRepository bannerRepository;
     @Mock private CatalogImageRepository imageRepository;
     @Mock private CatalogIdGenerator idGenerator;
+    @Mock private CatalogAssetStore assetStore;
 
     private final Clock clock = Clock.fixed(Instant.parse("2026-10-22T06:00:00Z"), ZoneOffset.UTC);
     private CatalogService service;
@@ -70,12 +73,12 @@ class CatalogServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new CatalogService(frameRepository, bannerRepository, imageRepository, idGenerator, new ObjectMapper(), clock);
+        service = new CatalogService(frameRepository, bannerRepository, imageRepository, assetStore, idGenerator, new ObjectMapper(), clock);
         ReflectionTestUtils.setField(service, "maxImageBytes", 8L * 1024 * 1024);
         ReflectionTestUtils.setField(service, "maxVideoBytes", 1024L);
-        ReflectionTestUtils.setField(service, "publicBaseUrl", "https://api.peakpic.app");
+        lenient().when(assetStore.urlOf(anyString())).thenAnswer(inv -> "https://api.peakpic.app/catalog/images/" + inv.getArgument(0));
         ReflectionTestUtils.setField(service, "trashDays", 7);
-        image = CatalogImage.builder().id("img000000000000000000A").contentType("image/png").data(new byte[10]).sizeBytes(10)
+        image = CatalogImage.builder().id("img000000000000000000A").contentType("image/png").sizeBytes(10)
                 .width(1062).height(1481).createdAt(LocalDateTime.now(clock)).build();
         lenient().when(frameRepository.save(any(CatalogFrame.class))).thenAnswer(inv -> inv.getArgument(0));
         lenient().when(bannerRepository.save(any(CatalogBanner.class))).thenAnswer(inv -> inv.getArgument(0));
@@ -218,7 +221,7 @@ class CatalogServiceTest {
     @DisplayName("부분 수정: 보낸 필드만 바뀌고, 그림을 바꾸면 이전 그림은 지운다")
     void updateFrame_partialAndImageSwap() {
         CatalogFrame frame = frame("af_a", false, 0, LocalDateTime.of(2026, 10, 1, 0, 0));
-        CatalogImage replacement = CatalogImage.builder().id("img000000000000000000C").contentType("image/png").data(new byte[1])
+        CatalogImage replacement = CatalogImage.builder().id("img000000000000000000C").contentType("image/png")
                 .sizeBytes(1).width(900).height(1200).createdAt(LocalDateTime.now(clock)).build();
         given(frameRepository.findById("af_a")).willReturn(Optional.of(frame));
         given(imageRepository.findById(replacement.getId())).willReturn(Optional.of(replacement));
@@ -474,7 +477,7 @@ class CatalogServiceTest {
     }
 
     private CatalogImage video(String id, int durationMs) {
-        return CatalogImage.builder().id(id).contentType("video/mp4").data(mp4(64)).sizeBytes(64)
+        return CatalogImage.builder().id(id).contentType("video/mp4").sizeBytes(64)
                 .width(1080).height(1350).durationMs(durationMs).createdAt(LocalDateTime.now(clock)).build();
     }
 

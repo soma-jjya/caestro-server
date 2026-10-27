@@ -69,6 +69,28 @@ Google Play 와 같은 ErrorCode 를 쓴다.
 - `TEST`, 다른 번들, 읽을 수 없는 알림: 받은 것으로 끝낸다.
 - 응답: 처리·무시 모두 200. Apple 에 물을 수 없을 때만 503 (Apple 이 간격을 두고 다시 보낸다).
 
+## 처리 순서와 격리 (#184)
+
+Google Play 와 같은 세 토막이다 — Apple 응답을 기다리는 동안 DB 커넥션을 쥐지 않는다.
+
+1. **읽기 트랜잭션**: 계정·게스트 검사. 이어서 JWS 에서 거래 번호를 꺼낸다(서명은 보지 않는다).
+2. **트랜잭션 없이 Apple 조회**. 서킷브레이커 `app-store`(`ExternalApiGuard.noRetry`, 재시도 없음). 번들·계정 토큰 검사는 응답을 받은 뒤.
+3. **짧은 쓰기 트랜잭션**: originalTransactionId 의 행을 찾거나 만들어 상태를 덮어쓴다. 다른 계정의 행이면 409.
+   동시 INSERT 로 유니크에 걸리면 새 트랜잭션에서 한 번 다시 읽어 그 행에 반영한다.
+
+알림은 "아는 구독인지 먼저(단건 조회) → Apple 조회(서킷) → 쓰기 트랜잭션" 순서라 모르는 구독으로는 Apple 을 부르지 않는다.
+
+지표(Prometheus 이름): `subscription_verify_total{store="app_store",result}` result = ok · invalid · rejected · conflict · unavailable · error,
+`subscription_notification_total{store="app_store",result}` result = applied · ignored · test · unavailable.
+서킷 상태는 `resilience4j_circuitbreaker_state{name="app-store"}`.
+
+## 대사 배치 (#185)
+
+Google Play 와 같은 배치(`SubscriptionReconcileScheduler`, contracts/subscription-google-play.md 의 "대사 배치")가 APP_STORE 행도 함께 본다.
+대상(ACTIVE 이고 만료 24시간 안 · 최근 3일 만료 · 환불·대체 제외)과 격리·상한 규칙은 같고, 재조회는 서버 알림과 같은
+`refresh(originalTransactionId)` 경로다. 알림 URL 을 등록하기 전이나 Apple 의 재전송 기간(최대 5회·3일)을 넘긴 공백을 이 배치가 메운다.
+인앱 결제 키가 없으면 건너뜀으로 센다.
+
 ## 설정
 
 ```yaml

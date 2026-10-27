@@ -1,4 +1,6 @@
 package com.caestro.server.domain.catalog.service;
+import java.util.Optional;
+import java.net.URI;
 
 import com.caestro.server.domain.catalog.dto.FrameWindowDto;
 import com.caestro.server.domain.catalog.dto.LocalizedText;
@@ -16,7 +18,8 @@ import com.caestro.server.domain.catalog.entity.CatalogImage;
 import com.caestro.server.domain.catalog.repository.CatalogBannerRepository;
 import com.caestro.server.domain.catalog.repository.CatalogFrameRepository;
 import com.caestro.server.domain.catalog.repository.CatalogImageRepository;
-import com.caestro.server.domain.fill.store.StoredImage;
+import com.caestro.server.domain.catalog.store.CatalogAsset;
+import com.caestro.server.domain.catalog.store.CatalogAssetStore;
 import com.caestro.server.global.exception.CustomException;
 import com.caestro.server.global.exception.error.ErrorCode;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -59,6 +62,7 @@ public class CatalogService {
     private final CatalogFrameRepository frameRepository;
     private final CatalogBannerRepository bannerRepository;
     private final CatalogImageRepository imageRepository;
+    private final CatalogAssetStore assetStore;
     private final CatalogIdGenerator idGenerator;
     private final ObjectMapper objectMapper;
     private final Clock clock;
@@ -72,16 +76,13 @@ public class CatalogService {
     @Value("${catalog.trash-days:7}")
     private int trashDays;
 
-    // 그림 주소의 호스트. fill 과 같이 요청에서 만들지 않고 고정한다(ALB 뒤에서는 요청 스킴을 믿을 수 없다)
-    @Value("${catalog.public-base-url:https://api.peakpic.app}")
-    private String publicBaseUrl;
-
     public CatalogService(CatalogFrameRepository frameRepository, CatalogBannerRepository bannerRepository,
-                          CatalogImageRepository imageRepository, CatalogIdGenerator idGenerator,
-                          ObjectMapper objectMapper, Clock clock) {
+                          CatalogImageRepository imageRepository, CatalogAssetStore assetStore,
+                          CatalogIdGenerator idGenerator, ObjectMapper objectMapper, Clock clock) {
         this.frameRepository = frameRepository;
         this.bannerRepository = bannerRepository;
         this.imageRepository = imageRepository;
+        this.assetStore = assetStore;
         this.idGenerator = idGenerator;
         this.objectMapper = objectMapper;
         this.clock = clock;
@@ -108,15 +109,16 @@ public class CatalogService {
         if (decoded == null || decoded.getWidth() <= 0 || decoded.getHeight() <= 0) {
             throw new CustomException(ErrorCode.CATALOG_INVALID_IMAGE);
         }
+        // 메타 행은 여기, 바이트는 저장소(#186). 저장소가 실패하면 예외로 행도 롤백된다
         CatalogImage image = imageRepository.save(CatalogImage.builder()
                 .id(idGenerator.imageId())
                 .contentType(type)
-                .data(body)
                 .sizeBytes(body.length)
                 .width(decoded.getWidth())
                 .height(decoded.getHeight())
                 .createdAt(LocalDateTime.now(clock))
                 .build());
+        assetStore.put(image.getId(), type, body);
         return new CatalogImageResponse(image.getId(), imageUrl(image.getId()), image.getWidth(), image.getHeight(), image.getContentType());
     }
 
@@ -144,22 +146,39 @@ public class CatalogService {
         CatalogImage video = imageRepository.save(CatalogImage.builder()
                 .id(idGenerator.imageId())
                 .contentType(VIDEO_TYPE)
-                .data(body)
                 .sizeBytes(body.length)
                 .width(width)
                 .height(height)
                 .durationMs(durationMs)
                 .createdAt(LocalDateTime.now(clock))
                 .build());
+        assetStore.put(video.getId(), VIDEO_TYPE, body);
         return new CatalogVideoResponse(video.getId(), imageUrl(video.getId()), video.getWidth(), video.getHeight(),
                 video.getDurationMs(), video.getContentType());
     }
 
+    /** 서버가 바이트를 중계할 때(RDS 저장소). 메타 행이 없으면 404 — 바이트만 남은 고아는 내려주지 않는다. */
     @Transactional(readOnly = true)
-    public StoredImage image(String imageId) {
-        CatalogImage image = imageRepository.findById(imageId)
-                .orElseThrow(() -> new CustomException(ErrorCode.CATALOG_IMAGE_NOT_FOUND));
-        return new StoredImage(image.getId(), image.getContentType(), image.getData());
+    public CatalogAsset image(String imageId) {
+        if (!imageRepository.existsById(imageId)) {
+            throw new CustomException(ErrorCode.CATALOG_IMAGE_NOT_FOUND);
+        }
+        return assetStore.load(imageId);
+    }
+
+    /** 저장소가 직접 내줄 수 있으면 그 주소(S3 + CDN). 비어 있으면 {@link #image} 로 바이트를 중계한다. 메타 행이 없는 id 는 404. */
+    @Transactional(readOnly = true)
+    public Optional<URI> imageRedirect(String imageId) {
+        if (!imageRepository.existsById(imageId)) {
+            throw new CustomException(ErrorCode.CATALOG_IMAGE_NOT_FOUND);
+        }
+        return assetStore.redirectUrl(imageId);
+    }
+
+    /** 그림 행과 바이트를 함께 지운다. 행이 먼저다 — 저장소 삭제가 실패해도 목록에서는 이미 사라진 뒤다. */
+    void deleteImage(CatalogImage image) {
+        imageRepository.delete(image);
+        assetStore.delete(image.getId());
     }
 
     /** 어떤 프레임·배너도 안 쓰는 그림 중 {@code before} 이전에 올라온 것을 지운다. 지운 수를 돌려준다. */
@@ -168,6 +187,7 @@ public class CatalogService {
         List<String> ids = imageRepository.findOrphanIds(before);
         for (String id : ids) {
             imageRepository.deleteById(id);
+            assetStore.delete(id);
         }
         return ids.size();
     }
@@ -235,7 +255,7 @@ public class CatalogService {
         if (request.imageId() != null && !request.imageId().equals(frame.getImage().getId())) {
             CatalogImage previous = frame.getImage();
             frame.replaceImage(imageOf(request.imageId(), ErrorCode.CATALOG_INVALID_FRAME));
-            imageRepository.delete(previous);
+            deleteImage(previous);
         }
         if (request.sortOrder() != null) {
             frame.setSortOrder(request.sortOrder());
@@ -289,7 +309,7 @@ public class CatalogService {
     private void eraseFrame(CatalogFrame frame) {
         CatalogImage image = frame.getImage();
         frameRepository.delete(frame);
-        imageRepository.delete(image);
+        deleteImage(image);
     }
 
     @Transactional(readOnly = true)
@@ -361,19 +381,19 @@ public class CatalogService {
         if (request.imageId() != null && !request.imageId().equals(banner.getImage().getId())) {
             CatalogImage previous = banner.getImage();
             banner.replaceImage(imageOf(request.imageId(), ErrorCode.CATALOG_INVALID_BANNER));
-            imageRepository.delete(previous);
+            deleteImage(previous);
         }
         // 동영상: clearVideo 가 먼저(떼기), 아니면 다른 videoId 로 바꾸기. 쓰이지 않게 된 동영상은 지운다
         if (Boolean.TRUE.equals(request.clearVideo())) {
             CatalogImage previous = banner.replaceVideo(null);
             if (previous != null) {
-                imageRepository.delete(previous);
+                deleteImage(previous);
             }
         } else if (request.videoId() != null && !request.videoId().isBlank()
                 && (banner.getVideo() == null || !request.videoId().equals(banner.getVideo().getId()))) {
             CatalogImage previous = banner.replaceVideo(videoOf(request.videoId()));
             if (previous != null) {
-                imageRepository.delete(previous);
+                deleteImage(previous);
             }
         }
         if (request.sortOrder() != null) {
@@ -420,9 +440,9 @@ public class CatalogService {
         CatalogImage image = banner.getImage();
         CatalogImage video = banner.getVideo();
         bannerRepository.delete(banner);
-        imageRepository.delete(image);
+        deleteImage(image);
         if (video != null) {
-            imageRepository.delete(video);
+            deleteImage(video);
         }
     }
 
@@ -575,8 +595,9 @@ public class CatalogService {
                 b.getVideo() == null ? null : b.getVideo().getDurationMs());
     }
 
+    /** 그림 주소. 저장소가 정한다(RDS: api.peakpic.app 중계, S3: CDN). */
     public String imageUrl(String imageId) {
-        return publicBaseUrl + "/catalog/images/" + imageId;
+        return assetStore.urlOf(imageId);
     }
 
     private Instant latest(List<LocalDateTime> times) {
