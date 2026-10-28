@@ -5,6 +5,7 @@ import com.caestro.server.domain.b2b.dto.request.*;
 import com.caestro.server.domain.b2b.dto.response.B2bProjectResponse;
 import com.caestro.server.domain.b2b.dto.response.B2bSlugCheckResponse;
 import com.caestro.server.domain.b2b.service.B2bProjectService;
+import com.caestro.server.domain.b2b.service.B2bProjectDeletionService;
 import jakarta.validation.Valid;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -17,12 +18,19 @@ import org.springframework.web.bind.annotation.*;
 @RequiredArgsConstructor
 public class B2bAdminController implements B2bAdminApi {
     private final B2bProjectService service;
+    private final B2bProjectDeletionService deletion;
 
     @Override @GetMapping
     public ResponseEntity<List<B2bProjectResponse>> list() { return ResponseEntity.ok(service.list()); }
 
     @Override @GetMapping("/{id}")
     public ResponseEntity<B2bProjectResponse> get(@PathVariable String id) { return ResponseEntity.ok(service.get(id)); }
+
+    @Override @DeleteMapping("/{id}")
+    public ResponseEntity<Void> delete(@PathVariable String id) {
+        deletion.delete(id);
+        return ResponseEntity.noContent().build();
+    }
 
     @Override @PostMapping
     public ResponseEntity<B2bProjectResponse> create(@Valid @RequestBody UpsertB2bProjectRequest request) {

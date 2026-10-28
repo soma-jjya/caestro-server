@@ -11,6 +11,7 @@ import com.caestro.server.domain.b2b.controller.B2bPublicController;
 import com.caestro.server.domain.b2b.service.B2bFillService;
 import com.caestro.server.domain.b2b.service.B2bImageService;
 import com.caestro.server.domain.b2b.service.B2bProjectService;
+import com.caestro.server.domain.b2b.service.B2bProjectDeletionService;
 import com.caestro.server.domain.fill.service.FillWriteGuard;
 import com.caestro.server.domain.user.entity.User;
 import com.caestro.server.global.config.SecurityConfig;
@@ -37,6 +38,7 @@ class B2bSecurityWebTest {
     private static final CustomUserDetails GUEST = new CustomUserDetails(1L, User.Role.USER);
     @Autowired MockMvc mvc;
     @MockitoBean B2bProjectService projects;
+    @MockitoBean B2bProjectDeletionService deletion;
     @MockitoBean B2bFillService fills;
     @MockitoBean B2bImageService images;
     @MockitoBean FillWriteGuard guard;
@@ -102,6 +104,33 @@ class B2bSecurityWebTest {
         mvc.perform(post("/b2b/admin/projects/bp_empty/publish").header("X-Studio-Key", "test-server-only-key"))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.status").value(409))
+                .andExpect(jsonPath("$.message").isString());
+    }
+
+    @Test
+    void deleteRequiresStudioKeyOrAdminAndReturnsEmpty204() throws Exception {
+        mvc.perform(delete("/b2b/admin/projects/bp_test")).andExpect(status().isForbidden());
+        mvc.perform(delete("/b2b/admin/projects/bp_test").with(user(GUEST))).andExpect(status().isForbidden());
+        mvc.perform(delete("/b2b/admin/projects/bp_test").header("X-Studio-Key", "wrong"))
+                .andExpect(status().isForbidden());
+        verifyNoInteractions(deletion);
+        mvc.perform(delete("/b2b/admin/projects/bp_test").header("X-Studio-Key", "test-server-only-key"))
+                .andExpect(status().isNoContent()).andExpect(content().string(""));
+        mvc.perform(delete("/b2b/admin/projects/bp_admin").with(user(new CustomUserDetails(2L, User.Role.ADMIN))))
+                .andExpect(status().isNoContent()).andExpect(content().string(""));
+        verify(deletion).delete("bp_test");
+        verify(deletion).delete("bp_admin");
+    }
+
+    @Test
+    void deleteKeepsNotFoundAndConflictErrorShape() throws Exception {
+        doThrow(new CustomException(ErrorCode.B2B_PROJECT_NOT_FOUND)).when(deletion).delete("bp_missing");
+        doThrow(new CustomException(ErrorCode.B2B_PROJECT_DELETE_NOT_ALLOWED)).when(deletion).delete("bp_live");
+        mvc.perform(delete("/b2b/admin/projects/bp_missing").header("X-Studio-Key", "test-server-only-key"))
+                .andExpect(status().isNotFound()).andExpect(jsonPath("$.status").value(404))
+                .andExpect(jsonPath("$.message").isString());
+        mvc.perform(delete("/b2b/admin/projects/bp_live").header("X-Studio-Key", "test-server-only-key"))
+                .andExpect(status().isConflict()).andExpect(jsonPath("$.status").value(409))
                 .andExpect(jsonPath("$.message").isString());
     }
 }

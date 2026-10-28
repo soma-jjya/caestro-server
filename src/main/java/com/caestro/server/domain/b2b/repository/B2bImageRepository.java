@@ -5,6 +5,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.repository.query.Param;
 
 public interface B2bImageRepository extends JpaRepository<B2bImage, String> {
@@ -13,4 +14,10 @@ public interface B2bImageRepository extends JpaRepository<B2bImage, String> {
             + " and not exists (select f from B2bFrame f where f.image = i)"
             + " and not exists (select s from B2bFill s where s.image = i)")
     List<String> findUnreferencedIdsBefore(@Param("before") LocalDateTime before);
+
+    @Modifying
+    @Query("delete from B2bImage i where i.id = :id"
+            + " and not exists (select f from B2bFrame f where f.image = i)"
+            + " and not exists (select s from B2bFill s where s.image = i)")
+    int deleteIfUnreferenced(@Param("id") String id);
 }
