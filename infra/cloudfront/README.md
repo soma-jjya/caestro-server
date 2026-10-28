@@ -1,6 +1,8 @@
 # B2B 공유 주소와 CDN 이미지 CORS
 
-2026-10-28 요청의 적용 절차다. 이 파일과 JSON을 커밋하는 것만으로 AWS 설정은 바뀌지 않는다. 실제 배포의 정책 ID, 기존 헤더 설정 및 AWS 적용 결과는 아직 확인하지 않았다.
+2026-10-28 요청의 적용 절차와 검증 기록이다. 파일을 커밋하는 것만으로 AWS 설정은 바뀌지 않는다. 운영자가 콘솔에서 `/catalog/*`의 Managed-SimpleCORS를 유지한 채 `peakpic-catalog-canvas-cors` 함수를 게시하고 Viewer response에 연결했다. 운영자가 전달한 실제 CDN GET 결과에서 Origin 없음 / `https://peakpic.app` / `null` 모두 200, `Access-Control-Allow-Origin: *`, cache hit을 확인했다. FE도 운영 출처에서 API → CDN 리다이렉트, 프레임 PNG 4장과 사용자 사진 4장의 캔버스 합성·PNG 다운로드를 검증하고 이미지 프록시를 제거해 배포했다고 전달했다. 아래 AWS 절차는 재적용 안내이며, 현재 연결을 다시 만들거나 덮어쓸 필요는 없다.
+
+정정: 앞서 제공한 CustomHeadersConfig의 `Access-Control-Allow-Origin` 설정은 AWS에서 거부된다. 콘솔의 정책 생성이 실패했으며 기존 배포에는 적용되지 않았다. AWS CLI `--generate-cli-skeleton output` 검증은 로컬 입력 형식만 확인하므로 서비스의 실제 생성 가능 여부를 검증한 것이 아니다. 잘못된 JSON을 CloudFront Function 코드로 대체한다.
 
 ## 1. 공유 주소
 
@@ -15,32 +17,25 @@ b2b:
 
 응답 예시: `https://peakpic.app/go/yuja/K7X2MQ`. 생성 POST와 기존 세션 GET 모두 현재 설정으로 shareUrl을 만든다. DB 마이그레이션은 필요 없다. 이미 배포된 예전 주소의 리다이렉트 처리는 FE 라우팅에서 관리한다.
 
-## 2. CloudFront 응답 헤더
+## 2. CloudFront Function으로 응답 헤더 추가
 
 - 배포 도메인: `di519bna44kn1.cloudfront.net`.
 - 현재 코드의 대상 객체 경로: `/catalog/*`. B2B 프레임 사본도 CatalogAssetStore의 같은 경로를 사용한다. 운영에서 key-prefix를 바꿨다면 실제 이미지 경로와 매칭되는 behavior를 확인한다.
-- 추가할 **응답** 헤더: `Access-Control-Allow-Origin: *`, **Override = true**.
-- 위치: Response headers policy의 **Custom headers**. Origin 요청 헤더 유무와 무관하게 추가해야 하므로 CORS 섹션의 조건부 처리에만 의존하지 않는다.
+- 추가할 **응답** 헤더: `Access-Control-Allow-Origin: *`.
+- 위치: CloudFront Function의 **Viewer response(뷰어 응답)**. 기존 Managed-SimpleCORS 응답 헤더 정책은 유지한다.
 
-[AWS 문서](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/understanding-response-headers-policies.html#understanding-response-headers-policies-custom)는 Custom headers를 모든 viewer 응답에 추가한다고 명시한다. Override=true는 원본 서버의 같은 헤더도 지정한 값으로 덮어쓴다.
+[AWS 공식 예제](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/example_cloudfront_functions_add_cors_header_section.html)는 viewer response 함수에서 CORS 헤더를 추가한다. 여기서는 공개 이미지의 익명 캔버스 사용을 위해 요청의 Origin을 검사하지 않고 `*`를 지정한다. 코드: [public-image-cors.js](public-image-cors.js).
 
-1. AWS CloudFront 콘솔에서 위 도메인의 배포를 선택한다. Behaviors에서 실제 `/catalog/...` 이미지 요청에 매칭되는 항목과 현재 Response headers policy ID를 기록한다.
-2. 현재 정책이 다른 배포/경로에도 연결돼 있다면 이 이미지 경로용 정책으로 복제한다. 기존 security/custom/remove 헤더 설정을 보존한다.
-3. Custom headers에 `Access-Control-Allow-Origin` = `*`, Override=true를 설정한다. 같은 헤더를 CorsConfig와 중복 정의하지 않는다. 기존 CORS 섹션을 대체해야 하면 필요한 나머지 CORS 헤더도 검토해 custom 설정으로 이관한다.
-4. 이미지 behavior에 새 정책을 연결한다. 캐시 키, TTL, origin, OAC, 버킷 공개 여부 및 다른 behavior는 유지한다.
-5. 배포 상태가 Deployed가 될 때까지 확인하고 아래 GET 검증을 실행한다.
+1. 위 배포의 Behaviors → `/catalog/*` → Edit에서 기존 설정을 기록한다. 특히 **Function associations 전체**를 먼저 확인한다. Managed-SimpleCORS와 기본값(`*`) behavior는 유지한다.
+2. 기존 viewer response 함수가 있으면 교체하지 않는다. 함수 원본과 사용 중인 다른 behavior를 확인한 뒤 사본에 필요한 로직을 병합하는 별도 검토가 필요하다. Viewer request 또는 viewer response에 Lambda@Edge가 있으면 CloudFront Function을 함께 연결할 수 없으므로 기존 Lambda 로직의 보존 방안을 먼저 검토한다.
+3. Viewer response 연결이 비어 있고 viewer 이벤트에 Lambda@Edge가 없을 때, Functions에서 `peakpic-catalog-canvas-cors`라는 새 함수를 JavaScript runtime 2.0으로 생성한다. 동일 이름이 이미 있으면 그 함수를 덮어쓰지 말고 내용을 먼저 확인한다.
+4. 새 함수에 `public-image-cors.js`를 입력하고 저장한다. Test에서 **Viewer response** 이벤트로 Origin 없음 / `https://peakpic.app` / `null`을 각각 확인한다. 응답의 상태·기존 헤더가 유지되고 ACAO 값만 `*`인지 확인한다.
+5. 함수 테스트가 통과하면 Publish하여 LIVE로 게시한다. 게시만으로는 배포에 연결되지 않는다.
+6. `/catalog/*` behavior의 Viewer response에 이 함수만 연결하고 저장한다. 캐시·원본 요청·응답 헤더 정책, TTL, origin, OAC, 버킷 접근 설정, 다른 함수 및 다른 behavior는 유지한다. 배포 완료 후 아래 실제 GET/브라우저 검증을 수행한다.
 
-정책이 없는 behavior용 최소 JSON은 [public-image-response-headers.json](public-image-response-headers.json)이다. **기존 정책을 이 최소 JSON으로 통째로 덮어쓰면 안 된다.** 기존 정책이 있다면 위 절차대로 필요한 헤더를 보존한 사본에 병합한다.
+[AWS 함수 연결 제한](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/edge-function-restrictions-all.html)에 따라 이벤트 유형마다 함수는 하나만 연결할 수 있다. 또한 원본 응답이 400 이상이면 viewer response 함수가 호출되지 않으므로, 이 방식이 모든 오류 응답에도 ACAO를 보장한다고 표현하면 안 된다. 대상은 실제 존재하는 이미지의 성공 응답이며, 오류 응답에도 필요하면 별도 원본 응답 처리를 검토한다.
 
-현재 정책이 없음을 확인했고 이 최소 정책을 새로 생성할 경우:
-
-```powershell
-aws cloudfront create-response-headers-policy --response-headers-policy-config file://infra/cloudfront/public-image-response-headers.json
-```
-
-생성한 정책을 해당 behavior에 연결해야 효력이 생긴다. 이 명령은 배포 연결까지 수행하지 않는다. 기존 보안·캐시 정책의 보존은 AWS에서 원본 설정을 읽은 뒤 확인한다.
-
-응답 헤더 정책은 캐시에서 반환하는 응답에도 적용된다. 정책 수정만을 이유로 전역 invalidation을 실행하지 않는다. 브라우저에 남은 이미지 캐시로 결과를 오판하지 않도록 검증 때 브라우저 캐시를 비활성화한다. [AWS 설명](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/modifying-response-headers.html)
+전역 invalidation을 기본 절차로 수행하지 않는다. 브라우저에 남은 이미지 캐시로 결과를 오판하지 않도록 검증 때 브라우저 캐시를 비활성화하고, CDN cache hit 응답에서도 함수를 거친 헤더를 확인한다.
 
 ## 3. 적용 후 검증
 
@@ -55,7 +50,7 @@ curl.exe --silent --show-error --dump-header - --output NUL --header 'Origin: nu
 
 첫 요청에는 Origin이 없다. 다음 두 요청은 정상 웹 origin과 리다이렉트에서 발생할 수 있는 null origin을 확인한다. 한 요청을 반복해 CDN cache hit 응답에서도 같은 헤더를 확인한다.
 
-FE에서는 이미지의 `crossOrigin = 'anonymous'`를 `src`보다 먼저 지정한다. API 이미지 URL에서 302를 거쳐 CDN으로 이동하는 전체 흐름을 재현하고, 프레임과 사용자 사진이 포함된 캔버스의 PNG 다운로드까지 확인한다. 이 정책의 `*`는 쿠키 등 자격 증명을 포함하지 않는 이미지 요청을 전제로 한다.
+FE에서는 이미지의 `crossOrigin = 'anonymous'`를 `src`보다 먼저 지정한다. API 이미지 URL에서 302를 거쳐 CDN으로 이동하는 전체 흐름을 재현하고, 프레임과 사용자 사진이 포함된 캔버스의 PNG 다운로드까지 확인한다. `*`는 쿠키 등 자격 증명을 포함하지 않는 이미지 요청을 전제로 한다. 실제 검증을 마칠 때까지 FE 프록시를 유지한다.
 
 적용 완료 조건:
 
@@ -65,4 +60,4 @@ FE에서는 이미지의 `crossOrigin = 'anonymous'`를 `src`보다 먼저 지�
 
 ## 롤백
 
-응답 헤더 정책 문제가 있으면 기록한 이전 policy ID를 동일 behavior에 다시 연결한다. 공유 주소 문제가 있으면 직전 운영 설정으로 되돌리고 서버를 재기동한다. 정책과 데이터는 임의 삭제하지 않는다.
+함수 적용 문제가 있으면 `/catalog/*`의 viewer response 연결을 기록한 이전 상태로 복구한다. 기존 연결이 없었다면 이번에 추가한 연결만 해제한다. 기존 SimpleCORS와 다른 설정, 함수 자체와 데이터는 삭제하지 않는다. 공유 주소 문제가 있으면 직전 운영 설정으로 되돌리고 서버를 재기동한다.
