@@ -95,4 +95,13 @@ class B2bSecurityWebTest {
                 .andExpect(status().isBadRequest());
         verifyNoInteractions(projects);
     }
+
+    @Test
+    void notPublishableKeepsConflictStatusAndErrorShape() throws Exception {
+        when(projects.publish("bp_empty")).thenThrow(new CustomException(ErrorCode.B2B_NOT_PUBLISHABLE));
+        mvc.perform(post("/b2b/admin/projects/bp_empty/publish").header("X-Studio-Key", "test-server-only-key"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.status").value(409))
+                .andExpect(jsonPath("$.message").isString());
+    }
 }

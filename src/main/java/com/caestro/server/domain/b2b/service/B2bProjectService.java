@@ -85,7 +85,7 @@ public class B2bProjectService {
     /**
      * 배열 전체를 검증한 뒤 현재 프레임을 교체한다. 배열 순서가 displayOrder다.
      * @throws CustomException B2B_INVALID_FRAME - 중복/다른 프로젝트 id, 잘못된 설정
-     * @throws CustomException B2B_NOT_PUBLISHABLE - LIVE 상태에서 미완성 프레임을 저장하려는 경우
+     * @throws CustomException B2B_NOT_PUBLISHABLE - LIVE 상태에서 빈 목록이나 미완성 프레임을 저장하려는 경우
      */
     @Transactional
     public B2bProjectResponse replaceFrames(String id, ReplaceB2bFramesRequest request) {
@@ -133,7 +133,7 @@ public class B2bProjectService {
         return B2bProjectResponse.from(project, replacement.stream().map(mapper::response).toList(), clock.getZone());
     }
 
-    /** DRAFT → LIVE. 유효한 이미지·창 4개를 가진 프레임이 정확히 3개여야 한다. */
+    /** DRAFT → LIVE. 프레임은 1~3개이며 모두 유효한 이미지·창 4개를 가져야 한다. */
     @Transactional
     public B2bProjectResponse publish(String id) { return transition(id, Status.DRAFT, Status.LIVE); }
 
@@ -168,7 +168,7 @@ public class B2bProjectService {
     }
 
     private void requirePublishable(List<B2bFrame> choices) {
-        if (choices.size() != 3) throw new CustomException(ErrorCode.B2B_NOT_PUBLISHABLE);
+        if (choices.isEmpty() || choices.size() > 3) throw new CustomException(ErrorCode.B2B_NOT_PUBLISHABLE);
         for (B2bFrame frame : choices) {
             if (frame.getImage() == null || B2bPolicy.windows(mapper.windows(frame.getWindowsJson())).size() != 4) {
                 throw new CustomException(ErrorCode.B2B_NOT_PUBLISHABLE);
