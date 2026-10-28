@@ -1,6 +1,6 @@
 # B2B 공유 주소와 CDN 이미지 CORS
 
-2026-10-28 요청의 적용 절차다. 파일을 커밋하는 것만으로 AWS 설정은 바뀌지 않는다. 콘솔에서 `/catalog/*`의 응답 헤더 정책이 Managed-SimpleCORS임을 확인했다. 함수 연결 상태와 적용 결과는 아직 확인하지 않았다.
+2026-10-28 요청의 적용 절차와 검증 기록이다. 파일을 커밋하는 것만으로 AWS 설정은 바뀌지 않는다. 운영자가 콘솔에서 `/catalog/*`의 Managed-SimpleCORS를 유지한 채 `peakpic-catalog-canvas-cors` 함수를 게시하고 Viewer response에 연결했다. 운영자가 전달한 실제 CDN GET 결과에서 Origin 없음 / `https://peakpic.app` / `null` 모두 200, `Access-Control-Allow-Origin: *`, cache hit을 확인했다. FE도 운영 출처에서 API → CDN 리다이렉트, 프레임 PNG 4장과 사용자 사진 4장의 캔버스 합성·PNG 다운로드를 검증하고 이미지 프록시를 제거해 배포했다고 전달했다. 아래 AWS 절차는 재적용 안내이며, 현재 연결을 다시 만들거나 덮어쓸 필요는 없다.
 
 정정: 앞서 제공한 CustomHeadersConfig의 `Access-Control-Allow-Origin` 설정은 AWS에서 거부된다. 콘솔의 정책 생성이 실패했으며 기존 배포에는 적용되지 않았다. AWS CLI `--generate-cli-skeleton output` 검증은 로컬 입력 형식만 확인하므로 서비스의 실제 생성 가능 여부를 검증한 것이 아니다. 잘못된 JSON을 CloudFront Function 코드로 대체한다.
 
