@@ -29,6 +29,9 @@ import java.util.*;
 import java.util.concurrent.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.boot.persistence.autoconfigure.EntityScan;
@@ -110,9 +113,14 @@ class B2bPersistenceTest {
     }
 
     private B2bProjectResponse ready(String slug) {
+        return ready(slug, 3);
+    }
+
+    private B2bProjectResponse ready(String slug, int count) {
         var p = projects.create(new UpsertB2bProjectRequest("유자 축제", slug, "함께 네컷"));
-        return projects.replaceFrames(p.id(), new ReplaceB2bFramesRequest(List.of(
-                input(null, "유자 1", uploadedId), input(null, "유자 2", uploadedId), input(null, "유자 3", uploadedId))));
+        List<ReplaceB2bFramesRequest.Frame> choices = new ArrayList<>();
+        for (int i = 0; i < count; i++) choices.add(input(null, "유자 " + (i + 1), uploadedId));
+        return projects.replaceFrames(p.id(), new ReplaceB2bFramesRequest(choices));
     }
 
     private CreateB2bFillRequest choose(B2bFrameResponse frame) {
@@ -142,6 +150,113 @@ class B2bPersistenceTest {
         error(() -> projects.publish(live.id()), ErrorCode.B2B_INVALID_TRANSITION);
         assertThat(projects.update(live.id(), new UpsertB2bProjectRequest("매장", "yuja", "변경")).name()).isEqualTo("매장");
         assertThat(catalogFrames.count()).isZero();
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {1, 2, 3})
+    void oneToThreeFramesCanPublishResumeAndCreateSessions(int count) {
+        var live = projects.publish(ready("yuja", count).id());
+        assertThat(live.status()).isEqualTo(B2bProject.Status.LIVE);
+        assertThat(live.publishedAt()).isNotNull();
+        var choices = projects.publicProject("yuja").frames();
+        assertThat(choices).hasSize(count).containsExactlyElementsOf(live.frames());
+        for (var frame : choices) {
+            var created = b2b.create("yuja", userId, choose(frame));
+            assertThat(created.frame()).isEqualTo(frame);
+            assertThat(created.fill().slots()).hasSize(4);
+            assertThat(b2b.get("yuja", created.fill().code(), userId).frame()).isEqualTo(frame);
+        }
+
+        projects.pause(live.id());
+        error(() -> projects.publicProject("yuja"), ErrorCode.B2B_PROJECT_NOT_FOUND);
+        var resumed = projects.resume(live.id());
+        assertThat(resumed.status()).isEqualTo(B2bProject.Status.LIVE);
+        assertThat(resumed.publishedAt()).isEqualTo(live.publishedAt());
+        assertThat(projects.publicProject("yuja").frames()).containsExactlyElementsOf(choices);
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {1, 2, 3})
+    void liveReplacementAllowsOneToThreeFramesAndPreservesExistingSnapshot(int count) {
+        var live = projects.publish(ready("yuja").id());
+        var previous = b2b.create("yuja", userId, choose(live.frames().getLast()));
+        var inputs = live.frames().subList(0, count).stream()
+                .map(f -> input(f.id(), f.name(), uploadedId)).toList();
+
+        var replaced = projects.replaceFrames(live.id(), new ReplaceB2bFramesRequest(inputs));
+        assertThat(replaced.status()).isEqualTo(B2bProject.Status.LIVE);
+        assertThat(replaced.frames()).hasSize(count);
+        assertThat(projects.publicProject("yuja").frames()).containsExactlyElementsOf(replaced.frames());
+        assertThat(b2b.get("yuja", previous.fill().code(), userId).frame()).isEqualTo(previous.frame());
+        for (var frame : replaced.frames()) {
+            assertThat(b2b.create("yuja", userId, choose(frame)).frame()).isEqualTo(frame);
+        }
+        if (count < 3) {
+            error(() -> b2b.create("yuja", userId, choose(previous.frame())), ErrorCode.B2B_FRAME_NOT_FOUND);
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {0, 1, 2, 3})
+    void draftAndPausedCanKeepZeroToThreeIncompleteFramesButCannotGoLive(int count) {
+        List<ReplaceB2bFramesRequest.Frame> incomplete = new ArrayList<>();
+        for (int i = 0; i < count; i++) {
+            incomplete.add(new ReplaceB2bFramesRequest.Frame(null, "준비 중 " + i,
+                    B2bFrame.Layout.STRIP, null, List.of()));
+        }
+        var request = new ReplaceB2bFramesRequest(incomplete);
+        var draft = projects.create(new UpsertB2bProjectRequest("준비", "draft", null));
+        assertThat(projects.replaceFrames(draft.id(), request).frames()).hasSize(count);
+        error(() -> projects.publish(draft.id()), ErrorCode.B2B_NOT_PUBLISHABLE);
+        assertThat(projects.get(draft.id()).status()).isEqualTo(B2bProject.Status.DRAFT);
+        assertThat(projects.get(draft.id()).publishedAt()).isNull();
+
+        var live = projects.publish(ready("yuja").id());
+        projects.pause(live.id());
+        assertThat(projects.replaceFrames(live.id(), request).frames()).hasSize(count);
+        error(() -> projects.resume(live.id()), ErrorCode.B2B_NOT_PUBLISHABLE);
+        assertThat(projects.get(live.id()).status()).isEqualTo(B2bProject.Status.PAUSED);
+        assertThat(projects.get(live.id()).publishedAt()).isEqualTo(live.publishedAt());
+    }
+
+    @ParameterizedTest
+    @CsvSource({"false,4", "true,0", "true,1", "true,2", "true,3"})
+    void incompleteFrameMixedWithValidFrameStillBlocksPublicationAndLiveReplacement(boolean hasImage, int windows) {
+        var incomplete = new ReplaceB2bFramesRequest.Frame(null, "미완성", B2bFrame.Layout.STRIP,
+                hasImage ? uploadedId : null, WINDOWS.subList(0, windows));
+        var request = new ReplaceB2bFramesRequest(List.of(input(null, "완성", uploadedId), incomplete));
+        var draft = projects.create(new UpsertB2bProjectRequest("준비", "draft", null));
+        projects.replaceFrames(draft.id(), request);
+        error(() -> projects.publish(draft.id()), ErrorCode.B2B_NOT_PUBLISHABLE);
+        assertThat(projects.get(draft.id()).status()).isEqualTo(B2bProject.Status.DRAFT);
+
+        var live = projects.publish(ready("yuja").id());
+        long imageCount = imageRows.count();
+        error(() -> projects.replaceFrames(live.id(), request), ErrorCode.B2B_NOT_PUBLISHABLE);
+        assertThat(projects.get(live.id()).frames()).isEqualTo(live.frames());
+        assertThat(projects.get(live.id()).status()).isEqualTo(B2bProject.Status.LIVE);
+        assertThat(imageRows.count()).isEqualTo(imageCount);
+
+        projects.pause(live.id());
+        projects.replaceFrames(live.id(), request);
+        error(() -> projects.resume(live.id()), ErrorCode.B2B_NOT_PUBLISHABLE);
+        assertThat(projects.get(live.id()).status()).isEqualTo(B2bProject.Status.PAUSED);
+        assertThat(projects.get(live.id()).publishedAt()).isEqualTo(live.publishedAt());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"DRAFT", "LIVE", "PAUSED"})
+    void moreThanThreeFramesAreRejectedWithoutChangingExistingFrames(String status) {
+        var project = ready("yuja");
+        if (!status.equals("DRAFT")) projects.publish(project.id());
+        if (status.equals("PAUSED")) projects.pause(project.id());
+        var request = new ReplaceB2bFramesRequest(List.of(input(null, "1", uploadedId),
+                input(null, "2", uploadedId), input(null, "3", uploadedId), input(null, "4", uploadedId)));
+
+        error(() -> projects.replaceFrames(project.id(), request), ErrorCode.B2B_INVALID_FRAME);
+        var unchanged = projects.get(project.id());
+        assertThat(unchanged.status()).isEqualTo(B2bProject.Status.valueOf(status));
+        assertThat(unchanged.frames()).isEqualTo(project.frames());
     }
 
     @Test
