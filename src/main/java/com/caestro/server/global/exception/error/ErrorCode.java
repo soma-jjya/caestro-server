@@ -80,7 +80,7 @@ public enum ErrorCode {
     B2B_FRAME_VERSION_CHANGED(409, "프레임이 변경되었습니다. 다시 선택해주세요"),
     B2B_INVALID_IMAGE(400, "프레임에 사용할 PNG/JPEG 업로드를 찾을 수 없습니다"),
     B2B_IMAGE_NOT_FOUND(404, "B2B 프레임 이미지를 찾을 수 없습니다"),
-    B2B_NOT_PUBLISHABLE(409, "공개하려면 이미지와 사진 창 4개가 있는 프레임 3개가 필요합니다"),
+    B2B_NOT_PUBLISHABLE(409, "공개하려면 프레임이 1~3개이고, 모든 프레임에 이미지와 사진 창 4개가 있어야 합니다"),
     B2B_INVALID_TRANSITION(409, "현재 프로젝트 상태에서 실행할 수 없습니다"),
     B2B_FILL_NOT_FOUND(404, "이 프로젝트의 네컷 링크를 찾을 수 없습니다"),
     BAD_REQUEST(400, "잘못된 요청입니다"),
