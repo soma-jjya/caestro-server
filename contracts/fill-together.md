@@ -45,6 +45,7 @@ FillResponse = {
 (응답 JSON 의 해시 — 칸·대기열·프레임·GIF·이름 어느 것이 바뀌어도 달라진다. 보는 사람에 따라 `ownerMe`·`filledByMe` 가 달라 ETag 도 사람마다 다르다),
 직전 ETag 를 `If-None-Match` 로 보내면 그대로일 때 **304 + 본문 없음**이다. `Cache-Control: no-cache` 라 매번 서버에 묻되 바뀐 것만 받는다.
 화면을 떠나면 폴링을 멈춘다. 푸시가 포그라운드에서 오면 배너 대신 즉시 한 번 다시 묻는다.
+네 칸이 처음 다 찬 순간 주인에게 푸시가 한 번 간다(contracts/push.md, `completed_notified_at`).
 다음 단계는 SSE(인스턴스가 둘이라 Redis pub/sub 팬아웃 필요)이고, 계기는 `/fills/{code}` 요청이 전체 요청에서 차지하는 비중과 그 DB 시간이 지표에 보일 때다
 (`http_server_requests_seconds{uri="/fills/{code}",status}` 의 200 대 304 비율로 본다). 서버 쪽 DB 비용을 먼저 줄여야 하면 세션에 version 카운터를 두는 것이 그 전 단계다.
 
@@ -102,6 +103,7 @@ CREATE TABLE fill_sessions (
   title VARCHAR(30) NULL,
   borderless TINYINT(1) NOT NULL DEFAULT 0,
   gif_image_id VARCHAR(32) NULL,
+  completed_notified_at DATETIME(6) NULL,   -- 네 칸 완성 푸시를 보낸 시각(#206), 세션당 1회
   expires_at DATETIME(6) NOT NULL,
   created_at DATETIME(6) NULL,
   CONSTRAINT fk_fill_sessions_owner FOREIGN KEY (owner_id) REFERENCES users(id)
