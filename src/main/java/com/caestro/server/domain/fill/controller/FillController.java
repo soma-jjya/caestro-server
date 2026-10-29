@@ -9,6 +9,10 @@ import com.caestro.server.domain.fill.service.FillService;
 import com.caestro.server.domain.fill.store.StoredImage;
 import com.caestro.server.domain.fill.service.FillWriteGuard;
 import com.caestro.server.global.security.CustomUserDetails;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.HexFormat;
 import jakarta.validation.Valid;
 import java.net.URI;
 import java.util.Optional;
@@ -49,12 +53,33 @@ public class FillController implements FillApi {
         return ResponseEntity.status(HttpStatus.CREATED).body(fillService.create(userDetails.getUserId(), request));
     }
 
+    // 주인이 세션 화면에서 몇 초마다 다시 묻는 요청. 상태가 그대로면 본문 없이 304 — 응답 상태의 해시가 ETag 라 칸·대기열·프레임·GIF
+    // 어느 것이 바뀌어도 값이 달라진다(#205). 보는 사람에 따라 ownerMe·filledByMe 가 달라 ETag 도 사람마다 다르다
     @GetMapping("/{code}")
     @Override
     public ResponseEntity<FillResponse> get(
             @PathVariable String code,
-            @AuthenticationPrincipal CustomUserDetails userDetails) {
-        return ResponseEntity.ok(fillService.get(code, userDetails.getUserId()));
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @RequestHeader(value = HttpHeaders.IF_NONE_MATCH, required = false) String ifNoneMatch) {
+        FillResponse body = fillService.get(code, userDetails.getUserId());
+        String etag = etag(body);
+        if (etag.equals(ifNoneMatch)) {
+            return ResponseEntity.status(HttpStatus.NOT_MODIFIED).eTag(etag).cacheControl(CacheControl.noCache()).build();
+        }
+        return ResponseEntity.ok().eTag(etag).cacheControl(CacheControl.noCache()).body(body);
+    }
+
+    /**
+     * 응답 상태의 SHA-256 앞 16바이트. 응답 DTO 가 전부 record 라 toString 이 모든 필드를 정해진 순서로 담는다 —
+     * 같은 상태면 늘 같은 값, 어느 필드가 바뀌어도 다른 값. 직렬화 설정(ObjectMapper)에 기대지 않아 슬라이스 테스트에서도 그대로 돈다.
+     */
+    String etag(FillResponse body) {
+        try {
+            byte[] digest = MessageDigest.getInstance("SHA-256").digest(body.toString().getBytes(StandardCharsets.UTF_8));
+            return "\"" + HexFormat.of().formatHex(digest, 0, 16) + "\"";
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException(e);
+        }
     }
 
     @PutMapping("/{code}/frame")
