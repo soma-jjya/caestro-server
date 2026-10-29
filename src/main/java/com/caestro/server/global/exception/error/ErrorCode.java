@@ -83,6 +83,9 @@ public enum ErrorCode {
     B2B_NOT_PUBLISHABLE(409, "공개하려면 프레임이 1~3개이고, 모든 프레임에 이미지와 사진 창 4개가 있어야 합니다"),
     B2B_INVALID_TRANSITION(409, "현재 프로젝트 상태에서 실행할 수 없습니다"),
     B2B_FILL_NOT_FOUND(404, "이 프로젝트의 네컷 링크를 찾을 수 없습니다"),
+    // 푸시 알림 (#206)
+    PUSH_TOKEN_NOT_FOUND(404, "등록된 기기 토큰이 없습니다"),
+
     BAD_REQUEST(400, "잘못된 요청입니다"),
     RESOURCE_NOT_FOUND(404, "요청한 경로를 찾을 수 없습니다"),
     METHOD_NOT_ALLOWED(405, "지원하지 않는 HTTP 메서드입니다"),
