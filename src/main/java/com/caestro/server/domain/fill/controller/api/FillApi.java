@@ -47,13 +47,15 @@ public interface FillApi {
     @SecurityRequirement(name = "BearerAuth")
     @Parameter(name = "code", description = "세션 코드(6자리)", in = ParameterIn.PATH, required = true)
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "조회 성공",
+            @ApiResponse(responseCode = "200", description = "조회 성공. ETag 포함 — 화면을 보는 동안 3~5초마다 If-None-Match 로 다시 묻고, 304 면 그대로",
                     content = @Content(schema = @Schema(implementation = FillResponse.class))),
+            @ApiResponse(responseCode = "304", description = "변경 없음(If-None-Match 가 현재 ETag 와 같음), 본문 없음"),
             @ApiResponse(responseCode = "401", description = "토큰이 없음"),
             @ApiResponse(responseCode = "404", description = "세션 없음"),
             @ApiResponse(responseCode = "410", description = "세션 만료")
     })
-    ResponseEntity<FillResponse> get(String code, CustomUserDetails userDetails);
+    ResponseEntity<FillResponse> get(String code, CustomUserDetails userDetails,
+                                     @Parameter(description = "직전 응답의 ETag. 같으면 본문 없이 304") String ifNoneMatch);
 
     @Operation(summary = "칸 채우기",
             description = "본문은 이미지 바이트(image/jpeg 또는 image/png, 최대 3MB). 빈 칸이든 누가 채운 칸이든 누구나 넣을 수 있으며, "
