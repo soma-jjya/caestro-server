@@ -30,6 +30,7 @@ import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.context.ApplicationEventPublisher;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -52,6 +53,7 @@ class FillInputValidationTest {
     @Mock private FillSessionRepository sessionRepository;
     @Mock private FillSlotRepository slotRepository;
     @Mock private FillQueueRepository queueRepository;
+    @Mock private ApplicationEventPublisher eventPublisher;
     @Mock private FillImageStore imageStore;
     @Mock private UserRepository userRepository;
     @Mock private FillCodeGenerator codeGenerator;
@@ -65,7 +67,7 @@ class FillInputValidationTest {
     @BeforeEach
     void setUp() {
         service = new FillService(sessionRepository, slotRepository, queueRepository, imageStore, userRepository,
-                codeGenerator, new ObjectMapper(), clock);
+                codeGenerator, new ObjectMapper(), clock, eventPublisher);
         ReflectionTestUtils.setField(service, "queueMax", 12);
         ReflectionTestUtils.setField(service, "ttlDays", 7L);
         ReflectionTestUtils.setField(service, "maxImageBytes", 3 * 1024 * 1024);

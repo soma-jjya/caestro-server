@@ -38,6 +38,7 @@ import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.context.ApplicationEventPublisher;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
@@ -58,6 +59,7 @@ class FillServiceTest {
     @Mock private FillSessionRepository sessionRepository;
     @Mock private FillSlotRepository slotRepository;
     @Mock private FillQueueRepository queueRepository;
+    @Mock private ApplicationEventPublisher eventPublisher;
     @Mock private FillImageStore imageStore;
     @Mock private UserRepository userRepository;
     @Mock private FillCodeGenerator codeGenerator;
@@ -71,7 +73,7 @@ class FillServiceTest {
     @BeforeEach
     void setUp() {
         service = new FillService(sessionRepository, slotRepository, queueRepository, imageStore, userRepository,
-                codeGenerator, new ObjectMapper(), clock);
+                codeGenerator, new ObjectMapper(), clock, eventPublisher);
         // 대기열 저장은 넘긴 것을 그대로 돌려주고, 조회는 비어 있다(각 테스트가 필요하면 채운다)
         lenient().when(queueRepository.save(any(FillQueueItem.class))).thenAnswer(inv -> inv.getArgument(0));
         ReflectionTestUtils.setField(service, "queueMax", 12);
