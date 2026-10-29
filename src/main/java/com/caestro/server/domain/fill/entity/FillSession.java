@@ -80,6 +80,9 @@ public class FillSession {
     @Column(length = 32)
     private String gifImageId;
 
+    // 네 칸이 다 찬 뒤 주인에게 푸시를 보낸 시각(#206). 세션당 한 번만 보내기 위한 표시. null 이면 아직
+    private LocalDateTime completedNotifiedAt;
+
     @Column(nullable = false)
     private LocalDateTime expiresAt;
 
