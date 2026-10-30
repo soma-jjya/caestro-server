@@ -71,6 +71,7 @@ public enum ErrorCode {
     CATALOG_INVALID_POSE(400, "포즈 값이 올바르지 않습니다 (장소 필수, 성별 남자|여자, 계절 봄·가을|여름|겨울, imageId)"),
     FILL_FRAME_LOCKED(409, "운영자가 지정한 프레임은 변경할 수 없습니다"),
     B2B_PROJECT_NOT_FOUND(404, "B2B 프로젝트를 찾을 수 없습니다"),
+    B2B_PROJECT_DELETE_NOT_ALLOWED(409, "공개 중인 프로젝트는 삭제할 수 없습니다. 먼저 일시중지해주세요"),
     B2B_INVALID_PROJECT(400, "프로젝트 정보가 올바르지 않습니다"),
     B2B_INVALID_SLUG(400, "사용할 수 없는 프로젝트 주소입니다"),
     B2B_SLUG_DUPLICATE(409, "이미 사용 중인 프로젝트 주소입니다"),
