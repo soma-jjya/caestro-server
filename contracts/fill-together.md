@@ -10,7 +10,7 @@
 |---|---|---|---|
 | POST | `/fills` | `{frame, layout, artFrameId?, customFrame?, title?, borderless?}` | 201 FillResponse |
 | PUT | `/fills/{code}/frame` | `{frame, layout, artFrameId?, customFrame?, borderless?}` 주인만 | 200 FillResponse · 403 주인 아님 (이전 커스텀 요소는 삭제, 새 요소는 frame-assets 로 재업로드) |
-| GET | `/fills/{code}` | | 200 FillResponse · 404 없음 · 410 만료 |
+| GET | `/fills/{code}` | 헤더 `If-None-Match: <직전 ETag>` 선택 | 200 FillResponse(+ `ETag`) · **304 변경 없음(본문 없음)** · 404 없음 · 410 만료 |
 | PUT | `/fills/{code}/slots/{i}?name=` | image/jpeg 또는 image/png 바이트 (≤3MB) 누구나, 채워진 칸도 | 200 FillResponse (이전 사진은 `queue`로) · 400 이미지 아님 · 413 초과 |
 | PUT | `/fills/{code}/slots/{i}/clip` | image/gif 바이트 (≤6MB) 그 칸을 채운 본인만 | 200 FillResponse · 400 GIF 아님·빈 칸 · 403 채운 사람 아님 · 413 초과 (사진이 바뀌거나 칸을 비우면 지워짐) |
 | DELETE | `/fills/{code}/slots/{i}` | 누구나 | 200 FillResponse (사진은 `queue`로) |
@@ -41,6 +41,14 @@ FillResponse = {
 `queue`를 모르는 클라이언트는 필드를 무시하면 된다(웹·iOS는 아직 대기열을 그리지 않는다).
 칸 클립(`clipUrl`)은 앱 안 카메라로 칸을 채울 때 사진과 함께 찍힌 짧은 움직임(셔터 전 약 2초)이다. 사진을 먼저 올리고(PUT slots/{i}) 이어서 클립을 붙인다.
 완성 네컷의 움직이는 GIF는 서버가 합성하지 않는다 — 네 칸이 차면 기기가 각 칸의 클립(없으면 사진)으로 만든다. 웹은 칸 자리에서 클립을 재생한다. 클립을 모르는 클라이언트는 이 필드를 무시해도 된다.
+**세션 조회와 폴링 (#205).** 주인이 세션 화면을 보는 동안 앱·웹은 `GET /fills/{code}` 를 3~5초마다 다시 묻는다. 응답에는 `ETag` 가 있고
+(응답 JSON 의 해시 — 칸·대기열·프레임·GIF·이름 어느 것이 바뀌어도 달라진다. 보는 사람에 따라 `ownerMe`·`filledByMe` 가 달라 ETag 도 사람마다 다르다),
+직전 ETag 를 `If-None-Match` 로 보내면 그대로일 때 **304 + 본문 없음**이다. `Cache-Control: no-cache` 라 매번 서버에 묻되 바뀐 것만 받는다.
+화면을 떠나면 폴링을 멈춘다. 푸시가 포그라운드에서 오면 배너 대신 즉시 한 번 다시 묻는다.
+네 칸이 처음 다 찬 순간 주인에게 푸시가 한 번 간다(contracts/push.md, `completed_notified_at`).
+다음 단계는 SSE(인스턴스가 둘이라 Redis pub/sub 팬아웃 필요)이고, 계기는 `/fills/{code}` 요청이 전체 요청에서 차지하는 비중과 그 DB 시간이 지표에 보일 때다
+(`http_server_requests_seconds{uri="/fills/{code}",status}` 의 200 대 304 비율로 본다). 서버 쪽 DB 비용을 먼저 줄여야 하면 세션에 version 카운터를 두는 것이 그 전 단계다.
+
 업로드 3종(slots·frame-assets·gif)은 본문을 읽기 전에 `Content-Length`로 거른다 — 상한 초과 413, 길이 없는(chunked) 요청 411. 바이트 본문에 길이를 붙여 보낼 것.
 쓰기 한도(사용자 단위, 초과 시 429): 세션 생성 10/시간, 업로드 3종 합산 30/분, 만료 전 세션 20개(`FILL_TOO_MANY_SESSIONS` — 끝난 세션을 DELETE하면 풀린다). 값은 `fill.ratelimit.*`, `fill.max-active-sessions`.
 `name`은 웹 참여자의 표시 이름(선택). 없으면 유저 닉네임, 그것도 없으면 클라이언트가 "친구"로 표시한다.
@@ -95,6 +103,7 @@ CREATE TABLE fill_sessions (
   title VARCHAR(30) NULL,
   borderless TINYINT(1) NOT NULL DEFAULT 0,
   gif_image_id VARCHAR(32) NULL,
+  completed_notified_at DATETIME(6) NULL,   -- 네 칸 완성 푸시를 보낸 시각(#206), 세션당 1회
   expires_at DATETIME(6) NOT NULL,
   created_at DATETIME(6) NULL,
   CONSTRAINT fk_fill_sessions_owner FOREIGN KEY (owner_id) REFERENCES users(id)

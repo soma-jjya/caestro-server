@@ -137,6 +137,14 @@ limits:
 cors:
   allowed-origins: https://peakpic.app,https://www.peakpic.app
 
+
+# 푸시 알림 (contracts/push.md, #206): 기기 토큰은 push_tokens, 발송은 FCM HTTP v1(iOS 도 FCM 이 APNs 로 넘긴다)
+push:
+  enabled: false              # true 면 FCM 으로 실제 발송(운영). 로컬·CI 는 로그만 남기고 보내지 않는다
+  fcm:
+    project-id: ""            # Firebase 프로젝트 ID
+    service-account-json: ""  # 서비스 계정 키(JSON 원문 또는 base64). 운영은 Secrets Manager
+
 ---
 # prod 프로파일(ASG 인스턴스)에서만 IMDS 감지를 켠다. application-prod.yml은 저장소 밖(CI Secret)이라
 # 코드와 함께 추적돼야 하는 이 토글은 여기 프로파일 문서로 둔다. (반드시 파일 맨 끝에 둘 것 — 아래 키는 전부 이 문서 소속)

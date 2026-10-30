@@ -20,6 +20,13 @@ public interface B2bAdminApi {
     @Operation(summary = "프로젝트 조회")
     ResponseEntity<B2bProjectResponse> get(String id);
 
+    @Operation(summary = "프로젝트 영구 삭제", description = "DRAFT/PAUSED만 허용. 프로젝트·프레임·네컷을 삭제하며 기존 공유 링크도 닫힘. "
+            + "다른 프로젝트/네컷이 참조하는 이미지와 카탈로그 원본은 보존. 저장소 정리는 DB 커밋 후 실행하며 실패 시 재시도.")
+    @ApiResponse(responseCode = "204", description = "삭제됨 (본문 없음)")
+    @ApiResponse(responseCode = "404", description = "프로젝트 없음")
+    @ApiResponse(responseCode = "409", description = "LIVE 상태. 먼저 일시중지해야 함")
+    ResponseEntity<Void> delete(String id);
+
     @Operation(summary = "프로젝트 생성", description = "DRAFT, 프레임 없음. 중복 slug는 409.")
     @ApiResponse(responseCode = "201", description = "생성됨")
     ResponseEntity<B2bProjectResponse> create(UpsertB2bProjectRequest request);

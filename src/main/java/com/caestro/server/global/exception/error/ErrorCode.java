@@ -71,6 +71,7 @@ public enum ErrorCode {
     CATALOG_INVALID_POSE(400, "포즈 값이 올바르지 않습니다 (장소 필수, 성별 남자|여자, 계절 봄·가을|여름|겨울, imageId)"),
     FILL_FRAME_LOCKED(409, "운영자가 지정한 프레임은 변경할 수 없습니다"),
     B2B_PROJECT_NOT_FOUND(404, "B2B 프로젝트를 찾을 수 없습니다"),
+    B2B_PROJECT_DELETE_NOT_ALLOWED(409, "공개 중인 프로젝트는 삭제할 수 없습니다. 먼저 일시중지해주세요"),
     B2B_INVALID_PROJECT(400, "프로젝트 정보가 올바르지 않습니다"),
     B2B_INVALID_SLUG(400, "사용할 수 없는 프로젝트 주소입니다"),
     B2B_SLUG_DUPLICATE(409, "이미 사용 중인 프로젝트 주소입니다"),
@@ -83,6 +84,9 @@ public enum ErrorCode {
     B2B_NOT_PUBLISHABLE(409, "공개하려면 프레임이 1~3개이고, 모든 프레임에 이미지와 사진 창 4개가 있어야 합니다"),
     B2B_INVALID_TRANSITION(409, "현재 프로젝트 상태에서 실행할 수 없습니다"),
     B2B_FILL_NOT_FOUND(404, "이 프로젝트의 네컷 링크를 찾을 수 없습니다"),
+    // 푸시 알림 (#206)
+    PUSH_TOKEN_NOT_FOUND(404, "등록된 기기 토큰이 없습니다"),
+
     BAD_REQUEST(400, "잘못된 요청입니다"),
     RESOURCE_NOT_FOUND(404, "요청한 경로를 찾을 수 없습니다"),
     METHOD_NOT_ALLOWED(405, "지원하지 않는 HTTP 메서드입니다"),

@@ -10,6 +10,7 @@ import com.caestro.server.domain.fill.dto.response.FillSlotResponse;
 import com.caestro.server.domain.fill.entity.FillQueueItem;
 import com.caestro.server.domain.fill.entity.FillSession;
 import com.caestro.server.domain.fill.entity.FillSlot;
+import com.caestro.server.domain.fill.event.FillCompletedEvent;
 import com.caestro.server.domain.fill.repository.FillQueueRepository;
 import com.caestro.server.domain.fill.repository.FillSessionRepository;
 import com.caestro.server.domain.fill.repository.FillSlotRepository;
@@ -32,6 +33,7 @@ import java.util.Optional;
 import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -61,6 +63,7 @@ public class FillService {
     private final FillCodeGenerator codeGenerator;
     private final ObjectMapper objectMapper;
     private final Clock clock;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Value("${fill.ttl-days:7}")
     private long ttlDays;
@@ -146,7 +149,9 @@ public class FillService {
         // 새 사진에는 옛 움직임이 맞지 않는다(클립은 옛 사진과 함께 대기열로 갔다). 새 클립은 이 응답을 받은 뒤 따로 올라온다
         slot.fill(user, shownName, imageId, now);
         dropGif(session);
-        return toResponse(session, slotRepository.findBySessionIdOrderBySlotIndex(session.getId()), userId);
+        List<FillSlot> slots = slotRepository.findBySessionIdOrderBySlotIndex(session.getId());
+        notifyIfCompleted(session, slots);
+        return toResponse(session, slots, userId);
     }
 
     /** 칸의 사진(과 클립)을 대기열 맨 아래로 내린다. 빈 칸이면 아무것도 하지 않는다. 상한을 넘치면 가장 오래된 것이 사라진다. */
@@ -191,7 +196,22 @@ public class FillService {
         slot.attachClip(item.getClipId());
         queueRepository.delete(item);
         dropGif(session);
-        return toResponse(session, slotRepository.findBySessionIdOrderBySlotIndex(session.getId()), userId);
+        List<FillSlot> slots = slotRepository.findBySessionIdOrderBySlotIndex(session.getId());
+        notifyIfCompleted(session, slots);
+        return toResponse(session, slots, userId);
+    }
+
+    /**
+     * 네 칸이 모두 찬 첫 순간에 한 번만 주인에게 알린다(#206). "보냈음" 표시는 같은 트랜잭션의 조건부 UPDATE 라
+     * 동시 요청 둘이 모두 "다 찼다"를 봐도 한쪽만 이긴다. 발송 자체는 커밋 뒤 비동기(FillCompletedPushListener).
+     */
+    private void notifyIfCompleted(FillSession session, List<FillSlot> slots) {
+        if (slots.size() < SLOTS || slots.stream().anyMatch(FillSlot::isEmpty)) {
+            return;
+        }
+        if (sessionRepository.markCompletedNotified(session.getId(), LocalDateTime.now(clock)) == 1) {
+            eventPublisher.publishEvent(new FillCompletedEvent(session.getId(), session.getOwner().getId(), session.getCode()));
+        }
     }
 
     private FillQueueItem queuedItem(FillSession session, long itemId) {
