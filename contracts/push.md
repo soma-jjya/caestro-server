@@ -24,6 +24,7 @@
 | type | 언제 | data | 앱 동작 |
 |---|---|---|---|
 | `fill_completed` | 함께 채우기 네 칸이 **처음** 모두 찬 순간, 세션 주인에게 **세션당 1회** | `{ "type": "fill_completed", "code": "K7X2MQ", "notificationId": "42" }` | 탭 → `PATCH /notifications/{notificationId}/read` 뒤 그 세션 화면. 포그라운드면 배너 대신 세션을 즉시 다시 조회 |
+| `fill_expiring` | 함께 채우기 세션이 **24시간 안에 만료**하고 사진이 있을 때, 세션 주인에게 **세션당 1회**(매일 KST 09:00 배치, #213) | `{ "type": "fill_expiring", "code": "K7X2MQ", "notificationId": "43" }` | 탭 → 읽음 뒤 그 세션 화면(저장 유도) |
 | `test` | `POST /users/me/push-token/test` | `{ "type": "test" }` | 아무 데도 안 감 |
 
 `notificationId` 는 알림함 행(#211, contracts/notifications.md)이고, 저장이 실패한 드문 경우에만 빠진다. FCM 메시지는 `notification{title, body}` + `data` 를 함께 싣고, Android `priority: HIGH`, iOS `apns-priority: 10`.
@@ -84,4 +85,4 @@ ALTER TABLE fill_sessions ADD COLUMN completed_notified_at DATETIME(6) NULL;
 
 ## 2단계 (별도 이슈)
 
-사진 만료 전날 안내(`fill_expiring`, 만료 배치에 D-1 조회 추가), 친구가 칸을 채웠어요(묶음 발송 → 큐 계기), 결제 유예 안내(잃으면 안 됨 → 큐 계기).
+친구가 칸을 채웠어요(묶음 발송 → 큐 계기), 결제 유예 안내(잃으면 안 됨 → 큐 계기).
