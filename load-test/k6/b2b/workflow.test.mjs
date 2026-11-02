@@ -6,7 +6,7 @@ import fs from 'node:fs';
 const load = async name => import(`data:text/javascript;base64,${Buffer.from(
   fs.readFileSync(`load-test/k6/b2b/${name}`, 'utf8')).toString('base64')}`);
 const { config, target, scenario } = await load('config.mjs');
-const { workflow } = await load('workflow.mjs');
+const { workflow, probeSharedIp } = await load('workflow.mjs');
 
 test('production and ambiguous targets fail before any request; remote host must be explicit', () => {
   for (const base of ['https://api.peakpic.app', 'https://peakpic.app', 'https://API.PEAKPIC.APP',
@@ -129,5 +129,20 @@ test('cleanup refuses mismatched marker, id or slug', () => {
     assert.throws(() => h.runner.cleanup(h.data), /incomplete/);
     assert.equal(h.calls.some(c => c.method === 'DELETE' || c.path.endsWith('/pause')), false);
     assert.equal(h.measures.find(m => m.name === 'cleanup_failed').value, true);
+  }
+});
+
+test('shared-IP probe requires expected allowance, 429s and recovery', () => {
+  for (const mode of ['valid', 'slow', 'no-limit', 'no-recovery', 'server-error']) {
+    let now = 0;
+    const result = probeSharedIp({ limit: 30, extra: 5, window: 60 }, {
+      now: () => now, sleep: seconds => { now += seconds * 1000; },
+      guest: i => {
+        now += mode === 'slow' ? 2000 : 10;
+        return { status: mode === 'server-error' ? 500 : i === 35 ? (mode === 'no-recovery' ? 429 : 200)
+          : i < 30 || mode === 'no-limit' ? 200 : 429 };
+      },
+    });
+    assert.equal(result.validBurst && result.recovered, mode === 'valid');
   }
 });

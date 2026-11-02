@@ -106,3 +106,24 @@ export function workflow(c, io) {
   }
   return { setup, cleanup, journey };
 }
+
+export function probeSharedIp(c, io) {
+  // A fresh IP window is required. Do not alter X-Forwarded-For to bypass the real proxy/IP policy.
+  io.sleep(c.window + 1);
+  const start = io.now();
+  let accepted = 0;
+  let rejected = 0;
+  let unexpected = 0;
+  for (let i = 0; i < c.limit + c.extra; i++) {
+    const response = io.guest(i);
+    if (response.status === 200) accepted++;
+    else if (response.status === 429) rejected++;
+    else unexpected++;
+  }
+  const elapsed = io.now() - start;
+  // A burst that crossed the window cannot establish the limit; fail rather than report a false pass.
+  const validBurst = elapsed < c.window * 1000 && accepted === c.limit && rejected === c.extra && unexpected === 0;
+  io.sleep(c.window + 1);
+  const recovered = io.guest(c.limit + c.extra).status === 200;
+  return { accepted, rejected, unexpected, elapsed, validBurst, recovered };
+}
