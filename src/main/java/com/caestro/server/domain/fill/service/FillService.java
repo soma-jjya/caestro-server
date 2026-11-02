@@ -29,6 +29,7 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import lombok.RequiredArgsConstructor;
@@ -202,7 +203,7 @@ public class FillService {
     }
 
     /**
-     * 네 칸이 모두 찬 첫 순간에 한 번만 주인에게 알린다(#206). "보냈음" 표시는 같은 트랜잭션의 조건부 UPDATE 라
+     * 네 칸이 모두 찬 첫 순간에 한 번만 주인과 칸을 채운 참여자들에게 알린다(#206). "보냈음" 표시는 같은 트랜잭션의 조건부 UPDATE 라
      * 동시 요청 둘이 모두 "다 찼다"를 봐도 한쪽만 이긴다. 발송 자체는 커밋 뒤 비동기(FillCompletedPushListener).
      */
     private void notifyIfCompleted(FillSession session, List<FillSlot> slots) {
@@ -210,7 +211,15 @@ public class FillService {
             return;
         }
         if (sessionRepository.markCompletedNotified(session.getId(), LocalDateTime.now(clock)) == 1) {
-            eventPublisher.publishEvent(new FillCompletedEvent(session.getId(), session.getOwner().getId(), session.getCode()));
+            Long ownerId = session.getOwner().getId();
+            List<Long> participantIds = slots.stream()
+                    .map(FillSlot::getFilledBy)
+                    .filter(Objects::nonNull)
+                    .map(User::getId)
+                    .filter(id -> !id.equals(ownerId))
+                    .distinct()
+                    .toList();
+            eventPublisher.publishEvent(new FillCompletedEvent(session.getId(), ownerId, session.getCode(), participantIds));
         }
     }
 

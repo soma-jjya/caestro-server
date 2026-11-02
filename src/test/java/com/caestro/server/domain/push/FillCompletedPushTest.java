@@ -25,6 +25,7 @@ import com.caestro.server.domain.user.entity.User;
 import com.caestro.server.domain.user.repository.UserRepository;
 import com.caestro.server.global.exception.CustomException;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
@@ -57,6 +58,9 @@ class FillCompletedPushTest {
     private User friend;
     private PushToken token;
     private String code;
+    // 테스트가 더 만든 것. 세션을 지운 뒤에 지운다(칸이 사용자를 가리킨다)
+    private final List<PushToken> extraTokens = new ArrayList<>();
+    private final List<User> extraUsers = new ArrayList<>();
 
     private static byte[] jpeg(byte filler) {
         byte[] bytes = new byte[512];
@@ -91,8 +95,12 @@ class FillCompletedPushTest {
             // 이미 지워졌으면 넘어간다
         }
         tokenRepository.delete(token);
-        notificationRepository.deleteAll(
-                notificationRepository.findByUserIdOrderByIdDesc(owner.getId(), PageRequest.of(0, 20)));
+        tokenRepository.deleteAll(extraTokens);
+        for (User user : List.of(owner, friend)) {
+            notificationRepository.deleteAll(
+                    notificationRepository.findByUserIdOrderByIdDesc(user.getId(), PageRequest.of(0, 20)));
+        }
+        userRepository.deleteAll(extraUsers);
         userRepository.delete(owner);
         userRepository.delete(friend);
     }
@@ -122,6 +130,38 @@ class FillCompletedPushTest {
         // 다섯 번째 변경(칸 교체): 이미 보냈으니 조용하다
         fillService.fillSlot(code, 0, friend.getId(), "친구", jpeg((byte) 9), "image/jpeg");
         verify(sender, after(1500).times(1)).send(anyString(), any());
+    }
+
+    @Test
+    @DisplayName("칸을 채운 참여자도 참여자용 fill_completed 를 한 번 받는다 — 두 칸을 채워도 한 번, 칸을 채운 주인은 주인 것만, 토큰 없는 웹 참여자는 빠진다")
+    void participants_eachNotifiedOnce() {
+        String suffix = UUID.randomUUID().toString().substring(0, 8);
+        // 웹 참여자: 게스트 계정이지만 푸시 토큰이 없다
+        User web = userRepository.save(User.builder().deviceId("push-web-" + suffix).role(User.Role.USER).build());
+        extraUsers.add(web);
+        PushToken friendToken = tokenRepository.save(PushToken.builder().user(friend).platform(PushPlatform.IOS)
+                .token("tok-friend-" + suffix).lastSeenAt(LocalDateTime.now()).build());
+        extraTokens.add(friendToken);
+
+        fillService.fillSlot(code, 0, owner.getId(), null, jpeg((byte) 0), "image/jpeg");
+        fillService.fillSlot(code, 1, friend.getId(), "친구", jpeg((byte) 1), "image/jpeg");
+        fillService.fillSlot(code, 2, friend.getId(), "친구", jpeg((byte) 2), "image/jpeg");
+        fillService.fillSlot(code, 3, web.getId(), "웹", jpeg((byte) 3), "image/jpeg");
+
+        ArgumentCaptor<PushMessage> toOwner = ArgumentCaptor.forClass(PushMessage.class);
+        ArgumentCaptor<PushMessage> toFriend = ArgumentCaptor.forClass(PushMessage.class);
+        verify(sender, timeout(5000).times(1)).send(eq(token.getToken()), toOwner.capture());
+        verify(sender, timeout(5000).times(1)).send(eq(friendToken.getToken()), toFriend.capture());
+        verify(sender, after(1000).times(2)).send(anyString(), any());
+
+        assertThat(toOwner.getValue().body()).isEqualTo(PushMessage.fillCompleted(code).body());
+        PushMessage participant = toFriend.getValue();
+        assertThat(participant.type()).isEqualTo(PushMessage.TYPE_FILL_COMPLETED);
+        assertThat(participant.body()).isEqualTo(PushMessage.fillCompletedForParticipant(code).body());
+        assertThat(participant.data()).containsEntry("code", code).containsKey(PushMessage.DATA_NOTIFICATION_ID);
+        assertThat(notificationRepository.countByUserIdAndReadAtIsNull(owner.getId())).isEqualTo(1);
+        assertThat(notificationRepository.countByUserIdAndReadAtIsNull(friend.getId())).isEqualTo(1);
+        assertThat(notificationRepository.countByUserIdAndReadAtIsNull(web.getId())).isZero();
     }
 
     @Test

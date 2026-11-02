@@ -23,7 +23,7 @@
 
 | type | 언제 | data | 앱 동작 |
 |---|---|---|---|
-| `fill_completed` | 함께 채우기 네 칸이 **처음** 모두 찬 순간, 세션 주인에게 **세션당 1회** | `{ "type": "fill_completed", "code": "K7X2MQ", "notificationId": "42" }` | 탭 → `PATCH /notifications/{notificationId}/read` 뒤 그 세션 화면. 포그라운드면 배너 대신 세션을 즉시 다시 조회 |
+| `fill_completed` | 함께 채우기 네 칸이 **처음** 모두 찬 순간, 세션 주인과 그 네 칸을 채운 참여자에게 **세션당 1회씩**. 참여자는 문구만 다르다("함께 채운 네컷이 완성됐어요. 지금 저장해 보세요.") | `{ "type": "fill_completed", "code": "K7X2MQ", "notificationId": "42" }` | 탭 → `PATCH /notifications/{notificationId}/read` 뒤 그 세션 화면(참여자도 거기서 완성해 저장). 포그라운드면 배너 대신 세션을 즉시 다시 조회 |
 | `fill_expiring` | 함께 채우기 세션이 **24시간 안에 만료**하고 사진이 있을 때, 세션 주인에게 **세션당 1회**(매일 KST 09:00 배치, #213) | `{ "type": "fill_expiring", "code": "K7X2MQ", "notificationId": "43" }` | 탭 → 읽음 뒤 그 세션 화면(저장 유도) |
 | `test` | `POST /users/me/push-token/test` | `{ "type": "test" }` | 아무 데도 안 감 |
 
@@ -41,6 +41,9 @@
    `FillCompletedPushListener` 가 **커밋 뒤**(`@TransactionalEventListener AFTER_COMMIT`) **요청 스레드 밖**(`@Async`, Spring Boot 기본 실행기)에서 보낸다.
    커밋 뒤라 "알림은 왔는데 칸이 비어 있음"이 없고, 비동기라 업로드 응답이 FCM 을 기다리지 않는다.
 5. 칸을 비우고 다시 채워도 다시 보내지 않는다(표시가 남아 있다).
+6. **참여자**: 이벤트가 그 순간 네 칸의 `filled_by` 를 싣는다 — 주인은 빼고, 두 칸을 채운 사람도 한 번, 대기열로 밀려난 사진의 주인은
+   완성된 네컷에 없으니 뺀다. 리스너는 꺼지지 않은 토큰이 있는 참여자에게만 보낸다 — 웹 참여자는 게스트 계정이라 토큰이 없고,
+   보내면 아무도 못 보는 알림함 행만 쌓인다. 한 사람의 실패는 나머지를 막지 않는다(warn 로그).
 
 ## 설정
 
