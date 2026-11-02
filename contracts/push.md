@@ -23,10 +23,10 @@
 
 | type | 언제 | data | 앱 동작 |
 |---|---|---|---|
-| `fill_completed` | 함께 채우기 네 칸이 **처음** 모두 찬 순간, 세션 주인에게 **세션당 1회** | `{ "type": "fill_completed", "code": "K7X2MQ" }` | 탭 → 그 세션 화면. 포그라운드면 배너 대신 세션을 즉시 다시 조회 |
+| `fill_completed` | 함께 채우기 네 칸이 **처음** 모두 찬 순간, 세션 주인에게 **세션당 1회** | `{ "type": "fill_completed", "code": "K7X2MQ", "notificationId": "42" }` | 탭 → `PATCH /notifications/{notificationId}/read` 뒤 그 세션 화면. 포그라운드면 배너 대신 세션을 즉시 다시 조회 |
 | `test` | `POST /users/me/push-token/test` | `{ "type": "test" }` | 아무 데도 안 감 |
 
-FCM 메시지는 `notification{title, body}` + `data` 를 함께 싣고, Android `priority: HIGH`, iOS `apns-priority: 10`.
+`notificationId` 는 알림함 행(#211, contracts/notifications.md)이고, 저장이 실패한 드문 경우에만 빠진다. FCM 메시지는 `notification{title, body}` + `data` 를 함께 싣고, Android `priority: HIGH`, iOS `apns-priority: 10`.
 
 ## 서버 동작 (읽는 순서)
 
