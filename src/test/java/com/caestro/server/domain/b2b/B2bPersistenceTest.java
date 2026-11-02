@@ -56,8 +56,11 @@ class B2bPersistenceTest {
     @EnableJpaRepositories(basePackageClasses = {B2bProjectRepository.class, FillSessionRepository.class,
             UserRepository.class, CatalogImageRepository.class})
     @Import({B2bProjectService.class, B2bFillService.class, B2bImageService.class, B2bFrameMapper.class,
-            FillService.class, FillCodeGenerator.class, RdsCatalogAssetStore.class})
+            FillService.class, FillCodeGenerator.class, RdsCatalogAssetStore.class, B2bMetrics.class})
     static class Config {
+        @Bean io.micrometer.core.instrument.MeterRegistry meterRegistry() {
+            return new io.micrometer.core.instrument.simple.SimpleMeterRegistry();
+        }
         @Bean Clock clock() { return Clock.fixed(Instant.parse("2026-10-22T12:00:00Z"), ZoneOffset.UTC); }
         @Bean ObjectMapper objectMapper() { return new ObjectMapper(); }
     }

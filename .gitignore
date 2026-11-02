@@ -55,5 +55,7 @@ lambda/alert-notify/__pycache__/
 
 ### load-test ###
 load-test/monitoring/metrics_token
+load-test/k6/b2b/generated/
+load-test/results/local-b2b/
 
 docs/

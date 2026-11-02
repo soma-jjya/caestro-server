@@ -1,5 +1,7 @@
 # 모니터링 스택 (Prometheus + Grafana)
 
+B2B 대시보드: [peakpic-b2b.json](dashboards/peakpic-b2b.json). 지표의 측정 범위와 부하 검증 절차는 [B2B 실행 안내](../../load-test/B2B.md)를 참고한다.
+
 앱(#80)이 노출하는 `/actuator/prometheus` 지표를 수집·시각화한다.
 모니터링 EC2 1대(ASG 밖, 프라이빗 서브넷, **인바운드 0**)에서 docker compose로 운영한다.
 

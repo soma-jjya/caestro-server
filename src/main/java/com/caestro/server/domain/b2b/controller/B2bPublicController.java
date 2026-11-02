@@ -1,4 +1,7 @@
 package com.caestro.server.domain.b2b.controller;
+
+import static com.caestro.server.domain.b2b.service.B2bMetrics.Operation.*;
+
 import org.springframework.http.HttpStatus;
 import java.util.Optional;
 import java.net.URI;
@@ -10,6 +13,7 @@ import com.caestro.server.domain.b2b.dto.response.B2bPublicProjectResponse;
 import com.caestro.server.domain.b2b.service.B2bFillService;
 import com.caestro.server.domain.b2b.service.B2bImageService;
 import com.caestro.server.domain.b2b.service.B2bProjectService;
+import com.caestro.server.domain.b2b.service.B2bMetrics;
 import com.caestro.server.domain.fill.service.FillWriteGuard;
 import com.caestro.server.domain.catalog.store.CatalogAsset;
 import com.caestro.server.global.security.CustomUserDetails;
@@ -28,23 +32,28 @@ public class B2bPublicController implements B2bPublicApi {
     private final B2bFillService fills;
     private final B2bImageService images;
     private final FillWriteGuard writeGuard;
+    private final B2bMetrics metrics;
 
     @Override @GetMapping("/projects/{slug}")
     public ResponseEntity<B2bPublicProjectResponse> project(@PathVariable String slug) {
-        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(projects.publicProject(slug));
+        return metrics.observe(ENTRY, () -> ResponseEntity.ok().cacheControl(CacheControl.noStore())
+                .body(projects.publicProject(slug)));
     }
 
     @Override @PostMapping("/projects/{slug}/fills")
     public ResponseEntity<B2bFillResponse> create(@PathVariable String slug, @Valid @RequestBody CreateB2bFillRequest request,
                                                 @AuthenticationPrincipal CustomUserDetails user) {
-        writeGuard.checkCreate(user.getUserId());
-        return ResponseEntity.status(HttpStatus.CREATED).body(fills.create(slug, user.getUserId(), request));
+        return metrics.observe(CREATE, () -> {
+            writeGuard.checkCreate(user.getUserId());
+            return ResponseEntity.status(HttpStatus.CREATED).body(fills.create(slug, user.getUserId(), request));
+        });
     }
 
     @Override @GetMapping("/projects/{slug}/fills/{code}")
     public ResponseEntity<B2bFillResponse> get(@PathVariable String slug, @PathVariable String code,
                                              @AuthenticationPrincipal CustomUserDetails user) {
-        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(fills.get(slug, code, user.getUserId()));
+        return metrics.observe(READ, () -> ResponseEntity.ok().cacheControl(CacheControl.noStore())
+                .body(fills.get(slug, code, user.getUserId())));
     }
 
     @Override @GetMapping("/images/{id}")

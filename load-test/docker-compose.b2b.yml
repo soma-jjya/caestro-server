@@ -1,0 +1,45 @@
+# Separate disposable DB/Redis/network. No production config, volumes or AWS credentials mounted.
+name: caestro-b2b-load
+services:
+  mysql:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: local-b2b-only
+      MYSQL_DATABASE: b2b_load
+    tmpfs:
+      - /var/lib/mysql
+    healthcheck:
+      test: [CMD, mysqladmin, ping, -h, localhost, -plocal-b2b-only]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+  redis:
+    image: redis:7.0
+    healthcheck:
+      test: [CMD, redis-cli, ping]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+  app:
+    build:
+      context: ..
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - '127.0.0.1:8081:8080'
+    environment:
+      SPRING_PROFILES_ACTIVE: b2b-load
+      SPRING_CONFIG_ADDITIONAL_LOCATION: file:/config/
+      # Local capacity experiment only; defaults match guest admission policy. See B2B.md.
+      AUTH_RATELIMIT_GUESTLIMIT: ${B2B_LOAD_GUEST_LIMIT:-30}
+      AWS_EC2_METADATA_DISABLED: 'true'
+    volumes:
+      - ./b2b/application-b2b-load.yml:/config/application-b2b-load.yml:ro
+    cpus: 2.0
+    mem_limit: 1g
+networks:
+  default:
+    internal: true

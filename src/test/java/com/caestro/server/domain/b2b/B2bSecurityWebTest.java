@@ -9,6 +9,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.caestro.server.domain.b2b.controller.B2bAdminController;
 import com.caestro.server.domain.b2b.controller.B2bPublicController;
 import com.caestro.server.domain.b2b.service.B2bFillService;
+import com.caestro.server.domain.b2b.service.B2bMetrics;
 import com.caestro.server.domain.b2b.service.B2bImageService;
 import com.caestro.server.domain.b2b.service.B2bProjectService;
 import com.caestro.server.domain.b2b.service.B2bProjectDeletionService;
@@ -33,10 +34,18 @@ import org.springframework.test.web.servlet.MockMvc;
 
 @WebMvcTest(controllers = {B2bAdminController.class, B2bPublicController.class},
         properties = "catalog.studio-key=test-server-only-key")
-@Import(SecurityConfig.class)
+@Import({SecurityConfig.class, B2bMetrics.class, B2bSecurityWebTest.MetricsConfig.class})
 class B2bSecurityWebTest {
+    @org.springframework.boot.test.context.TestConfiguration(proxyBeanMethods = false)
+    static class MetricsConfig {
+        @org.springframework.context.annotation.Bean
+        io.micrometer.core.instrument.MeterRegistry meterRegistry() {
+            return new io.micrometer.core.instrument.simple.SimpleMeterRegistry();
+        }
+    }
     private static final CustomUserDetails GUEST = new CustomUserDetails(1L, User.Role.USER);
     @Autowired MockMvc mvc;
+    @Autowired io.micrometer.core.instrument.MeterRegistry meters;
     @MockitoBean B2bProjectService projects;
     @MockitoBean B2bProjectDeletionService deletion;
     @MockitoBean B2bFillService fills;
@@ -75,11 +84,14 @@ class B2bSecurityWebTest {
 
     @Test
     void creationLimitRejectsBeforeService() throws Exception {
+        var timer = meters.get("b2b.operation").tags("operation", "create", "outcome", "client_error").timer();
+        long before = timer.count();
         doThrow(new CustomException(ErrorCode.TOO_MANY_REQUESTS)).when(guard).checkCreate(1L);
         mvc.perform(post("/b2b/projects/yuja/fills").with(user(GUEST)).contentType(MediaType.APPLICATION_JSON)
                         .content("{\"frameId\":\"bf_1\",\"frameVersion\":1}"))
                 .andExpect(status().isTooManyRequests());
         verifyNoInteractions(fills);
+        org.assertj.core.api.Assertions.assertThat(timer.count()).isEqualTo(before + 1);
     }
 
     @ParameterizedTest
