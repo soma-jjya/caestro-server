@@ -46,6 +46,7 @@ class CatalogImageRedirectWebTest {
     @MockitoBean private CatalogBuiltinService builtinService;
     @MockitoBean private B2bProjectService projects;
     @MockitoBean private B2bFillService fills;
+    @MockitoBean private com.caestro.server.domain.b2b.service.B2bMetrics b2bMetrics;
     @MockitoBean private B2bImageService images;
     @MockitoBean private FillWriteGuard writeGuard;
     @MockitoBean private JwtProvider jwtProvider;
