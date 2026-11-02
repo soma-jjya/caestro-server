@@ -11,4 +11,7 @@ public interface PushTokenRepository extends JpaRepository<PushToken, Long> {
 
     /** 보낼 수 있는(꺼지지 않은) 토큰. user_id FK 인덱스를 탄다 */
     List<PushToken> findAllByUserIdAndDisabledAtIsNull(Long userId);
+
+    /** 앱을 쓰는 사용자인가 — 웹 참여자(게스트)는 토큰을 등록하지 않는다 */
+    boolean existsByUserIdAndDisabledAtIsNull(Long userId);
 }

@@ -28,6 +28,14 @@ public record PushMessage(String type, String title, String body, Map<String, St
     }
 
     /**
+     * 같은 순간 칸을 채운 참여자에게. 종류가 같아 앱은 주인의 것과 똑같이 세션 {@code code} 로 가고, 참여자도 그 화면에서 완성해 저장할 수 있다.
+     */
+    public static PushMessage fillCompletedForParticipant(String code) {
+        return new PushMessage(TYPE_FILL_COMPLETED, "네컷이 완성됐어요",
+                "함께 채운 네컷이 완성됐어요. 지금 저장해 보세요.", Map.of("code", code));
+    }
+
+    /**
      * 함께 채우기 사진이 내일 지워진다는 안내(#213). 탭하면 세션 {@code code} 로 간다. 시각 대신 "내일"만 — 한눈에 행동이 보이게.
      *
      * @param label 세션 제목, 없으면 코드
