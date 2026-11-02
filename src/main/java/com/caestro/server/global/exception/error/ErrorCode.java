@@ -86,6 +86,7 @@ public enum ErrorCode {
     B2B_FILL_NOT_FOUND(404, "이 프로젝트의 네컷 링크를 찾을 수 없습니다"),
     // 푸시 알림 (#206)
     PUSH_TOKEN_NOT_FOUND(404, "등록된 기기 토큰이 없습니다"),
+    NOTIFICATION_NOT_FOUND(404, "알림이 없습니다"),
 
     BAD_REQUEST(400, "잘못된 요청입니다"),
     RESOURCE_NOT_FOUND(404, "요청한 경로를 찾을 수 없습니다"),

@@ -1,5 +1,6 @@
 package com.caestro.server.domain.push.sender;
 
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
@@ -9,6 +10,15 @@ public record PushMessage(String type, String title, String body, Map<String, St
 
     public static final String TYPE_FILL_COMPLETED = "fill_completed";
     public static final String TYPE_TEST = "test";
+    /** 알림함 행의 id (#211). 앱이 탭할 때 이 id 로 읽음을 표시한다. */
+    public static final String DATA_NOTIFICATION_ID = "notificationId";
+
+    /** 같은 알림에 알림함 행 id 를 실은 사본. */
+    public PushMessage withNotificationId(long notificationId) {
+        Map<String, String> merged = new LinkedHashMap<>(data);
+        merged.put(DATA_NOTIFICATION_ID, Long.toString(notificationId));
+        return new PushMessage(type, title, body, Map.copyOf(merged));
+    }
 
     /** 함께 채우기 네 칸이 다 찼을 때 주인에게. 탭하면 앱이 세션 {@code code} 로 간다. */
     public static PushMessage fillCompleted(String code) {
