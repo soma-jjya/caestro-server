@@ -37,7 +37,7 @@ jobs:
       - name: Offline workflow and target/cleanup guards (no live API traffic)
         run: node --test load-test/k6/b2b/workflow.test.mjs
       - name: Validate isolated Compose config
-        run: docker compose -f load-test/docker-compose.b2b.yml config --quiet
+        run: docker compose -f load-test/docker-compose.b2b.yml --profile tools config --quiet
       - name: Generate reproducible PNG fixture
         run: python3 load-test/k6/b2b/generate-photo.py
       - name: Parse k6 entry points without sending API requests
@@ -54,28 +54,24 @@ jobs:
       - name: Start disposable B2B API, MySQL and Redis
         run: |
           python3 load-test/k6/b2b/generate-photo.py
-          docker compose -f load-test/docker-compose.b2b.yml up -d --build
-          ready=false
-          for attempt in $(seq 1 90); do
-            if curl --fail --silent http://localhost:8081/actuator/health/readiness >/dev/null; then
-              ready=true
-              break
-            fi
-            sleep 2
-          done
-          test "$ready" = true
+          docker compose -f load-test/docker-compose.b2b.yml up -d --build --wait --wait-timeout 180
       - name: One journey through real API (not a capacity benchmark)
         run: >-
-          docker run --rm --network host -v "$PWD:/work:ro" -w /work
-          -e STUDIO_KEY=local-b2b-studio-only -e PROFILE=smoke
-          grafana/k6:1.0.0 run load-test/k6/b2b-session.js
+          docker compose -f load-test/docker-compose.b2b.yml run --rm
+          k6 run -e PROFILE=smoke load-test/k6/b2b-session.js
       - name: Shared-IP guest limit and recovery against real Redis
         run: >-
-          docker run --rm --network host -v "$PWD:/work:ro" -w /work
-          grafana/k6:1.0.0 run load-test/k6/b2b-shared-ip.js
+          docker compose -f load-test/docker-compose.b2b.yml run --rm
+          k6 run load-test/k6/b2b-shared-ip.js
       - name: Diagnostic logs on failure
         if: failure()
-        run: docker compose -f load-test/docker-compose.b2b.yml logs --no-color --tail 100
+        run: |
+          docker compose -f load-test/docker-compose.b2b.yml ps -a
+          app_id=$(docker compose -f load-test/docker-compose.b2b.yml ps -a -q app)
+          if [ -n "$app_id" ]; then
+            docker inspect --format '{{json .State.Health}}' "$app_id"
+          fi
+          docker compose -f load-test/docker-compose.b2b.yml logs --no-color --tail 100
       - name: Stop this disposable environment
         if: always()
         run: docker compose -f load-test/docker-compose.b2b.yml down

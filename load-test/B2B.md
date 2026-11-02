@@ -17,19 +17,17 @@ PR CI의 `B2B load script contracts`는 Node 계약 테스트와 k6 1.0.0 초기
 
 운영 DB·Redis·버킷·AWS 자격 증명을 테스트 환경에 연결하지 않는다. 운영 호스트는 스크립트가 차단한다. 다른 원격 호스트는 `TEST_ENV=isolated`, `CONFIRM_TEST_HOST=<정확한 호스트>`를 지정해야 한다. 호스트 검사만으로 연결된 DB/버킷의 격리까지 보장할 수 없으므로 환경 구성을 확인한다.
 
-로컬은 Docker와 k6, Python 3.9 이상이 필요하다. 저장소 루트에서 실행한다.
+로컬은 `up --wait`를 지원하는 Docker Compose와 Python 3.9 이상이 필요하다. k6는 Compose의 도구 컨테이너로 실행하므로 별도 설치하지 않는다. 저장소 루트에서 실행한다.
 
 ```powershell
 python load-test/k6/b2b/generate-photo.py
-docker compose -f load-test/docker-compose.b2b.yml up -d --build
-curl.exe --fail http://localhost:8081/actuator/health/readiness
-$env:BASE_URL = 'http://localhost:8081'
-$env:STUDIO_KEY = 'local-b2b-studio-only'
-$env:PROFILE = 'smoke'
-k6 run load-test/k6/b2b-session.js
+docker compose -f load-test/docker-compose.b2b.yml up -d --build --wait --wait-timeout 180
+docker compose -f load-test/docker-compose.b2b.yml run --rm k6 run -e PROFILE=smoke load-test/k6/b2b-session.js
 ```
 
-readiness가 200이 될 때까지 기다린 뒤 k6를 실행한다. Compose는 기존 개발 환경과 별도 프로젝트·DB·Redis를 사용하며 앱 포트만 localhost에 공개한다. 8081을 쓰는 다른 환경과 동시에 실행하지 않는다. 런타임 네트워크는 외부 통신을 차단하며 이미지·사진은 전용 MySQL에 저장한다. 앱 재시작 시 `create-drop`, MySQL 종료 시 tmpfs로 테스트 데이터가 사라진다. 이 설정은 운영에 적용하지 않는다.
+`up --wait`는 앱 컨테이너 안에서 readiness를 검사하며 MySQL·Redis까지 정상일 때 성공한다. 성공한 뒤 k6를 실행한다. Compose는 기존 개발 환경과 별도 프로젝트·DB·Redis를 사용하며 호스트에 포트를 공개하지 않는다. `internal: true` 네트워크에서는 호스트 포트 전달에 의존하지 않는다. k6는 `network_mode: service:app`으로 앱과 네트워크만 공유하고 `http://127.0.0.1:8080`으로 접근한다. 런타임 외부 통신 차단과 운영 주소 차단은 유지된다. 이미지·사진은 전용 MySQL에 저장한다. 앱 재시작 시 `create-drop`, MySQL 종료 시 tmpfs로 테스트 데이터가 사라진다. 이 설정은 운영에 적용하지 않는다.
+
+기동 실패 시 `docker compose -f load-test/docker-compose.b2b.yml ps -a`, `logs --no-color --tail 100`으로 상태를 확인한다. CI는 앱 healthcheck의 마지막 HTTP 상태/오류도 출력하므로 연결 실패와 readiness 실패를 구분할 수 있다.
 
 **로컬 RDS 이미지 저장과 2 CPU/1 GiB 제한은 반복 가능한 기능·상대 성능 검증용이다. 운영 S3/CloudFront·DB 사양·CPU 크레딧·네트워크를 재현하지 않으므로 운영 수용 인원으로 환산하지 않는다.** 운영 규모 판단에는 같은 저장소 방식과 사양의 별도 스테이징이 필요하다.
 
@@ -37,7 +35,7 @@ readiness가 200이 될 때까지 기다린 뒤 k6를 실행한다. Compose는 �
 
 ```powershell
 # 기본 30회/60초 설정인 로컬 환경에서, 다른 부하 테스트를 멈춘 뒤 실행
-k6 run -e GUEST_LIMIT=30 -e GUEST_WINDOW_SECONDS=60 -e EXTRA_GUESTS=5 load-test/k6/b2b-shared-ip.js
+docker compose -f load-test/docker-compose.b2b.yml run --rm k6 run -e GUEST_LIMIT=30 -e GUEST_WINDOW_SECONDS=60 -e EXTRA_GUESTS=5 load-test/k6/b2b-shared-ip.js
 ```
 
 한 IP에서 실행한다. 먼저 한 창을 기다린 뒤 35개 기기로 인증하여 30개 허용·5개 429를 기대한다. 다시 한 창을 기다려 회복을 확인한다. 이 통과는 **5명이 정상적으로 입장했다는 뜻이 아니라 정책에 따라 차단됐다는 뜻**이다. 제한값은 실제 대상 환경 설정과 맞춰야 한다. 테스트 중 동일 IP의 다른 요청이 있거나 첫 요청 묶음이 창 길이보다 오래 걸리면 결과를 유효한 측정으로 보지 않는다.
@@ -52,13 +50,12 @@ X-Forwarded-For를 임의로 넣어 IP를 분산하지 않는다. 로컬 직접 
 
 ```powershell
 $env:B2B_LOAD_GUEST_LIMIT = '10000'
-docker compose -f load-test/docker-compose.b2b.yml up -d app
+docker compose -f load-test/docker-compose.b2b.yml up -d --wait --wait-timeout 180 app
 # 앱 재시작/DDL 초기화가 있으므로 readiness 확인 후 매 실행마다 새 프로젝트를 만든다.
-$env:PROFILE = 'steady'
 New-Item -ItemType Directory -Force load-test/results/local-b2b | Out-Null
-k6 run -e PROJECTS=1 -e ARRIVALS_PER_MINUTE=60 -e DURATION_SECONDS=300 -e HOLD_SECONDS=60 -e PREALLOCATED_VUS=100 -e MAX_VUS=200 --summary-export=load-test/results/local-b2b/steady.json load-test/k6/b2b-session.js
+docker compose -f load-test/docker-compose.b2b.yml run --rm k6 run -e PROFILE=steady -e PROJECTS=1 -e ARRIVALS_PER_MINUTE=60 -e DURATION_SECONDS=300 -e HOLD_SECONDS=60 -e PREALLOCATED_VUS=100 -e MAX_VUS=200 load-test/k6/b2b-session.js 2>&1 | Tee-Object -FilePath load-test/results/local-b2b/steady.log
 # 동일한 총 시작률로 축제 수만 3으로 바꾸어 프로젝트 행 경합을 비교
-k6 run -e PROJECTS=3 -e ARRIVALS_PER_MINUTE=60 -e DURATION_SECONDS=300 -e HOLD_SECONDS=60 -e PREALLOCATED_VUS=100 -e MAX_VUS=200 load-test/k6/b2b-session.js
+docker compose -f load-test/docker-compose.b2b.yml run --rm k6 run -e PROFILE=steady -e PROJECTS=3 -e ARRIVALS_PER_MINUTE=60 -e DURATION_SECONDS=300 -e HOLD_SECONDS=60 -e PREALLOCATED_VUS=100 -e MAX_VUS=200 load-test/k6/b2b-session.js
 ```
 
 숫자는 실행 예시이며 수용량 보증이 아니다. 한도를 높인 결과로 행사장 공용 Wi-Fi 입장 가능 여부를 판단하지 않는다. 부하 발생기는 가능하면 앱과 다른 장비에서 실행하고 발생기의 CPU·메모리·네트워크도 기록한다.
@@ -99,7 +96,11 @@ entry/create/read는 컨트롤러에서 서비스 호출과 트랜잭션 종료�
 
 `project_lock_lookup`은 `findLockedBySlug` 조회 시간이다. 커넥션 획득·SQL·행 잠금 대기가 섞여 있으며, 조회 결과가 없는 것도 쿼리 실행 자체는 success다. 이를 순수 잠금 대기 시간으로 부르지 않는다. MySQL Performance Schema/Performance Insights의 행 잠금과 실행 SQL, DB 풀 대기 지표를 함께 본다. DB 설정이나 권한은 이 작업에서 변경하지 않는다.
 
-기존 모니터링의 Prometheus 데이터소스에 `infra/monitoring/dashboards/peakpic-b2b.json`을 추가한다. 기존 수집/인증 경로를 그대로 사용하며 새 공개 지표 엔드포인트를 만들지 않는다. 로컬 metrics 토큰은 `local-b2b-metrics-only`이고 대상은 `http://localhost:8081/actuator/prometheus`다. 컨테이너 Prometheus에서 호스트에 접근할 때는 해당 환경의 호스트 게이트웨이 주소를 사용한다.
+기존 모니터링의 Prometheus 데이터소스에 `infra/monitoring/dashboards/peakpic-b2b.json`을 추가한다. 기존 수집/인증 경로를 그대로 사용하며 새 공개 지표 엔드포인트를 만들지 않는다. 로컬 metrics 토큰은 `local-b2b-metrics-only`다. 같은 Compose 내부망의 수집기는 `http://app:8080/actuator/prometheus`에 접근한다. 호스트에서 단건 확인할 때는 아래처럼 앱 안에서 요청한다.
+
+```powershell
+docker compose -f load-test/docker-compose.b2b.yml exec -T app wget -qO- --header='Authorization: Bearer local-b2b-metrics-only' http://127.0.0.1:8080/actuator/prometheus
+```
 
 핵심 PromQL:
 
@@ -132,7 +133,6 @@ setup에서 생성한 `lt-b2b-<run>-<index>` 프로젝트 ID/slug를 기록한�
 ```powershell
 docker compose -f load-test/docker-compose.b2b.yml down
 Remove-Item Env:B2B_LOAD_GUEST_LIMIT -ErrorAction SilentlyContinue
-Remove-Item Env:STUDIO_KEY -ErrorAction SilentlyContinue
 ```
 
 ## 결과 기록 양식

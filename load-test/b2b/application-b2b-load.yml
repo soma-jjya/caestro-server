@@ -13,12 +13,12 @@ spring:
 
 catalog:
   asset-store: rds
-  public-base-url: http://localhost:8081
+  public-base-url: http://127.0.0.1:8080
   studio-key: local-b2b-studio-only
   migrate-legacy: false
 fill:
   image-store: rds
-  public-base-url: http://localhost:8081
+  public-base-url: http://127.0.0.1:8080
 b2b:
   web-base-url: http://localhost:3000/go
 metrics:
