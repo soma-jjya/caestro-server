@@ -13,6 +13,8 @@ import static org.mockito.Mockito.verify;
 import com.caestro.server.domain.fill.dto.request.CreateFillRequest;
 import com.caestro.server.domain.fill.repository.FillSessionRepository;
 import com.caestro.server.domain.fill.service.FillService;
+import com.caestro.server.domain.notification.entity.Notification;
+import com.caestro.server.domain.notification.repository.NotificationRepository;
 import com.caestro.server.domain.push.entity.PushToken;
 import com.caestro.server.domain.push.enums.PushPlatform;
 import com.caestro.server.domain.push.repository.PushTokenRepository;
@@ -23,6 +25,7 @@ import com.caestro.server.domain.user.entity.User;
 import com.caestro.server.domain.user.repository.UserRepository;
 import com.caestro.server.global.exception.CustomException;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -31,6 +34,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 /**
@@ -45,6 +49,7 @@ class FillCompletedPushTest {
     @Autowired private FillSessionRepository sessionRepository;
     @Autowired private PushTokenRepository tokenRepository;
     @Autowired private UserRepository userRepository;
+    @Autowired private NotificationRepository notificationRepository;
 
     @MockitoBean private PushSender sender;
 
@@ -86,6 +91,8 @@ class FillCompletedPushTest {
             // 이미 지워졌으면 넘어간다
         }
         tokenRepository.delete(token);
+        notificationRepository.deleteAll(
+                notificationRepository.findByUserIdOrderByIdDesc(owner.getId(), PageRequest.of(0, 20)));
         userRepository.delete(owner);
         userRepository.delete(friend);
     }
@@ -103,6 +110,15 @@ class FillCompletedPushTest {
         assertThat(message.getValue().data()).containsEntry("code", code);
         assertThat(sessionRepository.findByCode(code).orElseThrow().getCompletedNotifiedAt()).isNotNull();
 
+        // #211: 푸시보다 먼저 알림함 행이 남고, 푸시 data 에 그 id 가 실린다
+        List<Notification> inbox = notificationRepository.findByUserIdOrderByIdDesc(owner.getId(), PageRequest.of(0, 5));
+        assertThat(inbox).hasSize(1);
+        assertThat(inbox.get(0).getType()).isEqualTo(PushMessage.TYPE_FILL_COMPLETED);
+        assertThat(inbox.get(0).getData()).contains(code);
+        assertThat(inbox.get(0).isRead()).isFalse();
+        assertThat(message.getValue().data())
+                .containsEntry(PushMessage.DATA_NOTIFICATION_ID, String.valueOf(inbox.get(0).getId()));
+
         // 다섯 번째 변경(칸 교체): 이미 보냈으니 조용하다
         fillService.fillSlot(code, 0, friend.getId(), "친구", jpeg((byte) 9), "image/jpeg");
         verify(sender, after(1500).times(1)).send(anyString(), any());
@@ -116,5 +132,6 @@ class FillCompletedPushTest {
         }
         verify(sender, after(1000).times(0)).send(anyString(), any());
         assertThat(sessionRepository.findByCode(code).orElseThrow().getCompletedNotifiedAt()).isNull();
+        assertThat(notificationRepository.countByUserIdAndReadAtIsNull(owner.getId())).isZero();
     }
 }
