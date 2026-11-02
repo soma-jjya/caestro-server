@@ -30,8 +30,8 @@
 
 ## 서버 동작 (읽는 순서)
 
-1. `FillCompletedPushListener`(커밋 뒤, 비동기)가 `NotificationService.record(userId, message)` 로 행을 만든다. 이 트랜잭션은 여기서 끝난다.
-2. 돌아온 id 를 `PushMessage.withNotificationId` 로 data 에 싣고 `PushService.sendToUser` 를 부른다(트랜잭션 밖 — 외부 호출은 밖에서, #184 와 같은 원칙).
+1. 보내는 쪽(네 칸 완성 리스너, 만료 안내 배치)은 `NotificationDispatcher.notify(userId, message)` 하나만 부른다.
+2. dispatcher 는 `NotificationService.record` 로 행을 만들고(그 트랜잭션은 거기서 끝난다), 돌아온 id 를 `PushMessage.withNotificationId` 로 data 에 싣고 `PushService.sendToUser` 를 부른다(트랜잭션 밖 — 외부 호출은 밖에서, #184 와 같은 원칙).
 3. 저장이 실패해도 푸시는 보낸다(id 없이). 알림함이 막혔다고 알림까지 잃지 않는다. warn 로그가 남는다.
 4. 토큰이 없는 사용자도 행은 남는다. 앱을 열면 목록에 있다.
 5. 읽음은 `readAt` 시각. 처음 읽을 때만 `notification.opened` 를 센다.
@@ -79,4 +79,4 @@ CREATE TABLE notifications (
 
 ## 다음
 
-종류가 늘면(사진 만료 전날, 친구가 칸 채움, 공지) 같은 `record → send` 길을 탄다. 알림 설정(종류별 끄기)은 `record` 앞에서 거른다.
+종류가 늘면(친구가 칸 채움, 공지) 같은 `NotificationDispatcher.notify` 길을 탄다. 만료 전날 안내(`fill_expiring`)가 첫 번째 추가다(#213). 알림 설정(종류별 끄기)은 `record` 앞에서 거른다.
