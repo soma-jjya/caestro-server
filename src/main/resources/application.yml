@@ -63,6 +63,14 @@ cleanup:
   daily-usage:
     cron: "0 10 5 * * *"      # 지난 하루 사용 기록(daily_usages) 정리
     retention-days: 30
+  notification:
+    cron: "0 20 5 * * *"      # 알림함(notifications)에서 보관 기간 지난 알림 삭제
+    retention-days: 90
+
+# 서버가 시각을 고르는 알림 배치
+notify:
+  fill-expiring:
+    cron: "0 0 0 * * *"       # UTC 00:00 = KST 09:00. 앞으로 24시간 안에 만료하는 함께 채우기 세션 주인에게 "내일 사라져요"
 
 # 함께 채우기 (#fill-together): 사진은 DB(fill_images)에 두고 만료 뒤 배치가 지운다
 fill:

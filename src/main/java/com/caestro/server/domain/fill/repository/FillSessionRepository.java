@@ -20,4 +20,16 @@ public interface FillSessionRepository extends JpaRepository<FillSession, Long> 
     @Modifying
     @Query("update FillSession s set s.completedNotifiedAt = :now where s.id = :id and s.completedNotifiedAt is null")
     int markCompletedNotified(@Param("id") Long id, @Param("now") LocalDateTime now);
+
+    // 만료 전날 안내 대상(#213): 창 (from, to] 안에 만료하고, 아직 안 보냈고, 사진이 한 장이라도 있는 세션. 주인은 같이 읽는다
+    @Query("select s from FillSession s join fetch s.owner "
+            + "where s.expiresAt > :from and s.expiresAt <= :to and s.expiringNotifiedAt is null "
+            + "and exists (select sl.id from FillSlot sl where sl.session = s and sl.imageId is not null) "
+            + "order by s.expiresAt")
+    List<FillSession> findExpiringTargets(@Param("from") LocalDateTime from, @Param("to") LocalDateTime to);
+
+    // 만료 전날 안내를 세션당 한 번만: 아직 표시가 없을 때만 1(#213). 배치가 겹쳐 돌아도 한쪽만 이긴다
+    @Modifying
+    @Query("update FillSession s set s.expiringNotifiedAt = :now where s.id = :id and s.expiringNotifiedAt is null")
+    int markExpiringNotified(@Param("id") Long id, @Param("now") LocalDateTime now);
 }
