@@ -45,7 +45,7 @@ FillResponse = {
 (응답 JSON 의 해시 — 칸·대기열·프레임·GIF·이름 어느 것이 바뀌어도 달라진다. 보는 사람에 따라 `ownerMe`·`filledByMe` 가 달라 ETag 도 사람마다 다르다),
 직전 ETag 를 `If-None-Match` 로 보내면 그대로일 때 **304 + 본문 없음**이다. `Cache-Control: no-cache` 라 매번 서버에 묻되 바뀐 것만 받는다.
 화면을 떠나면 폴링을 멈춘다. 푸시가 포그라운드에서 오면 배너 대신 즉시 한 번 다시 묻는다.
-네 칸이 처음 다 찬 순간 주인에게 푸시가 한 번 간다(contracts/push.md, `completed_notified_at`).
+네 칸이 처음 다 찬 순간 주인과 그 칸을 채운 앱 참여자에게 푸시가 한 번씩 간다(contracts/push.md, `completed_notified_at`).
 만료 24시간 전에는 사진이 있는 세션의 주인에게 "네컷 사진이 곧 만료돼요!"가 한 번 간다(`fill_expiring`, `expiring_notified_at`, 매일 KST 09:00 배치 `FillExpiringNotifier`, #213). 빈 세션은 보내지 않는다.
 다음 단계는 SSE(인스턴스가 둘이라 Redis pub/sub 팬아웃 필요)이고, 계기는 `/fills/{code}` 요청이 전체 요청에서 차지하는 비중과 그 DB 시간이 지표에 보일 때다
 (`http_server_requests_seconds{uri="/fills/{code}",status}` 의 200 대 304 비율로 본다). 서버 쪽 DB 비용을 먼저 줄여야 하면 세션에 version 카운터를 두는 것이 그 전 단계다.
