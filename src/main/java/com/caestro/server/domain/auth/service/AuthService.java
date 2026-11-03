@@ -10,6 +10,7 @@ import com.caestro.server.domain.user.repository.UserRepository;
 import com.caestro.server.global.exception.CustomException;
 import com.caestro.server.global.exception.error.ErrorCode;
 import com.caestro.server.global.jwt.JwtProvider;
+import com.caestro.server.global.security.ClientPlatform;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.Optional;
@@ -172,7 +173,7 @@ public class AuthService {
         // 로그인·토큰 갱신이 모두 여기를 지난다: 운영 화면의 마지막 로그인 (contracts/studio-ops.md).
         // 기록은 부가 정보라 실패해도(예: 칼럼이 아직 없는 DB) 로그인은 그대로 진행한다.
         try {
-            userRepository.touchLastLogin(user.getId(), LocalDateTime.now());
+            userRepository.touchLastLogin(user.getId(), LocalDateTime.now(), ClientPlatform.current());
         } catch (RuntimeException e) {
             log.warn("last_login_at not recorded for user {}: {}", user.getId(), e.getMessage());
         }
