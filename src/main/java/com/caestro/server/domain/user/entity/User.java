@@ -66,6 +66,11 @@ public class User {
     @Column
     private LocalDateTime lastLoginAt;
 
+    // 마지막 로그인·토큰 갱신이 온 앱: ANDROID · IOS · WEB (User-Agent, global.security.ClientPlatform).
+    // 게스트도 어느 앱인지 운영 화면에서 보려고 둔다. 알 수 없는 요청은 이전 값을 그대로 둔다.
+    @Column(length = 10)
+    private String lastPlatform;
+
     @Builder
     public User(String oauthProvider, String oauthId, String deviceId, String nickname, String profileImage, Role role) {
         this.oauthProvider = oauthProvider;

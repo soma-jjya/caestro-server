@@ -69,7 +69,7 @@ class StudioOpsWebTest {
     @Test
     @DisplayName("사용자 목록의 검색·필터·커서, 없는 사용자 404, 구독 목록 필터")
     void endpoints() throws Exception {
-        OpsUserResponse row = new OpsUserResponse(12L, "google", "이상협", LocalDateTime.now(), null, null);
+        OpsUserResponse row = new OpsUserResponse(12L, "google", "ANDROID", "이상협", LocalDateTime.now(), null, null);
         given(studioOpsService.users("상협", "google", true, 40L, 10)).willReturn(new OpsUserPageResponse(List.of(row), 12L));
         given(studioOpsService.user(99L)).willThrow(new CustomException(ErrorCode.USER_NOT_FOUND));
         given(studioOpsService.subscriptions(any(), any(), any(), any())).willReturn(new OpsSubscriptionPageResponse(List.of(), null));
@@ -80,6 +80,7 @@ class StudioOpsWebTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.items[0].id").value(12))
                 .andExpect(jsonPath("$.items[0].provider").value("google"))
+                .andExpect(jsonPath("$.items[0].platform").value("ANDROID"))
                 .andExpect(jsonPath("$.nextCursor").value(12));
         mockMvc.perform(get("/admin/ops/users/99").header(KEY, "test-server-only-key")).andExpect(status().isNotFound());
         mockMvc.perform(get("/admin/ops/subscriptions").header(KEY, "test-server-only-key")

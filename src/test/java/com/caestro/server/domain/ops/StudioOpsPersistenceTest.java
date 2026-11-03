@@ -161,9 +161,9 @@ class StudioOpsPersistenceTest {
     @Test
     @DisplayName("요약: 가입 경로별(탈퇴 제외)·탈퇴·신규·활성(마지막 로그인), 활성 구독 수와 스토어별·해지 예약")
     void stats() {
-        users.touchLastLogin(google.getId(), NOW_LOCAL.minusHours(1));            // 오늘
-        users.touchLastLogin(kakao.getId(), NOW_LOCAL.minusDays(3));              // 7일 안
-        users.touchLastLogin(guest.getId(), NOW_LOCAL.minusDays(30));             // 밖
+        users.touchLastLogin(google.getId(), NOW_LOCAL.minusHours(1), "ANDROID"); // 오늘
+        users.touchLastLogin(kakao.getId(), NOW_LOCAL.minusDays(3), null);         // 7일 안
+        users.touchLastLogin(guest.getId(), NOW_LOCAL.minusDays(30), "IOS");       // 밖
         OpsStatsResponse stats = service.stats();
         assertThat(stats.users().total()).isEqualTo(4);
         assertThat(stats.users().kakao()).isEqualTo(1);
@@ -179,6 +179,17 @@ class StudioOpsPersistenceTest {
         assertThat(stats.subscriptions().appStore()).isZero();
         assertThat(stats.subscriptions().autoRenewOff()).isZero();
         assertThat(users.findById(google.getId()).orElseThrow().getLastLoginAt()).isEqualTo(NOW_LOCAL.minusHours(1));
+    }
+
+    @Test
+    @DisplayName("온 앱: 로그인 때 기록하고, 알 수 없는 요청(null)은 이전 값을 덮지 않는다. 목록·상세에 실린다")
+    void platform() {
+        users.touchLastLogin(guest.getId(), NOW_LOCAL.minusHours(2), "IOS");
+        users.touchLastLogin(guest.getId(), NOW_LOCAL.minusHours(1), null);
+        assertThat(users.findById(guest.getId()).orElseThrow().getLastPlatform()).isEqualTo("IOS");
+        assertThat(service.users(null, "guest", null, null, null).items().get(0).platform()).isEqualTo("IOS");
+        assertThat(service.user(guest.getId()).platform()).isEqualTo("IOS");
+        assertThat(service.user(kakao.getId()).platform()).isNull();
     }
 
     private static java.util.List<Long> ids(OpsUserPageResponse page) {
