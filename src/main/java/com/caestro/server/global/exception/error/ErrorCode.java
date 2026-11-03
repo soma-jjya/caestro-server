@@ -87,6 +87,8 @@ public enum ErrorCode {
     // 푸시 알림 (#206)
     PUSH_TOKEN_NOT_FOUND(404, "등록된 기기 토큰이 없습니다"),
     NOTIFICATION_NOT_FOUND(404, "알림이 없습니다"),
+    // B2B 문의 (#216)
+    INQUIRY_NOT_FOUND(404, "문의를 찾을 수 없습니다"),
 
     BAD_REQUEST(400, "잘못된 요청입니다"),
     RESOURCE_NOT_FOUND(404, "요청한 경로를 찾을 수 없습니다"),
