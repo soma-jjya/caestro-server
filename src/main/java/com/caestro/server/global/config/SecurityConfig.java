@@ -61,6 +61,8 @@ public class SecurityConfig {
                         // B2B 운영자는 같은 서버 전용 키를 사용한다. 공개 프로젝트와 이미지 읽기만 비인증이다.
                         .requestMatchers("/b2b/admin/**").hasAnyRole("STUDIO", "ADMIN")
                         .requestMatchers(HttpMethod.GET, "/b2b/projects/*", "/b2b/images/*").permitAll()
+                        // B2B 문의 접수(#216): 광고 랜딩의 폼이 로그인 전에 보낸다. 한도·허니팟은 서비스가 본다. 관리는 /b2b/admin/inquiries
+                        .requestMatchers(HttpMethod.POST, "/inquiries").permitAll()
                         .requestMatchers(
                                 "/auth/**",
                                 "/signaling",

@@ -1,0 +1,65 @@
+# Separate disposable DB/Redis/network. No production config, volumes or AWS credentials mounted.
+name: caestro-b2b-load
+services:
+  mysql:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: local-b2b-only
+      MYSQL_DATABASE: b2b_load
+    tmpfs:
+      - /var/lib/mysql
+    healthcheck:
+      test: [CMD, mysqladmin, ping, -h, localhost, -plocal-b2b-only]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+  redis:
+    image: redis:7.0
+    healthcheck:
+      test: [CMD, redis-cli, ping]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+  app:
+    build:
+      context: ..
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    # An internal network does not provide host port forwarding. Probe from inside the app.
+    healthcheck:
+      test: [CMD, wget, -S, -O, /dev/null, -T, '3', 'http://127.0.0.1:8080/actuator/health/readiness']
+      interval: 2s
+      timeout: 5s
+      retries: 90
+      start_period: 20s
+    environment:
+      SPRING_PROFILES_ACTIVE: b2b-load
+      SPRING_CONFIG_ADDITIONAL_LOCATION: file:/config/
+      # Local capacity experiment only; defaults match guest admission policy. See B2B.md.
+      AUTH_RATELIMIT_GUESTLIMIT: ${B2B_LOAD_GUEST_LIMIT:-30}
+      AWS_EC2_METADATA_DISABLED: 'true'
+    volumes:
+      - ./b2b/application-b2b-load.yml:/config/application-b2b-load.yml:ro
+    cpus: 2.0
+    mem_limit: 1g
+  k6:
+    image: grafana/k6:1.0.0
+    profiles: [tools]
+    # Share only the app's network namespace, not its CPU/memory limits or filesystem.
+    # Both smoke and the shared-IP probe reach the same isolated loopback address.
+    network_mode: service:app
+    depends_on:
+      app:
+        condition: service_healthy
+    environment:
+      BASE_URL: http://127.0.0.1:8080
+      STUDIO_KEY: local-b2b-studio-only
+    working_dir: /work
+    volumes:
+      - ..:/work:ro
+networks:
+  default:
+    internal: true

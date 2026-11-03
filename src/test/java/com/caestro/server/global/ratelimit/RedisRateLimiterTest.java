@@ -72,4 +72,17 @@ class RedisRateLimiterTest {
 
         assertThat(limiter.tryAcquire(OTHER_KEY, 1, Duration.ofSeconds(10))).isTrue();
     }
+
+    @Test
+    @DisplayName("공용 IP 창이 만료되면 초과 요청이 있었어도 새 한도를 사용할 수 있다 (#219)")
+    void expiredWindowAllowsNewGuestBudget() throws InterruptedException {
+        assertThat(limiter.tryAcquire(KEY, 1, Duration.ofSeconds(1))).isTrue();
+        assertThat(limiter.tryAcquire(KEY, 1, Duration.ofSeconds(1))).isFalse();
+        long deadline = System.nanoTime() + Duration.ofSeconds(5).toNanos();
+        while (Boolean.TRUE.equals(redisTemplate.hasKey(KEY)) && System.nanoTime() < deadline) {
+            Thread.sleep(25);
+        }
+        assertThat(redisTemplate.hasKey(KEY)).isFalse();
+        assertThat(limiter.tryAcquire(KEY, 1, Duration.ofSeconds(1))).isTrue();
+    }
 }

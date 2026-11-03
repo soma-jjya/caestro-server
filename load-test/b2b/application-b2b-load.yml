@@ -1,0 +1,45 @@
+# Disposable local environment only. Dummy credentials; never mount this file in production.
+spring:
+  datasource:
+    url: jdbc:mysql://mysql:3306/b2b_load?serverTimezone=UTC&characterEncoding=UTF-8&allowPublicKeyRetrieval=true&useSSL=false
+    username: root
+    password: local-b2b-only
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+  data:
+    redis:
+      url: redis://redis:6379
+
+catalog:
+  asset-store: rds
+  public-base-url: http://127.0.0.1:8080
+  studio-key: local-b2b-studio-only
+  migrate-legacy: false
+fill:
+  image-store: rds
+  public-base-url: http://127.0.0.1:8080
+b2b:
+  web-base-url: http://localhost:3000/go
+metrics:
+  token: local-b2b-metrics-only
+
+jwt:
+  access-secret: local_b2b_access_secret_only_at_least_32_chars
+  refresh-secret: local_b2b_refresh_secret_only_at_least_32_chars
+  access-expiration: 3600
+  refresh-expiration: 2592000
+kakao:
+  client-id: local-dummy
+  client-secret: local-dummy
+  redirect-uri: http://localhost:8081/auth/kakao/callback
+google:
+  client-id: local-dummy
+  client-secret: local-dummy
+  redirect-uri: http://localhost:8081/auth/google/callback
+apple:
+  bundle-id: local-dummy
+turn:
+  secret: local-dummy
+  host: 127.0.0.1
+  ttl: 3600
