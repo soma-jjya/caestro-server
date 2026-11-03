@@ -11,6 +11,7 @@ import com.caestro.server.global.exception.CustomException;
 import com.caestro.server.global.exception.error.ErrorCode;
 import com.caestro.server.global.jwt.JwtProvider;
 import java.time.Duration;
+import java.time.LocalDateTime;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
@@ -166,6 +167,8 @@ public class AuthService {
     }
 
     private TokenResponse generateTokens(User user) {
+        // 로그인·토큰 갱신이 모두 여기를 지난다: 운영 화면의 마지막 로그인 (contracts/studio-ops.md)
+        userRepository.touchLastLogin(user.getId(), LocalDateTime.now());
         String accessToken = jwtProvider.generateAccessToken(user.getId(), user.getRole());
         String refreshToken = jwtProvider.generateRefreshToken(user.getId());
 

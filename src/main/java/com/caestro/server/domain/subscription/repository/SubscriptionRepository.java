@@ -1,5 +1,6 @@
 package com.caestro.server.domain.subscription.repository;
 
+import java.util.Collection;
 import java.util.List;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.Query;
@@ -48,4 +49,28 @@ public interface SubscriptionRepository extends JpaRepository<Subscription, Long
                                             @Param("until") LocalDateTime until,
                                             @Param("since") LocalDateTime since,
                                             Pageable page);
+
+    /** 운영 화면 사용자 목록: 한 페이지 사용자들의 지금 쓸 수 있는 구독(ACTIVE, 만료 전). */
+    List<Subscription> findByUserIdInAndStatusAndExpiresAtAfter(Collection<Long> userIds, SubscriptionStatus status,
+                                                                LocalDateTime now);
+
+    /** 운영 화면 사용자 상세: 구독 이력 전부, 만료가 늦은 것부터. */
+    List<Subscription> findByUserIdOrderByExpiresAtDesc(Long userId);
+
+    /** 운영 화면 구독 목록, 최신순 한 페이지. 사용자도 함께 읽는다(닉네임·가입 경로). 조건은 null 이면 빠진다. */
+    @Query("""
+            select s from Subscription s join fetch s.user
+            where (:status is null or s.status = :status)
+              and (:store is null or s.store = :store)
+              and (:cursor is null or s.id < :cursor)
+            order by s.id desc
+            """)
+    List<Subscription> findOpsPage(@Param("status") SubscriptionStatus status, @Param("store") SubscriptionStore store,
+                                   @Param("cursor") Long cursor, Pageable pageable);
+
+    long countByStatusAndExpiresAtAfter(SubscriptionStatus status, LocalDateTime now);
+
+    long countByStatusAndExpiresAtAfterAndStore(SubscriptionStatus status, LocalDateTime now, SubscriptionStore store);
+
+    long countByStatusAndExpiresAtAfterAndAutoRenewing(SubscriptionStatus status, LocalDateTime now, Boolean autoRenewing);
 }

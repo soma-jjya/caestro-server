@@ -14,4 +14,7 @@ public interface PushTokenRepository extends JpaRepository<PushToken, Long> {
 
     /** 앱을 쓰는 사용자인가 — 웹 참여자(게스트)는 토큰을 등록하지 않는다 */
     boolean existsByUserIdAndDisabledAtIsNull(Long userId);
+
+    /** 운영 화면 사용자 상세: 알림을 받을 수 있는 기기 수. */
+    long countByUserIdAndDisabledAtIsNull(Long userId);
 }

@@ -54,6 +54,17 @@ class StudioKeyFilterTest {
     }
 
     @Test
+    @DisplayName("운영 조회(/admin/ops/**)는 같은 키로 인증하고, 그 밖의 /admin 은 하지 않는다")
+    void opsPath_authenticates_otherAdmin_doesNot() throws Exception {
+        run(new StudioKeyFilter(KEY), "GET", "/admin/ops/users", KEY);
+        assertThat(SecurityContextHolder.getContext().getAuthentication()).isNotNull();
+
+        SecurityContextHolder.clearContext();
+        run(new StudioKeyFilter(KEY), "GET", "/admin/reports", KEY);
+        assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
+    }
+
+    @Test
     @DisplayName("카탈로그 밖 경로에서는 맞는 키라도 인증하지 않는다")
     void otherPath_doesNotAuthenticate() throws Exception {
         run(new StudioKeyFilter(KEY), "GET", "/fills/ABCDEF", KEY);
