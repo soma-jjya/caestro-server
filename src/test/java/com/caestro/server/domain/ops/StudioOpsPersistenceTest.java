@@ -161,9 +161,9 @@ class StudioOpsPersistenceTest {
     @Test
     @DisplayName("요약: 가입 경로별(탈퇴 제외)·탈퇴·신규·활성(마지막 로그인), 활성 구독 수와 스토어별·해지 예약")
     void stats() {
-        users.touchLastLogin(google.getId(), NOW_LOCAL.minusHours(1), "ANDROID"); // 오늘
-        users.touchLastLogin(kakao.getId(), NOW_LOCAL.minusDays(3), null);         // 7일 안
-        users.touchLastLogin(guest.getId(), NOW_LOCAL.minusDays(30), "IOS");       // 밖
+        users.touchLastLogin(google.getId(), NOW_LOCAL.minusHours(1), "ANDROID", "aa".repeat(32)); // 오늘
+        users.touchLastLogin(kakao.getId(), NOW_LOCAL.minusDays(3), null, "aa".repeat(32));  // 7일 안, 같은 폰
+        users.touchLastLogin(guest.getId(), NOW_LOCAL.minusDays(30), "IOS", null);         // 밖
         OpsStatsResponse stats = service.stats();
         assertThat(stats.users().total()).isEqualTo(4);
         assertThat(stats.users().kakao()).isEqualTo(1);
@@ -174,6 +174,8 @@ class StudioOpsPersistenceTest {
         assertThat(stats.users().newToday()).isEqualTo(4);                        // 감사(@CreatedDate)가 실제 시각으로 찍는다
         assertThat(stats.users().activeToday()).isEqualTo(1);
         assertThat(stats.users().activeLast7Days()).isEqualTo(2);
+        assertThat(stats.users().devices()).isEqualTo(1);                       // google·kakao 가 같은 폰
+        assertThat(stats.users().withoutDevice()).isEqualTo(1);                 // guest (탈퇴 left 는 제외)
         assertThat(stats.subscriptions().active()).isEqualTo(1);
         assertThat(stats.subscriptions().googlePlay()).isEqualTo(1);
         assertThat(stats.subscriptions().appStore()).isZero();
@@ -184,12 +186,17 @@ class StudioOpsPersistenceTest {
     @Test
     @DisplayName("온 앱: 로그인 때 기록하고, 알 수 없는 요청(null)은 이전 값을 덮지 않는다. 목록·상세에 실린다")
     void platform() {
-        users.touchLastLogin(guest.getId(), NOW_LOCAL.minusHours(2), "IOS");
-        users.touchLastLogin(guest.getId(), NOW_LOCAL.minusHours(1), null);
+        users.touchLastLogin(guest.getId(), NOW_LOCAL.minusHours(2), "IOS", "bb".repeat(32));
+        users.touchLastLogin(guest.getId(), NOW_LOCAL.minusHours(1), null, null);
         assertThat(users.findById(guest.getId()).orElseThrow().getLastPlatform()).isEqualTo("IOS");
         assertThat(service.users(null, "guest", null, null, null).items().get(0).platform()).isEqualTo("IOS");
         assertThat(service.user(guest.getId()).platform()).isEqualTo("IOS");
         assertThat(service.user(kakao.getId()).platform()).isNull();
+        // 폰: 기록하고 null 이 덮지 않으며, 목록·상세에는 해시 앞 16자
+        assertThat(users.findById(guest.getId()).orElseThrow().getDeviceKey()).isEqualTo("bb".repeat(32));
+        assertThat(service.user(guest.getId()).deviceKey()).isEqualTo("bb".repeat(8));
+        assertThat(service.users(null, "guest", null, null, null).items().get(0).deviceKey()).isEqualTo("bb".repeat(8));
+        assertThat(service.user(kakao.getId()).deviceKey()).isNull();
     }
 
     private static java.util.List<Long> ids(OpsUserPageResponse page) {

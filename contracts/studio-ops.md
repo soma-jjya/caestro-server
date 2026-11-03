@@ -26,7 +26,8 @@ peakpic.app/studio 의 운영 화면이 사용자 가입 경로, 마지막 로�
   "users": {
     "total": 1234, "kakao": 120, "google": 210, "apple": 40, "guest": 850, "deleted": 14,
     "newToday": 6, "newLast7Days": 41,
-    "activeToday": 88, "activeLast7Days": 312
+    "activeToday": 88, "activeLast7Days": 312,
+    "devices": 140, "withoutDevice": 1040
   },
   "subscriptions": { "active": 9, "googlePlay": 5, "appStore": 4, "manual": 0, "autoRenewOff": 2 },
   "generatedAt": "2026-11-04T02:30:00"
@@ -34,6 +35,7 @@ peakpic.app/studio 의 운영 화면이 사용자 가입 경로, 마지막 로�
 ```
 
 - `total` 은 탈퇴 포함 전체 행. `kakao`·`google`·`apple`·`guest` 는 탈퇴 제외.
+- `devices` 는 기기 키가 기록된 서로 다른 폰 수, `withoutDevice` 는 아직 기기 키가 없는 계정 수(탈퇴 제외, 앱 업데이트 전이거나 그 뒤로 안 연 계정).
 - `active*` 는 `lastLoginAt` 기준(로그인·토큰 갱신 때 기록). 이 배포 전에는 기록이 없어 0부터 쌓인다.
 - `subscriptions.*` 는 지금 활성인 구독 행 수(사용자 수가 아님). `autoRenewOff` 는 활성 중 자동 갱신을 끈 것(해지 예약).
 
@@ -45,7 +47,7 @@ peakpic.app/studio 의 운영 화면이 사용자 가입 경로, 마지막 로�
 {
   "items": [
     {
-      "id": 1201, "provider": "google", "platform": "ANDROID", "nickname": "이상협",
+      "id": 1201, "provider": "google", "platform": "ANDROID", "deviceKey": "3f9a0c1d2e4b5a69", "nickname": "이상협",
       "createdAt": "2026-10-20T11:02:03", "lastLoginAt": "2026-11-04T01:57:50",
       "pro": { "store": "GOOGLE_PLAY", "basePlanId": "monthly", "status": "ACTIVE",
                "expiresAt": "2026-12-04T01:58:00", "autoRenewing": true }
@@ -61,7 +63,7 @@ peakpic.app/studio 의 운영 화면이 사용자 가입 경로, 마지막 로�
 
 ```json
 {
-  "id": 1201, "provider": "google", "platform": "ANDROID", "nickname": "이상협",
+  "id": 1201, "provider": "google", "platform": "ANDROID", "deviceKey": "3f9a0c1d2e4b5a69", "nickname": "이상협",
   "createdAt": "…", "lastLoginAt": "…", "deletedAt": null,
   "oauthIdMasked": "108********42", "deviceIdMasked": null, "role": "USER",
   "pushTokens": 1,
@@ -106,7 +108,16 @@ peakpic.app/studio 의 운영 화면이 사용자 가입 경로, 마지막 로�
 알 수 없는 User-Agent 면 이전 값을 그대로 둔다. 목록·상세의 `platform` 이 이 값이고, 기록 전이면 null.
 기록이 실패해도 로그인은 그대로 진행한다.
 
+## 폰 한 대 (users.device_key)
+
+같은 때 헤더 `X-Device-Key` 의 SHA-256 hex 를 `device_key` 에 찍는다(원래 값은 두지 않음, 헤더가 없으면 이전 값 유지).
+안드로이드 앱은 ANDROID_ID, iOS 앱은 키체인에 둔 무작위 값(재설치·로그아웃에도 그대로)을 보낸다.
+게스트 기기 id(`deviceId`)는 iOS 가 로그아웃마다 새로 만들고 탈퇴하면 지워져서, 한 폰에서 생긴 계정(게스트·소셜·탈퇴 뒤 새 게스트)을
+묶으려면 이 값이 필요하다. 목록·상세의 `deviceKey` 는 해시 앞 16자, 같은 값이면 같은 폰. 스튜디오가 이것으로 계정을 폰 단위로 묶는다.
+한 계정을 두 폰에서 쓰면 마지막에 쓴 폰에 묶인다.
+
 ```sql
 ALTER TABLE users ADD COLUMN last_login_at DATETIME(6) NULL;
 ALTER TABLE users ADD COLUMN last_platform VARCHAR(10) NULL;
+ALTER TABLE users ADD COLUMN device_key VARCHAR(64) NULL;
 ```

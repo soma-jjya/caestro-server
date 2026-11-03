@@ -8,8 +8,10 @@ import java.time.LocalDateTime;
  */
 public record OpsStatsResponse(Users users, Subscriptions subscriptions, LocalDateTime generatedAt) {
 
+    /** {@code devices} 는 기기 키가 기록된 서로 다른 폰 수, {@code withoutDevice} 는 아직 기기 키가 없는 계정 수(탈퇴 제외). */
     public record Users(long total, long kakao, long google, long apple, long guest, long deleted,
-                       long newToday, long newLast7Days, long activeToday, long activeLast7Days) {
+                       long newToday, long newLast7Days, long activeToday, long activeLast7Days,
+                       long devices, long withoutDevice) {
     }
 
     public record Subscriptions(long active, long googlePlay, long appStore, long manual, long autoRenewOff) {
