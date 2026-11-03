@@ -77,6 +77,8 @@ public class SecurityConfig {
                                 // info: prod에선 미노출(exposure=health)이라 404, dev에서만 조회됨
                                 "/actuator/info"
                         ).permitAll()
+                        // 운영 조회(가입·로그인·구독, 읽기 전용): 스튜디오와 같은 키 (contracts/studio-ops.md)
+                        .requestMatchers("/admin/ops/**").hasAnyRole("STUDIO", "ADMIN")
                         .requestMatchers("/admin/**").hasRole("ADMIN")
                         .anyRequest().authenticated()
                 )
