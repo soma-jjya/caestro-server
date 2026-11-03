@@ -65,7 +65,9 @@ public class StudioOpsService {
                 userRepository.countByCreatedAtGreaterThanEqual(today),
                 userRepository.countByCreatedAtGreaterThanEqual(weekAgo),
                 userRepository.countByLastLoginAtGreaterThanEqual(today),
-                userRepository.countByLastLoginAtGreaterThanEqual(weekAgo));
+                userRepository.countByLastLoginAtGreaterThanEqual(weekAgo),
+                userRepository.countDistinctDeviceKeys(),
+                userRepository.countByDeviceKeyIsNullAndDeletedAtIsNull());
         SubscriptionStatus active = SubscriptionStatus.ACTIVE;
         OpsStatsResponse.Subscriptions subscriptions = new OpsStatsResponse.Subscriptions(
                 subscriptionRepository.countByStatusAndExpiresAtAfter(active, now),
@@ -103,7 +105,7 @@ public class StudioOpsService {
                 .collect(Collectors.toMap(s -> s.getUser().getId(), Function.identity(),
                         (a, b) -> a.getExpiresAt().isAfter(b.getExpiresAt()) ? a : b));
         List<OpsUserResponse> items = shown.stream()
-                .map(u -> new OpsUserResponse(u.getId(), providerOf(u), u.getLastPlatform(), u.getNickname(), u.getCreatedAt(), u.getLastLoginAt(),
+                .map(u -> new OpsUserResponse(u.getId(), providerOf(u), u.getLastPlatform(), shortKey(u.getDeviceKey()), u.getNickname(), u.getCreatedAt(), u.getLastLoginAt(),
                         best.containsKey(u.getId()) ? OpsProResponse.from(best.get(u.getId())) : null))
                 .toList();
         return new OpsUserPageResponse(items, hasNext ? shown.get(shown.size() - 1).getId() : null);
@@ -120,7 +122,7 @@ public class StudioOpsService {
                 .max(Comparator.comparing(Subscription::getExpiresAt))
                 .map(OpsProResponse::from)
                 .orElse(null);
-        return new OpsUserDetailResponse(user.getId(), providerOf(user), user.getLastPlatform(), user.getNickname(), user.getCreatedAt(),
+        return new OpsUserDetailResponse(user.getId(), providerOf(user), user.getLastPlatform(), shortKey(user.getDeviceKey()), user.getNickname(), user.getCreatedAt(),
                 user.getLastLoginAt(), user.getDeletedAt(), mask(user.getOauthId()), mask(user.getDeviceId()), user.getRole(),
                 pushTokenRepository.countByUserIdAndDisabledAtIsNull(id), pro,
                 history.stream().map(s -> OpsSubscriptionResponse.of(s, now, null, null, null)).toList());
@@ -143,6 +145,11 @@ public class StudioOpsService {
     static String providerOf(User user) {
         if (user.isDeleted()) return "deleted";
         return user.isGuest() ? "guest" : user.getOauthProvider();
+    }
+
+    /** 기기 키 해시의 앞 16자(64비트): 같은 폰끼리 묶기에 충분하고 화면에도 짧다. */
+    static String shortKey(String deviceKey) {
+        return deviceKey == null ? null : deviceKey.substring(0, Math.min(16, deviceKey.length()));
     }
 
     /** 앞 3자·뒤 2자만 남기고 가운데를 가린다. 6자 이하면 전부 가린다. null 은 null. */

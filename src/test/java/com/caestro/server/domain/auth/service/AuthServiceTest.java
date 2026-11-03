@@ -178,7 +178,7 @@ class AuthServiceTest {
         ReflectionTestUtils.setField(guest, "id", 12L);
 
         given(userRepository.findByDeviceId(deviceId)).willReturn(Optional.of(guest));
-        given(userRepository.touchLastLogin(anyLong(), any(), any())).willThrow(new IllegalStateException("Unknown column 'last_login_at'"));
+        given(userRepository.touchLastLogin(anyLong(), any(), any(), any())).willThrow(new IllegalStateException("Unknown column 'last_login_at'"));
         given(jwtProvider.generateAccessToken(anyLong(), any())).willReturn("a");
         given(jwtProvider.generateRefreshToken(anyLong())).willReturn("r");
         given(redisTemplate.opsForValue()).willReturn(valueOperations);
@@ -188,11 +188,11 @@ class AuthServiceTest {
 
         // then
         assertThat(response.accessToken()).isEqualTo("a");
-        verify(userRepository).touchLastLogin(eq(12L), any(), any());
+        verify(userRepository).touchLastLogin(eq(12L), any(), any(), any());
     }
 
     @Test
-    @DisplayName("로그인이 온 앱(User-Agent)을 마지막 로그인과 함께 기록한다: 안드로이드 앱 okhttp → ANDROID")
+    @DisplayName("로그인이 온 앱(User-Agent)과 폰(X-Device-Key 해시)을 마지막 로그인과 함께 기록한다")
     void guestLogin_recordsPlatformFromUserAgent() {
         // given
         String deviceId = "device-okhttp";
@@ -200,6 +200,7 @@ class AuthServiceTest {
         ReflectionTestUtils.setField(guest, "id", 13L);
         org.springframework.mock.web.MockHttpServletRequest request = new org.springframework.mock.web.MockHttpServletRequest();
         request.addHeader("User-Agent", "okhttp/4.12.0");
+        request.addHeader("X-Device-Key", "a1b2c3d4e5f60718");
         org.springframework.web.context.request.RequestContextHolder.setRequestAttributes(
                 new org.springframework.web.context.request.ServletRequestAttributes(request));
 
@@ -213,7 +214,8 @@ class AuthServiceTest {
             authService.guestLogin(deviceId);
 
             // then
-            verify(userRepository).touchLastLogin(eq(13L), any(), eq("ANDROID"));
+            verify(userRepository).touchLastLogin(eq(13L), any(), eq("ANDROID"),
+                    eq(com.caestro.server.global.security.ClientDevice.hash("a1b2c3d4e5f60718")));
         } finally {
             org.springframework.web.context.request.RequestContextHolder.resetRequestAttributes();
         }

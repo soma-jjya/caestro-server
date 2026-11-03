@@ -49,7 +49,7 @@ class StudioOpsWebTest {
     @DisplayName("키 없음·틀린 키·일반 사용자는 403, 스튜디오 키와 ADMIN 은 200")
     void access() throws Exception {
         given(studioOpsService.stats()).willReturn(new OpsStatsResponse(
-                new OpsStatsResponse.Users(0, 0, 0, 0, 0, 0, 0, 0, 0, 0),
+                new OpsStatsResponse.Users(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0),
                 new OpsStatsResponse.Subscriptions(0, 0, 0, 0, 0), LocalDateTime.now()));
         mockMvc.perform(get("/admin/ops/stats")).andExpect(status().isForbidden());
         mockMvc.perform(get("/admin/ops/stats").header(KEY, "wrong")).andExpect(status().isForbidden());
@@ -69,7 +69,7 @@ class StudioOpsWebTest {
     @Test
     @DisplayName("사용자 목록의 검색·필터·커서, 없는 사용자 404, 구독 목록 필터")
     void endpoints() throws Exception {
-        OpsUserResponse row = new OpsUserResponse(12L, "google", "ANDROID", "이상협", LocalDateTime.now(), null, null);
+        OpsUserResponse row = new OpsUserResponse(12L, "google", "ANDROID", "0123456789abcdef", "이상협", LocalDateTime.now(), null, null);
         given(studioOpsService.users("상협", "google", true, 40L, 10)).willReturn(new OpsUserPageResponse(List.of(row), 12L));
         given(studioOpsService.user(99L)).willThrow(new CustomException(ErrorCode.USER_NOT_FOUND));
         given(studioOpsService.subscriptions(any(), any(), any(), any())).willReturn(new OpsSubscriptionPageResponse(List.of(), null));
@@ -81,6 +81,7 @@ class StudioOpsWebTest {
                 .andExpect(jsonPath("$.items[0].id").value(12))
                 .andExpect(jsonPath("$.items[0].provider").value("google"))
                 .andExpect(jsonPath("$.items[0].platform").value("ANDROID"))
+                .andExpect(jsonPath("$.items[0].deviceKey").value("0123456789abcdef"))
                 .andExpect(jsonPath("$.nextCursor").value(12));
         mockMvc.perform(get("/admin/ops/users/99").header(KEY, "test-server-only-key")).andExpect(status().isNotFound());
         mockMvc.perform(get("/admin/ops/subscriptions").header(KEY, "test-server-only-key")
