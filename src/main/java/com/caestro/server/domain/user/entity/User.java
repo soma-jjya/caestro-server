@@ -71,6 +71,11 @@ public class User {
     @Column(length = 10)
     private String lastPlatform;
 
+    // 마지막 로그인·토큰 갱신이 온 폰의 기기 키(X-Device-Key) SHA-256 hex (global.security.ClientDevice).
+    // 같은 폰에서 생긴 게스트·소셜 계정을 운영 화면에서 한 줄로 묶는다. 원래 값은 두지 않는다.
+    @Column(length = 64)
+    private String deviceKey;
+
     @Builder
     public User(String oauthProvider, String oauthId, String deviceId, String nickname, String profileImage, Role role) {
         this.oauthProvider = oauthProvider;

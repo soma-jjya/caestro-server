@@ -9,6 +9,7 @@ public record OpsUserDetailResponse(
         Long id,
         String provider,
         String platform,
+        String deviceKey,
         String nickname,
         LocalDateTime createdAt,
         LocalDateTime lastLoginAt,
