@@ -11,6 +11,7 @@ import com.caestro.server.domain.user.repository.UserRepository;
 import com.caestro.server.global.exception.CustomException;
 import com.caestro.server.global.exception.error.ErrorCode;
 import com.caestro.server.global.ratelimit.RedisRateLimiter;
+import com.caestro.server.global.security.ClientIp;
 import com.caestro.server.global.security.CustomUserDetails;
 import io.micrometer.core.instrument.MeterRegistry;
 import jakarta.servlet.http.HttpServletRequest;
@@ -54,7 +55,7 @@ public class AuthController implements AuthApi {
     public ResponseEntity<TokenResponse> guestLogin(@Valid @RequestBody GuestLoginRequest request,
             HttpServletRequest httpRequest) {
         // 무인증 공개 + DB write 경로라 IP당 발급 속도를 제한한다 (#125, 스탬피드 실측 http p90 5.89s)
-        if (!rateLimiter.tryAcquire("rl:guest:" + clientIp(httpRequest),
+        if (!rateLimiter.tryAcquire("rl:guest:" + ClientIp.of(httpRequest),
                 guestRateLimit, Duration.ofSeconds(guestRateWindowSeconds))) {
             // 정상 시간대에 이 카운터가 찍히면 공유 IP 오탐 신호 → 한도(추정치 30)를 실측으로 교정 (#129)
             meterRegistry.counter("auth.guest.rate_limited").increment();
@@ -109,11 +110,4 @@ public class AuthController implements AuthApi {
         return ResponseEntity.ok(user);
     }
 
-    /** ALB 뒤에서는 X-Forwarded-For의 첫 값이 실제 클라이언트 IP다 (직접 연결이면 remoteAddr). */
-    private static String clientIp(HttpServletRequest request) {
-        String forwarded = request.getHeader("X-Forwarded-For");
-        return (forwarded != null && !forwarded.isBlank())
-                ? forwarded.split(",")[0].trim()
-                : request.getRemoteAddr();
-    }
 }
