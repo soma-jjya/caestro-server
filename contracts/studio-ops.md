@@ -45,7 +45,7 @@ peakpic.app/studio 의 운영 화면이 사용자 가입 경로, 마지막 로�
 {
   "items": [
     {
-      "id": 1201, "provider": "google", "nickname": "이상협",
+      "id": 1201, "provider": "google", "platform": "ANDROID", "nickname": "이상협",
       "createdAt": "2026-10-20T11:02:03", "lastLoginAt": "2026-11-04T01:57:50",
       "pro": { "store": "GOOGLE_PLAY", "basePlanId": "monthly", "status": "ACTIVE",
                "expiresAt": "2026-12-04T01:58:00", "autoRenewing": true }
@@ -61,7 +61,7 @@ peakpic.app/studio 의 운영 화면이 사용자 가입 경로, 마지막 로�
 
 ```json
 {
-  "id": 1201, "provider": "google", "nickname": "이상협",
+  "id": 1201, "provider": "google", "platform": "ANDROID", "nickname": "이상협",
   "createdAt": "…", "lastLoginAt": "…", "deletedAt": null,
   "oauthIdMasked": "108********42", "deviceIdMasked": null, "role": "USER",
   "pushTokens": 1,
@@ -98,11 +98,15 @@ peakpic.app/studio 의 운영 화면이 사용자 가입 경로, 마지막 로�
 
 `status = ACTIVE` 라도 만료가 지난 행은 `active: false` (갱신 알림 전 잠깐).
 
-## 마지막 로그인 (users.last_login_at)
+## 마지막 로그인과 온 앱 (users.last_login_at, users.last_platform)
 
 로그인(소셜·게스트)과 토큰 갱신 때 `last_login_at` 을 지금으로 바꾼다. 앱이 열려 있으면 토큰 갱신 주기마다 다시 찍히므로
-"마지막으로 앱을 쓴 때"에 가깝다.
+"마지막으로 앱을 쓴 때"에 가깝다. 같은 때 요청의 User-Agent 로 `last_platform` 을 찍는다(게스트 포함):
+안드로이드 앱 `okhttp/…` → `ANDROID`, iOS 앱 `…CFNetwork…Darwin…` → `IOS`, 브라우저 `Mozilla/…`(축제 참여·웹 라이트) → `WEB`.
+알 수 없는 User-Agent 면 이전 값을 그대로 둔다. 목록·상세의 `platform` 이 이 값이고, 기록 전이면 null.
+기록이 실패해도 로그인은 그대로 진행한다.
 
 ```sql
 ALTER TABLE users ADD COLUMN last_login_at DATETIME(6) NULL;
+ALTER TABLE users ADD COLUMN last_platform VARCHAR(10) NULL;
 ```

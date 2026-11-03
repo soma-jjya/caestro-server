@@ -15,11 +15,14 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     Optional<User> findByDeviceId(String deviceId);
 
-    /** 로그인·토큰 갱신 때 마지막 로그인 시각을 찍는다. 엔티티를 다시 읽지 않는 한 줄 갱신. */
+    /**
+     * 로그인·토큰 갱신 때 마지막 로그인 시각과 온 앱을 찍는다. 엔티티를 다시 읽지 않는 한 줄 갱신.
+     * platform 이 null(알 수 없는 요청)이면 이전 값을 그대로 둔다.
+     */
     @Transactional
     @Modifying
-    @Query("update User u set u.lastLoginAt = :at where u.id = :id")
-    int touchLastLogin(@Param("id") Long id, @Param("at") LocalDateTime at);
+    @Query("update User u set u.lastLoginAt = :at, u.lastPlatform = coalesce(:platform, u.lastPlatform) where u.id = :id")
+    int touchLastLogin(@Param("id") Long id, @Param("at") LocalDateTime at, @Param("platform") String platform);
 
     long countByOauthProviderAndDeletedAtIsNull(String oauthProvider);
 

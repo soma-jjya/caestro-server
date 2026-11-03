@@ -103,7 +103,7 @@ public class StudioOpsService {
                 .collect(Collectors.toMap(s -> s.getUser().getId(), Function.identity(),
                         (a, b) -> a.getExpiresAt().isAfter(b.getExpiresAt()) ? a : b));
         List<OpsUserResponse> items = shown.stream()
-                .map(u -> new OpsUserResponse(u.getId(), providerOf(u), u.getNickname(), u.getCreatedAt(), u.getLastLoginAt(),
+                .map(u -> new OpsUserResponse(u.getId(), providerOf(u), u.getLastPlatform(), u.getNickname(), u.getCreatedAt(), u.getLastLoginAt(),
                         best.containsKey(u.getId()) ? OpsProResponse.from(best.get(u.getId())) : null))
                 .toList();
         return new OpsUserPageResponse(items, hasNext ? shown.get(shown.size() - 1).getId() : null);
@@ -120,7 +120,7 @@ public class StudioOpsService {
                 .max(Comparator.comparing(Subscription::getExpiresAt))
                 .map(OpsProResponse::from)
                 .orElse(null);
-        return new OpsUserDetailResponse(user.getId(), providerOf(user), user.getNickname(), user.getCreatedAt(),
+        return new OpsUserDetailResponse(user.getId(), providerOf(user), user.getLastPlatform(), user.getNickname(), user.getCreatedAt(),
                 user.getLastLoginAt(), user.getDeletedAt(), mask(user.getOauthId()), mask(user.getDeviceId()), user.getRole(),
                 pushTokenRepository.countByUserIdAndDisabledAtIsNull(id), pro,
                 history.stream().map(s -> OpsSubscriptionResponse.of(s, now, null, null, null)).toList());
