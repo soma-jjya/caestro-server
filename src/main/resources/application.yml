@@ -153,6 +153,15 @@ push:
     project-id: ""            # Firebase 프로젝트 ID
     service-account-json: ""  # 서비스 계정 키(JSON 원문 또는 base64). 운영은 Secrets Manager
 
+# B2B 문의 접수 (contracts/b2b-inquiries.md, #216): 광고 랜딩 폼 → POST /inquiries(인증 없음) → 관리자 페이지가 /b2b/admin/inquiries 로 본다
+inquiry:
+  ratelimit:                  # 인증 없는 쓰기 경로라 IP 당 + 전체 고정 창. 추정치이며 inquiry.rejected 지표로 교정한다
+    per-ip: 5
+    per-ip-window-seconds: 3600
+    daily: 300
+  webhook-url: ""             # 비어 있지 않으면 접수 커밋 뒤 Slack/Discord 호환 웹훅으로 요약 한 장. 운영은 Secrets Manager
+  admin-url: https://peakpic.app/admin/inquiries   # 웹훅 글에 붙이는 관리자 링크
+
 ---
 # prod 프로파일(ASG 인스턴스)에서만 IMDS 감지를 켠다. application-prod.yml은 저장소 밖(CI Secret)이라
 # 코드와 함께 추적돼야 하는 이 토글은 여기 프로파일 문서로 둔다. (반드시 파일 맨 끝에 둘 것 — 아래 키는 전부 이 문서 소속)
