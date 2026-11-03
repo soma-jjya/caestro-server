@@ -1,0 +1,68 @@
+{
+  "title": "PeakPic B2B",
+  "uid": "peakpic-b2b",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "15s",
+  "timezone": "browser",
+  "time": {"from": "now-1h", "to": "now"},
+  "panels": [
+    {
+      "id": 1, "type": "timeseries", "title": "B2B 작업별 처리율 (lock 조회는 create 내부 측정)",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+      "fieldConfig": {"defaults": {"unit": "ops", "min": 0}, "overrides": []},
+      "targets": [{"refId": "A", "expr": "sum by (operation, outcome) (rate(b2b_operation_seconds_count[5m]))", "legendFormat": "{{operation}} / {{outcome}}"}]
+    },
+    {
+      "id": 2, "type": "timeseries", "title": "B2B 작업별 p95 (서비스 호출·트랜잭션 종료 포함)",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+      "fieldConfig": {"defaults": {"unit": "s", "min": 0}, "overrides": []},
+      "targets": [{"refId": "A", "expr": "histogram_quantile(0.95, sum by (le, operation) (rate(b2b_operation_seconds_bucket{operation!=\"project_lock_lookup\"}[5m])))", "legendFormat": "{{operation}}"}]
+    },
+    {
+      "id": 3, "type": "timeseries", "title": "프로젝트 잠금 조회 p95 (SQL·커넥션 대기 포함)",
+      "description": "순수 행 잠금 대기 시간이 아니다. MySQL 잠금/SQL 및 Hikari 대기와 함께 확인한다.",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+      "fieldConfig": {"defaults": {"unit": "s", "min": 0}, "overrides": []},
+      "targets": [{"refId": "A", "expr": "histogram_quantile(0.95, sum by (le, instance) (rate(b2b_operation_seconds_bucket{operation=\"project_lock_lookup\"}[5m])))", "legendFormat": "{{instance}}"}]
+    },
+    {
+      "id": 4, "type": "timeseries", "title": "HTTP 4xx / 5xx (인증 필터와 요청 검증 포함)",
+      "description": "auth와 fills는 B2C 요청도 포함한다. uri는 Spring 매핑 템플릿이다.",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+      "fieldConfig": {"defaults": {"unit": "ops", "min": 0}, "overrides": []},
+      "targets": [{"refId": "A", "expr": "sum by (uri, status) (rate(http_server_requests_seconds_count{uri=~\"/b2b/.*|/auth/guest|/fills/.*\",status=~\"4..|5..\"}[5m]))", "legendFormat": "{{uri}} / {{status}}"}]
+    },
+    {
+      "id": 5, "type": "timeseries", "title": "전체 게스트 인증·Fill 쓰기 제한 (B2C 포함)",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 16},
+      "fieldConfig": {"defaults": {"unit": "ops", "min": 0}, "overrides": []},
+      "targets": [
+        {"refId": "A", "expr": "sum(rate(auth_guest_rate_limited_total[5m]))", "legendFormat": "guest IP limit"},
+        {"refId": "B", "expr": "sum by (kind) (rate(fill_rate_limited_total[5m]))", "legendFormat": "fill {{kind}}"}
+      ]
+    },
+    {
+      "id": 6, "type": "timeseries", "title": "DB 풀 사용·대기",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 16},
+      "fieldConfig": {"defaults": {"unit": "short", "min": 0}, "overrides": []},
+      "targets": [
+        {"refId": "A", "expr": "hikaricp_connections_pending", "legendFormat": "pending {{instance}} {{pool}}"},
+        {"refId": "B", "expr": "hikaricp_connections_active", "legendFormat": "active {{instance}} {{pool}}"},
+        {"refId": "C", "expr": "hikaricp_connections_max", "legendFormat": "max {{instance}} {{pool}}"}
+      ]
+    },
+    {
+      "id": 7, "type": "timeseries", "title": "앱 프로세스 CPU",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 24},
+      "fieldConfig": {"defaults": {"unit": "percentunit", "min": 0}, "overrides": []},
+      "targets": [{"refId": "A", "expr": "process_cpu_usage", "legendFormat": "{{instance}}"}]
+    },
+    {
+      "id": 8, "type": "timeseries", "title": "JVM heap 사용량",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 24},
+      "fieldConfig": {"defaults": {"unit": "bytes", "min": 0}, "overrides": []},
+      "targets": [{"refId": "A", "expr": "sum by (instance) (jvm_memory_used_bytes{area=\"heap\"})", "legendFormat": "{{instance}}"}]
+    }
+  ]
+}

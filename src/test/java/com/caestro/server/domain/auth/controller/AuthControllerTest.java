@@ -99,4 +99,29 @@ class AuthControllerTest {
 
         verify(rateLimiter).tryAcquire(eq("rl:guest:9.9.9.9"), anyInt(), any());
     }
+
+    @Test
+    @DisplayName("공용 Wi-Fi의 서로 다른 기기도 같은 IP 한도를 공유하고 초과분은 발급 전에 거절된다 (#219)")
+    void differentDevicesOnSharedIpUseTheSameBudget() {
+        given(httpRequest.getRemoteAddr()).willReturn("192.0.2.219");
+        var attempts = new java.util.concurrent.atomic.AtomicInteger();
+        given(rateLimiter.tryAcquire("rl:guest:192.0.2.219", 30, Duration.ofSeconds(60)))
+                .willAnswer(invocation -> attempts.incrementAndGet() <= 30);
+        given(authService.guestLogin(anyString())).willReturn(new TokenResponse("a", "r"));
+
+        for (int i = 0; i < 30; i++) {
+            assertThat(controller.guestLogin(new GuestLoginRequest("device-" + i), httpRequest)
+                    .getStatusCode().value()).isEqualTo(200);
+        }
+        for (int i = 30; i < 35; i++) {
+            String device = "device-" + i;
+            assertThatThrownBy(() -> controller.guestLogin(new GuestLoginRequest(device), httpRequest))
+                    .isInstanceOf(CustomException.class)
+                    .extracting(e -> ((CustomException) e).getErrorCode()).isEqualTo(ErrorCode.TOO_MANY_REQUESTS);
+        }
+        verify(authService, org.mockito.Mockito.times(30)).guestLogin(anyString());
+        verify(rateLimiter, org.mockito.Mockito.times(35))
+                .tryAcquire("rl:guest:192.0.2.219", 30, Duration.ofSeconds(60));
+        assertThat(meterRegistry.get("auth.guest.rate_limited").counter().count()).isEqualTo(5);
+    }
 }

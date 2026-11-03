@@ -35,6 +35,7 @@ public class B2bFillService {
     private final FillService fills;
     private final B2bFrameMapper mapper;
     private final Clock clock;
+    private final B2bMetrics metrics;
     @Value("${b2b.web-base-url:https://peakpic.app/go}")
     private String webBaseUrl;
 
@@ -49,7 +50,8 @@ public class B2bFillService {
     @Transactional
     public B2bFillResponse create(String slug, Long ownerId, CreateB2bFillRequest request) {
         // 1. 일시중지/프레임 저장과 참여 생성을 직렬화한다.
-        B2bProject project = projects.findLockedBySlug(slug)
+        B2bProject project = metrics.observe(B2bMetrics.Operation.PROJECT_LOCK_LOOKUP,
+                        () -> projects.findLockedBySlug(slug))
                 .filter(p -> p.getStatus() == B2bProject.Status.LIVE)
                 .orElseThrow(() -> new CustomException(ErrorCode.B2B_PROJECT_NOT_FOUND));
         B2bFrame frame = frames.findByProjectIdOrderByDisplayOrderAsc(project.getId()).stream()
