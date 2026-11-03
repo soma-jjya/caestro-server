@@ -5,6 +5,7 @@ import encoding from 'k6/encoding';
 import { Counter, Rate, Trend } from 'k6/metrics';
 import { config, scenario } from './b2b/config.mjs';
 import { workflow } from './b2b/workflow.mjs';
+import { trackJourney } from './b2b/lifecycle.mjs';
 
 const c = config(__ENV);
 if (!__ENV.STUDIO_KEY) throw new Error('STUDIO_KEY for the isolated test environment is required');
@@ -15,7 +16,7 @@ const metrics = {
   cleanup_failed: new Rate('b2b_cleanup_failed'),
   journey_success: new Rate('b2b_journey_success'),
   journey_error: new Counter('b2b_journey_errors'),
-  interrupted: new Counter('b2b_interrupted_iterations'),
+  unfinished: new Counter('b2b_unfinished_journeys'),
   journey_duration: new Trend('b2b_journey_duration', true),
 };
 export const options = {
@@ -27,7 +28,7 @@ export const options = {
     b2b_journey_success: ['rate>=0.99'],
     b2b_request_failed: ['rate<0.01'],
     b2b_cleanup_failed: ['rate==0'],
-    b2b_interrupted_iterations: ['count==0'],
+    b2b_unfinished_journeys: ['count==0'],
     'http_req_duration{stage:entry}': [`p(95)<${c.apiP95}`],
     'http_req_duration{stage:create}': [`p(95)<${c.apiP95}`],
     'http_req_duration{stage:read}': [`p(95)<${c.apiP95}`],
@@ -59,9 +60,10 @@ export function setup() {
   const run = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
   return runner.setup(run, photo);
 }
-export default function (data) { runner.journey(data, exec.scenario.iterationInTest, photo); }
+export default function (data) {
+  trackJourney(metrics.unfinished, () => runner.journey(data, exec.scenario.iterationInTest, photo));
+}
 export function teardown(data) {
-  // Local single-process runner: interrupted journeys must not disappear from the success denominator.
-  metrics.interrupted.add(exec.instance.iterationsInterrupted);
+  // k6 1.0.0 exposes instance statistics only in VU context, not in teardown.
   runner.cleanup(data);
 }

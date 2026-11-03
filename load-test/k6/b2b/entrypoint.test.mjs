@@ -28,8 +28,8 @@ async function adapter({ journey = () => {}, cleanup = () => {}, sums = new Map(
   };
   const entry = new vm.SourceTextModule(fs.readFileSync('load-test/k6/b2b-session.js', 'utf8'), { context });
   await entry.link(specifier => {
-    if (specifier === './b2b/config.mjs') {
-      return new vm.SourceTextModule(fs.readFileSync('load-test/k6/b2b/config.mjs', 'utf8'), { context });
+    if (['./b2b/config.mjs', './b2b/lifecycle.mjs'].includes(specifier)) {
+      return new vm.SourceTextModule(fs.readFileSync(`load-test/k6/${specifier}`, 'utf8'), { context });
     }
     const exports = stubs[specifier];
     assert.ok(exports, `Unexpected import: ${specifier}`);

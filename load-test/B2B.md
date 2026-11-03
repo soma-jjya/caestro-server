@@ -7,11 +7,11 @@
 - `k6/b2b-session.js`: 공개 프로젝트 조회 → 신규 게스트 인증 → 프레임 id/version으로 네컷 생성 → 대기 중 반복 조회 → 원본 PNG 4장 업로드 → 완료 상태 조회.
 - `k6/b2b-shared-ip.js`: 같은 출발 IP의 서로 다른 기기들이 같은 게스트 발급 한도를 사용하는지, 초과 시 429인지, 창 만료 뒤 다시 허용되는지 확인.
 - `infra/monitoring/dashboards/peakpic-b2b.json`: 요청 처리·프로젝트 잠금 조회·기존 인증 제한·DB 풀·JVM 관측.
-- `node --test load-test/k6/b2b/workflow.test.mjs`: 실제 k6가 호출하는 공통 흐름을 가짜 HTTP/시간으로 검증한다. 실제 서버 처리량을 측정하는 테스트는 아니다.
+- `node --experimental-vm-modules --test load-test/k6/b2b/workflow.test.mjs load-test/k6/b2b/entrypoint.test.mjs`: 실제 k6가 호출하는 공통 흐름과 어댑터의 정리·중단 처리를 가짜 HTTP/시간 및 k6 모듈로 검증한다. 실제 서버 처리량을 측정하는 테스트는 아니다.
 
 이번 구현은 운영 인증 한도, API 계약, 잠금 방식, 배포 인프라를 변경하지 않는다. 운영 부하 테스트를 자동 실행하지 않는다. DB 마이그레이션이나 FE 수정도 필요 없다.
 
-PR CI의 `B2B load script contracts`는 Node 계약 테스트와 k6 1.0.0 초기화 검사 후 일회용 Compose에서 한 흐름의 smoke 및 공용 IP 제한/회복을 실행한다. 운영 트래픽이나 수용량 벤치마크가 아니다. Java 지표·MVC·실제 Redis TTL 테스트는 기존 전체 Java CI에서 실행한다.
+PR CI의 `B2B load script contracts`는 Node 계약 테스트, k6 1.0.0 초기화 및 생명주기 검사 후 일회용 Compose에서 한 흐름의 smoke 및 공용 IP 제한/회복을 실행한다. 생명주기 검사는 `--network none`에서 빈 정리 목록의 정상 종료와 강제 중단의 임계치 실패(exit 99)를 확인한다. 운영 트래픽이나 수용량 벤치마크가 아니다. Java 지표·MVC·실제 Redis TTL 테스트는 기존 전체 Java CI에서 실행한다.
 
 ## 먼저 격리된 환경 준비
 
@@ -74,7 +74,7 @@ docker compose -f load-test/docker-compose.b2b.yml run --rm k6 run -e PROFILE=st
 
 장시간 검증은 `PROFILE=steady`, `DURATION_SECONDS=1800` 등으로 설정한다. JWT 만료 30초 전 refresh하며 실패하면 해당 흐름을 종료한다. 재시도 루프로 장애 요청을 증폭하지 않는다. 기본 임계치는 참여 완료율 ≥99%, 전체 요청 실패율 <1%, 정리 실패 0, 목표 시작 누락 0이다. p95는 entry/create/read/upload 각각 확인한다. 초기 임계치는 합의된 서비스 SLO를 대신하지 않는다.
 
-단일 k6 프로세스 실행을 기준으로 한다. drain 시간 초과 등으로 중단된 흐름은 `b2b_interrupted_iterations`가 1 이상이면 실패한다. Cloud/분산 발생기에서는 teardown의 인스턴스별 집계와 fixture 소유권을 별도로 설계해야 하므로 현재 스크립트를 그대로 사용하지 않는다.
+단일 k6 프로세스 실행을 기준으로 한다. `b2b_unfinished_journeys`는 시작마다 +1, 흐름 함수 반환 뒤 -1을 기록하는 k6 Counter의 합계다. 실행 도중에는 진행 중인 흐름 수이고, 종료 시 0이 아니면 drain 시간 초과 등으로 끝나지 않은 흐름이 있으므로 실패한다. API 실패로 정상 반환한 흐름은 별도 `b2b_journey_success`가 실패를 집계한다. 이 합계를 단조 증가하는 Prometheus 카운터로 해석하지 않는다. k6 1.0.0의 teardown에서는 `exec.instance`를 사용할 수 없으므로 실행 정보에 접근하지 않고 fixture 정리만 수행한다. Cloud/분산 발생기에서는 집계와 fixture 소유권을 별도로 설계해야 하므로 현재 스크립트를 그대로 사용하지 않는다.
 
 참여 중 작성한 네컷은 측정 종료까지 남겨 DB 데이터 증가를 포함한다. 테스트 종료 후 프로젝트를 삭제하므로 완료 후 장기 보관/재조회 부하는 별도 시나리오가 필요하다. 현재 한 게스트가 한 네컷의 4장을 올리며, 여러 사용자가 같은 칸을 동시에 수정하는 경합·B2C 동시 부하·브라우저 합성/다운로드·CDN 전송량은 이 스크립트의 범위가 아니다. 업로드는 실제 API에 raw PNG로 전송한다. 응답의 외부 이미지 URL은 따라가지 않는다.
 
