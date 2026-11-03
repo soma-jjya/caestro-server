@@ -35,7 +35,7 @@ jobs:
         with:
           node-version: '22'
       - name: Offline workflow and target/cleanup guards (no live API traffic)
-        run: node --test load-test/k6/b2b/workflow.test.mjs
+        run: node --experimental-vm-modules --test load-test/k6/b2b/workflow.test.mjs load-test/k6/b2b/entrypoint.test.mjs
       - name: Validate isolated Compose config
         run: docker compose -f load-test/docker-compose.b2b.yml --profile tools config --quiet
       - name: Generate reproducible PNG fixture
@@ -45,6 +45,13 @@ jobs:
           # inspect excludes system environment variables by default; pass this dummy to k6 itself.
           docker run --rm --network none -v "$PWD:/work:ro" -w /work grafana/k6:1.0.0 inspect -e STUDIO_KEY=ci-dummy load-test/k6/b2b-session.js
           docker run --rm --network none -v "$PWD:/work:ro" -w /work grafana/k6:1.0.0 inspect load-test/k6/b2b-shared-ip.js
+      - name: Verify teardown and rejection of interrupted journeys (no API traffic)
+        run: |
+          docker run --rm --network none -v "$PWD:/work:ro" -w /work grafana/k6:1.0.0 run -e STUDIO_KEY=ci-dummy load-test/k6/b2b/lifecycle-contract.js
+          # A deliberately interrupted VU must fail its threshold (k6 exit code 99).
+          status=0
+          docker run --rm --network none -v "$PWD:/work:ro" -w /work grafana/k6:1.0.0 run -e STUDIO_KEY=ci-dummy -e INTERRUPT=1 load-test/k6/b2b/lifecycle-contract.js || status=$?
+          test "$status" -eq 99
   smoke:
     needs: contracts
     runs-on: ubuntu-latest
