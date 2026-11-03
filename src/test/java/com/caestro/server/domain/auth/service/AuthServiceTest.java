@@ -2,6 +2,7 @@ package com.caestro.server.domain.auth.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.never;
@@ -166,6 +167,28 @@ class AuthServiceTest {
 
         // then
         verify(userRepository, never()).save(any(User.class));
+    }
+
+    @Test
+    @DisplayName("마지막 로그인 기록이 실패해도(예: 칼럼 없는 DB) 로그인은 토큰을 발급한다, 성공 시엔 기록한다")
+    void guestLogin_lastLoginStampFailure_doesNotBlockLogin() {
+        // given
+        String deviceId = "device-stamp";
+        User guest = User.builder().deviceId(deviceId).role(User.Role.USER).build();
+        ReflectionTestUtils.setField(guest, "id", 12L);
+
+        given(userRepository.findByDeviceId(deviceId)).willReturn(Optional.of(guest));
+        given(userRepository.touchLastLogin(anyLong(), any())).willThrow(new IllegalStateException("Unknown column 'last_login_at'"));
+        given(jwtProvider.generateAccessToken(anyLong(), any())).willReturn("a");
+        given(jwtProvider.generateRefreshToken(anyLong())).willReturn("r");
+        given(redisTemplate.opsForValue()).willReturn(valueOperations);
+
+        // when
+        TokenResponse response = authService.guestLogin(deviceId);
+
+        // then
+        assertThat(response.accessToken()).isEqualTo("a");
+        verify(userRepository).touchLastLogin(eq(12L), any());
     }
 
     @Test

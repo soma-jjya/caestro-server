@@ -61,6 +61,11 @@ public class User {
     @Column
     private LocalDateTime deletedAt;
 
+    // 마지막 로그인(소셜·게스트 로그인, 토큰 갱신) 시각. 운영 화면의 활성 사용자 수와 목록에 쓴다 (contracts/studio-ops.md).
+    // 앱이 열려 있는 동안 토큰 갱신마다 찍히므로 "마지막으로 앱을 쓴 때"에 가깝다. 이 칼럼 이전 가입자는 null 에서 시작한다.
+    @Column
+    private LocalDateTime lastLoginAt;
+
     @Builder
     public User(String oauthProvider, String oauthId, String deviceId, String nickname, String profileImage, Role role) {
         this.oauthProvider = oauthProvider;
