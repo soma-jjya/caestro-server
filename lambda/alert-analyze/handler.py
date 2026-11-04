@@ -74,7 +74,9 @@ def _analyze_and_post(alarm):
 
 def post_discord(hook, embed):
     body = json.dumps({"embeds": [embed]}, ensure_ascii=False).encode("utf-8")
-    req = urllib.request.Request(hook, data=body, headers={"Content-Type": "application/json"}, method="POST")
+    # User-Agent 필수: 기본 python-urllib UA 는 Discord(Cloudflare)가 403 code 1010 으로 차단한다 (alert-notify 와 같은 사고)
+    req = urllib.request.Request(hook, data=body, method="POST",
+                                 headers={"Content-Type": "application/json", "User-Agent": "peakpic-alert-analyze/1.0"})
     try:
         with urllib.request.urlopen(req, timeout=10) as resp:
             return resp.status

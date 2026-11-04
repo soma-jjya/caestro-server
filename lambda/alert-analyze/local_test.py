@@ -9,7 +9,8 @@ from datetime import datetime, timezone
 from types import SimpleNamespace
 
 from fixtures import FixtureTools
-from handler import parse_alarm_time, should_analyze
+import handler
+from handler import parse_alarm_time, post_discord, should_analyze
 from investigate import REPORT_TOOL, _clean_report, investigate
 from playbooks import DEFAULT_PLAYBOOK, PLAYBOOKS, playbook_for
 from redact import redact, redact_deep
@@ -75,6 +76,28 @@ def test_handler_filters():
     t = parse_alarm_time("2026-08-22T06:12:34.567+0000")
     assert t.isoformat().startswith("2026-08-22T06:12:34"), t
     assert parse_alarm_time("2026-08-22T06:12:34Z").tzinfo is not None
+
+
+def test_discord_post_sets_user_agent():
+    # 기본 python-urllib UA 는 Discord(Cloudflare)가 403 code 1010 으로 막는다 — 연기 테스트에서 실제로 겪음
+    seen = {}
+
+    class FakeResp:
+        status = 204
+        def __enter__(self): return self
+        def __exit__(self, *a): return False
+
+    def fake_urlopen(req, timeout=0):
+        seen["ua"] = req.get_header("User-agent")
+        return FakeResp()
+
+    original = handler.urllib.request.urlopen
+    handler.urllib.request.urlopen = fake_urlopen
+    try:
+        assert post_discord("https://example.invalid/hook", {"title": "t"}) == 204
+    finally:
+        handler.urllib.request.urlopen = original
+    assert seen["ua"] and "urllib" not in seen["ua"].lower(), seen
 
 
 def test_clean_report():
