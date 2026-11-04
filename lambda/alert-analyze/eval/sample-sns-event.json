@@ -1,0 +1,11 @@
+{
+  "Records": [
+    {
+      "EventSource": "aws:sns",
+      "Sns": {
+        "Subject": "ALARM: \"peakpic-alb-5xx-spike\" in Asia Pacific (Seoul)",
+        "Message": "{\"AlarmName\":\"peakpic-alb-5xx-spike\",\"AlarmDescription\":\"서버 5XX 오류가 급증했다. 앱 예외 또는 백엔드 장애를 의심한다.\",\"NewStateValue\":\"ALARM\",\"OldStateValue\":\"OK\",\"NewStateReason\":\"Threshold Crossed: 1 datapoint [7.0] was greater than the threshold (5.0).\",\"StateChangeTime\":\"2026-11-04T03:00:00.000+0000\",\"Region\":\"Asia Pacific (Seoul)\",\"Trigger\":{\"MetricName\":\"HTTPCode_Target_5XX_Count\",\"Namespace\":\"AWS/ApplicationELB\",\"Statistic\":\"SUM\",\"Period\":300,\"EvaluationPeriods\":1,\"ComparisonOperator\":\"GreaterThanThreshold\",\"Threshold\":5.0}}"
+      }
+    }
+  ]
+}

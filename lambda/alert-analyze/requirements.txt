@@ -1,0 +1,4 @@
+# Lambda 패키지에 포함(boto3 는 런타임 내장이라 제외). 로컬 테스트(local_test.py)는 SDK 없이도 돈다.
+anthropic>=0.122.0
+
+# 골든 셋 재생(eval/replay.py)도 위 SDK 만 쓴다.
