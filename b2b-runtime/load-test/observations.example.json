@@ -1,0 +1,9 @@
+{
+  "appCpuPeakPercent": null, "appMemoryPeakPercent": null,
+  "cpuCreditBalanceStartMin": null, "cpuCreditBalanceEndMin": null,
+  "cpuSurplusCreditBalanceEndMax": null, "cpuSurplusCreditsChargedSum": null,
+  "dbCpuPeakPercent": null, "dbConnectionsPeak": null,
+  "dbReadLatencyMaxSeconds": null, "dbWriteLatencyMaxSeconds": null,
+  "redisCpuPeakPercent": null, "redisMemoryPeakPercent": null, "redisEvictionsSum": null,
+  "t3SustainedLoadReviewed": false, "representativePhotoReviewed": false, "baselineParityReviewed": false
+}

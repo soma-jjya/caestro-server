@@ -1,0 +1,42 @@
+name: Publish verified B2B image
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+  id-token: write
+jobs:
+  verify:
+    uses: ./.github/workflows/ci.yml
+  image:
+    needs: verify
+    runs-on: ubuntu-latest
+    environment: b2b-build
+    steps:
+      - uses: actions/checkout@v4
+      - name: Require the separate B2B role
+        env:
+          ROLE: ${{ secrets.B2B_IMAGE_ROLE_ARN }}
+          ACCOUNT: ${{ vars.B2B_ACCOUNT_ID }}
+        run: |
+          [[ "$ACCOUNT" =~ ^[0-9]{12}$ ]] || exit 1
+          case "$ROLE" in "arn:aws:iam::$ACCOUNT:role/peakpic-b2b-"*) ;; *) echo 'Configure a B2B-only image role'; exit 1;; esac
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.B2B_IMAGE_ROLE_ARN }}
+          aws-region: ap-northeast-2
+          allowed-account-ids: ${{ vars.B2B_ACCOUNT_ID }}
+      - uses: aws-actions/amazon-ecr-login@v2
+        id: ecr
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        id: image
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.ecr.outputs.registry }}/peakpic-b2b-server:${{ github.sha }}
+          labels: org.opencontainers.image.revision=${{ github.sha }}
+      - name: Record immutable artifact
+        env:
+          REGISTRY: ${{ steps.ecr.outputs.registry }}
+          DIGEST: ${{ steps.image.outputs.digest }}
+        run: echo "Image for an isolated festival plan is $REGISTRY/peakpic-b2b-server@$DIGEST" >> "$GITHUB_STEP_SUMMARY"

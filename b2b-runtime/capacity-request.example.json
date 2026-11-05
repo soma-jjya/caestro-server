@@ -1,0 +1,11 @@
+{
+  "peakParticipantsPer10Minutes": 600,
+  "maxVirtualUsers": 200,
+  "peakNewGuestsPerIpPerMinute": 60,
+  "guestIpLimit": 30,
+  "guestIpWindowSeconds": 60,
+  "safetyFactor": 1.5,
+  "startsAt": "2026-12-01T09:00:00+09:00",
+  "endsAt": "2026-12-02T18:00:00+09:00",
+  "downloadsUntil": "2026-12-09T18:00:00+09:00"
+}

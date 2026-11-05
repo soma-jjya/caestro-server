@@ -1,0 +1,58 @@
+name: B2B isolated runtime
+on:
+  pull_request:
+  push:
+    branches: [main, develop]
+  workflow_dispatch:
+  workflow_call:
+permissions:
+  contents: read
+jobs:
+  contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: hashicorp/setup-terraform@v3
+      - run: python3 tools/check_engine.py
+      - run: python3 -m unittest discover -s tools -p 'test_*.py'
+      - run: node --test load/config.test.mjs
+      - run: chmod +x gradlew && ./gradlew test bootJar --no-daemon
+      - run: diff -u src/main/resources/db/schema.sql build/generated/b2b-schema.sql
+      - run: terraform fmt -check -recursive infra
+      - run: terraform -chdir=infra/storage init -backend=false -input=false && terraform -chdir=infra/storage validate
+      - run: terraform -chdir=infra/festival init -backend=false -input=false && terraform -chdir=infra/festival validate
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: runtime-tests
+          path: build/reports/tests/
+  smoke:
+    needs: contracts
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker compose -f compose.test.yml config --quiet
+      - run: docker compose -f compose.test.yml up -d --build --wait --wait-timeout 180
+      - run: docker compose -f compose.test.yml --profile tools run --rm tester
+      - run: python3 tools/make_photo.py
+      - name: Real k6 isolated journey
+        run: docker compose -f compose.test.yml --profile tools run --rm k6 run load/participants.js
+      - name: Shared IP quota and recovery against real Redis
+        run: docker compose -f compose.test.yml --profile tools run --rm k6 run load/shared-ip.js
+      - if: failure()
+        run: docker compose -f compose.test.yml logs --no-color --tail 150 app mysql
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: isolated-journey
+          path: load-test/results/*.json
+      - if: always()
+        run: docker compose -f compose.test.yml down --volumes --remove-orphans

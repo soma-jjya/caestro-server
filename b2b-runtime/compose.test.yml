@@ -1,0 +1,83 @@
+name: peakpic-b2b-runtime-test
+services:
+  mysql:
+    image: mysql:8.4.11
+    environment:
+      MYSQL_DATABASE: b2b_test1234_abcdef123456
+      MYSQL_USER: b2b_test
+      MYSQL_PASSWORD: isolated-test-only
+      MYSQL_ROOT_PASSWORD: isolated-root-test-only
+    tmpfs: ["/var/lib/mysql"]
+    volumes:
+      - ./src/main/resources/db/schema.sql:/docker-entrypoint-initdb.d/001-schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "mysql -h 127.0.0.1 -ub2b_test -pisolated-test-only b2b_test1234_abcdef123456 -e 'select 1 from b2b_runtime_binding limit 1'"]
+      interval: 3s
+      timeout: 3s
+      retries: 60
+  redis:
+    image: redis:7-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+  app:
+    build: .
+    mem_limit: 1g
+    cpus: 2
+    ports: ["127.0.0.1:18090:8080"]
+    depends_on:
+      mysql: {condition: service_healthy}
+      redis: {condition: service_healthy}
+    environment:
+      B2B_DB_URL: jdbc:mysql://mysql:3306/b2b_test1234_abcdef123456
+      B2B_DB_USERNAME: b2b_test
+      B2B_DB_PASSWORD: isolated-test-only
+      B2B_REDIS_HOST: redis
+      B2B_REDIS_TLS: "false"
+      B2B_ENVIRONMENT: test
+      B2B_PROJECT_ID: bp_test1234
+      B2B_PROJECT_SLUG: yuja-test
+      B2B_RUNTIME_ID: abcdef123456
+      B2B_API_BASE_URL: http://127.0.0.1:18090
+      B2B_STARTS_AT: "2026-01-01T00:00:00Z"
+      B2B_ENDS_AT: "2030-01-01T00:00:00Z"
+      B2B_DOWNLOADS_UNTIL: "2030-01-08T00:00:00Z"
+      B2B_JWT_SECRET: isolated-test-jwt-012345678901234567890123456789
+      B2B_ADMIN_KEY: isolated-test-admin-012345678901234567890123456789
+      B2B_S3_BUCKET: peakpic-b2b-test-only
+      B2B_CDN_BASE_URL: http://127.0.0.1:18090
+      FILL_IMAGE_STORE: rds
+      CATALOG_ASSET_STORE: rds
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8080/projects/yuja-test/actuator/health/readiness"]
+      interval: 5s
+      timeout: 3s
+      retries: 36
+  tester:
+    image: python:3.13-alpine
+    profiles: [tools]
+    network_mode: service:app
+    depends_on:
+      app: {condition: service_healthy}
+    volumes: [".:/workspace:ro"]
+    working_dir: /workspace
+    environment:
+      B2B_TEST_PORT: "8080"
+    command: ["python", "tools/smoke.py"]
+  k6:
+    image: grafana/k6:1.0.0
+    profiles: [tools]
+    network_mode: service:app
+    depends_on:
+      app: {condition: service_healthy}
+    volumes: [".:/workspace"]
+    working_dir: /workspace
+    user: "0:0"
+    environment:
+      TARGET_ORIGIN: http://127.0.0.1:8080
+      B2B_ADMIN_KEY: isolated-test-admin-012345678901234567890123456789
+networks:
+  default:
+    internal: true

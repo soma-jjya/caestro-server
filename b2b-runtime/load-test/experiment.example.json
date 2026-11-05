@@ -1,0 +1,15 @@
+{
+  "environment": "test",
+  "configuration": {
+    "instanceType": "t3.micro", "instanceCount": 2,
+    "amiId": null, "imageDigest": null, "cpuCreditMode": null, "containerMemoryMb": null,
+    "dbInstanceClass": null, "dbEngineVersion": null, "dbMultiAz": null,
+    "dbStorageType": null, "dbStorageGb": null, "dbPoolSize": null,
+    "redisNodeType": null, "redisEngineVersion": null, "redisNodeCount": null, "redisMultiAz": null,
+    "guestIpLimit": 30, "guestIpWindowSeconds": 60, "guestRuntimeLimitPerMinute": null
+  },
+  "workload": {
+    "arrivalsPerMinute": null, "durationMinutes": null, "photoBytes": null,
+    "peakNewGuestsPerIpPerMinuteWithMargin": null
+  }
+}

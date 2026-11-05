@@ -1,0 +1,41 @@
+# Copy to a private *.tfvars file. Null means UNKNOWN, never a recommended production value.
+# Use a new B2B test state/account/secret/hostname. Do not fill these with B2C resources.
+account_id         = null
+region             = "ap-northeast-2"
+availability_zones = ["ap-northeast-2a", "ap-northeast-2c"]
+environment        = "test"
+project_id         = null
+slug               = null
+runtime_id         = null
+api_base_url       = null
+certificate_arn    = null
+auth_secret_arn    = null
+starts_at          = null # UTC, ending in Z; include the staging test period
+ends_at            = null
+downloads_until    = null
+bucket_name        = null
+cdn_base_url       = null
+image_digest_uri   = null
+
+enable_database_initializer = false
+enable_service              = false
+enable_scheduled_scaling    = false
+ami_id                      = null # Reviewed B2B-owned AL2023 x86_64 image
+instance_type               = "t3.micro"
+instance_count              = 2
+cpu_credit_mode             = null
+container_memory_mb         = null
+db_pool_size                = null
+db_instance_class           = null
+db_engine_version           = null
+db_multi_az                 = null
+db_allocated_storage_gb     = null
+db_max_storage_gb           = null
+db_storage_type             = null
+redis_node_type             = null
+redis_engine_version        = null
+redis_node_count            = null
+redis_multi_az              = null
+guest_ip_limit              = 30
+guest_ip_window_seconds     = 60
+guest_limit_per_minute      = null # Match the reviewed baseline; do not silently derive/raise it from arrivals

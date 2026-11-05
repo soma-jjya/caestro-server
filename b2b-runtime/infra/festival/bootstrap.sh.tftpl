@@ -1,0 +1,75 @@
+#!/bin/bash
+set -eu
+# Secrets are fetched on the instance; neither userdata nor process arguments contain secret values.
+umask 077
+install -d -m 700 /opt/peakpic-b2b
+printf '%s' '${config}' | base64 --decode > /opt/peakpic-b2b/config.json
+command -v docker
+command -v aws
+command -v python3
+test -x /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl
+systemctl enable --now docker amazon-ssm-agent
+cat > /opt/peakpic-b2b/run.py <<'PY'
+import json, os, pathlib, subprocess
+config = json.loads(pathlib.Path('/opt/peakpic-b2b/config.json').read_text())
+def call(*args):
+    return subprocess.check_output(args, text=True)
+secret = json.loads(json.loads(call('aws', 'secretsmanager', 'get-secret-value', '--secret-id', config['secretArn'],
+                                   '--region', config['region'], '--output', 'json'))['SecretString'])
+values = dict(config['environment'])
+for name, field in [('B2B_DB_PASSWORD', 'dbPassword'), ('B2B_JWT_SECRET', 'jwtSecret'), ('B2B_ADMIN_KEY', 'adminKey')]:
+    value = secret[field]
+    if not isinstance(value, str) or not value or any(c in value for c in '\n\r\x00'):
+        raise ValueError('invalid secret format')
+    values[name] = value
+env_path = '/run/peakpic-b2b.env'
+fd = os.open(env_path, os.O_CREAT | os.O_TRUNC | os.O_WRONLY, 0o600)
+with os.fdopen(fd, 'w') as target:
+    for name, value in values.items():
+        if any(c in value for c in '\n\r\x00'):
+            raise ValueError('invalid environment format')
+        target.write(name + '=' + value + '\n')
+password = call('aws', 'ecr', 'get-login-password', '--region', config['region'])
+subprocess.run(['docker', 'login', '--username', 'AWS', '--password-stdin', config['image'].split('/')[0]],
+               input=password, text=True, check=True, stdout=subprocess.DEVNULL)
+subprocess.run(['docker', 'pull', config['image']], check=True)
+subprocess.run(['docker', 'rm', '-f', 'peakpic-b2b'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+command = ['docker', 'run', '--rm', '--name', 'peakpic-b2b', '--network', 'host', '--env-file', env_path,
+           '--memory', str(config['memoryMb']) + 'm', '--memory-swap', str(config['memoryMb']) + 'm',
+           '--log-driver', 'awslogs', '--log-opt', 'awslogs-region=' + config['region'],
+           '--log-opt', 'awslogs-group=' + config['logGroup'], config['image']]
+if config['initialize']:
+    command.append('--initialize-empty-db')
+raise SystemExit(subprocess.call(command))
+PY
+python3 - <<'PY'
+import json, pathlib
+c = json.loads(pathlib.Path('/opt/peakpic-b2b/config.json').read_text())
+# Fixed dimensions; never IP/user/session labels.
+cw = {'metrics': {'namespace': 'PeakPicB2B/Host', 'append_dimensions': {'InstanceId': '$${aws:InstanceId}'},
+                 'metrics_collected': {'mem': {'measurement': ['mem_used_percent'], 'metrics_collection_interval': 60,
+                                                'append_dimensions': {'RuntimeId': c['runtimeId']}}}}}
+pathlib.Path('/opt/peakpic-b2b/cloudwatch.json').write_text(json.dumps(cw))
+initialize = c['initialize']
+unit = '''[Unit]
+Description=Isolated PeakPic B2B runtime
+After=network-online.target docker.service
+Wants=network-online.target
+Requires=docker.service
+[Service]
+Type=%s
+UMask=0077
+ExecStart=/usr/bin/python3 /opt/peakpic-b2b/run.py
+ExecStop=-/usr/bin/docker stop -t 30 peakpic-b2b
+Restart=%s
+RestartSec=15
+TimeoutStartSec=900
+TimeoutStopSec=45
+[Install]
+WantedBy=multi-user.target
+''' % ('oneshot' if initialize else 'simple', 'no' if initialize else 'always')
+pathlib.Path('/etc/systemd/system/peakpic-b2b.service').write_text(unit)
+PY
+/opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl -a fetch-config -m ec2 -c file:/opt/peakpic-b2b/cloudwatch.json -s
+systemctl daemon-reload
+systemctl enable --now peakpic-b2b
