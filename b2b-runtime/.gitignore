@@ -1,0 +1,13 @@
+.gradle/
+build/
+.env
+*.tfvars
+!*.example.tfvars
+.terraform/
+*.tfstate*
+*.tfplan
+__pycache__/
+local-results/
+load/photo.png
+load-summary.json
+load-test/results/*.json
