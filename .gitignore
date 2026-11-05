@@ -53,6 +53,9 @@ lambda/thumbnail/__pycache__/
 ### alert-notify ###
 lambda/alert-notify/__pycache__/
 
+### alert-analyze ###
+lambda/alert-analyze/**/__pycache__/
+
 ### load-test ###
 load-test/monitoring/metrics_token
 load-test/k6/b2b/generated/
