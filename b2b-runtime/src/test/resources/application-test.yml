@@ -1,0 +1,36 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:b2b-runtime;MODE=MySQL;DB_CLOSE_DELAY=-1
+    username: sa
+    password: ""
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      ssl:
+        enabled: false
+server:
+  servlet:
+    context-path: /projects/yuja
+runtime:
+  environment: test
+  project-id: bp_test1234
+  slug: yuja
+  runtime-id: abcdef123456
+  api-base-url: http://localhost:8080
+  starts-at: 2026-01-01T00:00:00Z
+  ends-at: 2030-01-01T00:00:00Z
+  downloads-until: 2030-01-08T00:00:00Z
+  jwt-secret: only-for-tests-012345678901234567890123456789
+  admin-key: only-for-tests-admin-01234567890123456789
+  bucket: peakpic-b2b-test-only
+  region: ap-northeast-2
+  guest-limit-per-minute: 300
+fill:
+  image-store: rds
+catalog:
+  asset-store: rds
+  cdn-base-url: http://localhost:8080

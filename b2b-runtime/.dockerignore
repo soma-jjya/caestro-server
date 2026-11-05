@@ -1,0 +1,8 @@
+.git
+.gradle
+build
+.env
+local-results
+infra
+tools
+*.md

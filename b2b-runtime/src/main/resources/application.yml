@@ -1,0 +1,77 @@
+spring:
+  application:
+    name: peakpic-b2b-server
+  datasource:
+    url: ${B2B_DB_URL}
+    username: ${B2B_DB_USERNAME}
+    password: ${B2B_DB_PASSWORD}
+    hikari:
+      maximum-pool-size: ${B2B_DB_POOL_SIZE:10}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+      naming:
+        physical-strategy: org.hibernate.boot.model.naming.PhysicalNamingStrategySnakeCaseImpl
+  data:
+    redis:
+      host: ${B2B_REDIS_HOST}
+      port: ${B2B_REDIS_PORT:6379}
+      password: ${B2B_REDIS_PASSWORD:}
+      ssl:
+        enabled: ${B2B_REDIS_TLS:true}
+server:
+  port: 8080
+  servlet:
+    context-path: /projects/${B2B_PROJECT_SLUG}
+  forward-headers-strategy: none
+runtime:
+  environment: ${B2B_ENVIRONMENT}
+  project-id: ${B2B_PROJECT_ID}
+  slug: ${B2B_PROJECT_SLUG}
+  runtime-id: ${B2B_RUNTIME_ID}
+  api-base-url: ${B2B_API_BASE_URL}
+  starts-at: ${B2B_STARTS_AT}
+  ends-at: ${B2B_ENDS_AT}
+  downloads-until: ${B2B_DOWNLOADS_UNTIL}
+  jwt-secret: ${B2B_JWT_SECRET}
+  admin-key: ${B2B_ADMIN_KEY}
+  bucket: ${B2B_S3_BUCKET}
+  region: ${B2B_AWS_REGION:ap-northeast-2}
+  # Runtime-wide cap is separate from the IP quota below.
+  guest-limit-per-minute: ${B2B_GUEST_LIMIT_PER_MINUTE:300}
+guest-admission:
+  ip-limit: ${B2B_GUEST_IP_LIMIT:30}
+  window-seconds: ${B2B_GUEST_IP_WINDOW_SECONDS:60}
+  trusted-proxy-cidrs: ${B2B_TRUSTED_PROXY_CIDRS:}
+b2b:
+  web-base-url: https://peakpic.app/go
+fill:
+  image-store: s3
+  public-base-url: ${runtime.api-base-url}/projects/${runtime.slug}
+  s3:
+    bucket: ${runtime.bucket}
+    key-prefix: b2b/${runtime.environment}/${runtime.project-id}/${runtime.runtime-id}/fills
+    presign-minutes: 10
+  ttl-days: ${B2B_FILL_TTL_DAYS:7}
+  max-image-bytes: 3145728
+catalog:
+  asset-store: s3
+  public-base-url: ${fill.public-base-url}
+  cdn-base-url: ${B2B_CDN_BASE_URL}
+  s3:
+    bucket: ${runtime.bucket}
+    key-prefix: b2b/${runtime.environment}/${runtime.project-id}/${runtime.runtime-id}/frames
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: never
+      group:
+        readiness:
+          include: readinessState,db,redis
