@@ -14,6 +14,7 @@ import com.caestro.server.domain.inquiry.dto.request.UpdateInquiryRequest;
 import com.caestro.server.domain.inquiry.dto.response.InquiryCountResponse;
 import com.caestro.server.domain.inquiry.dto.response.InquiryPageResponse;
 import com.caestro.server.domain.inquiry.dto.response.InquiryResponse;
+import com.caestro.server.domain.inquiry.enums.ContactMethod;
 import com.caestro.server.domain.inquiry.enums.InquiryStatus;
 import com.caestro.server.domain.inquiry.enums.InquiryType;
 import com.caestro.server.domain.inquiry.service.InquiryService;
@@ -66,7 +67,8 @@ class InquiryAdminWebTest {
     @Test
     @DisplayName("목록 필터·커서, 개수, 상세, 부분 수정, 없는 id 404")
     void endpoints() throws Exception {
-        InquiryResponse row = new InquiryResponse(7L, InquiryType.FESTIVAL, "유자축제", "담당자", "010-1234-5678", null, null,
+        InquiryResponse row = new InquiryResponse(7L, InquiryType.FESTIVAL, "유자축제", "담당자", ContactMethod.INSTAGRAM, null, null,
+                "yuja_fest", null,
                 null, null, null, null, true, false, new InquiryResponse.Utm("meta", null, null, "b2b_festival", null),
                 "/b2b/", "1.2.3.4", "UA", InquiryStatus.NEW, null, null, null, LocalDateTime.now(), LocalDateTime.now());
         given(inquiryService.list(InquiryStatus.NEW, InquiryType.FESTIVAL, 10L, 5)).willReturn(new InquiryPageResponse(List.of(row), 7L));
@@ -80,6 +82,8 @@ class InquiryAdminWebTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.items[0].id").value(7))
                 .andExpect(jsonPath("$.items[0].utm.content").value("b2b_festival"))
+                .andExpect(jsonPath("$.items[0].contactMethod").value("INSTAGRAM"))
+                .andExpect(jsonPath("$.items[0].instagram").value("yuja_fest"))
                 .andExpect(jsonPath("$.nextCursor").value(7));
         mockMvc.perform(get("/b2b/admin/inquiries/count").header(KEY, "test-server-only-key").param("status", "NEW"))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.count").value(3));

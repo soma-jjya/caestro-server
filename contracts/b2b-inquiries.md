@@ -23,8 +23,10 @@ B2B 메타 광고(카페·매장, 축제·행사, 관광공사)의 도착지인 
 | `type` | 필수 | `CAFE` / `FESTIVAL` / `TOURISM` / `OTHER`. 폼은 `utm_content` 가 `b2b_cafe…` 면 CAFE, `b2b_festival…` 면 FESTIVAL 을 기본으로 고른다 |
 | `organization` | 필수 | 업체·행사명, 1~80자 |
 | `contactName` | 필수 | 담당자 성함, 1~40자 |
-| `phone` | 필수 | `^[0-9+\-\s()]{8,20}$` |
-| `email` | 선택 | 이메일 형식, ≤120자 |
+| `contactMethod` | 선택 | `PHONE` / `EMAIL` / `INSTAGRAM`. 연락받을 방법. 생략하면 `PHONE`(옛 폼 호환) |
+| `phone` | 방법이 PHONE 이면 필수 | `^[0-9+\-\s()]{8,20}$`. 폼은 숫자만 보낸다(예 `01012345678`) |
+| `email` | 방법이 EMAIL 이면 필수 | 이메일 형식, ≤120자 |
+| `instagram` | 방법이 INSTAGRAM 이면 필수 | `@`·주소를 뗀 아이디, 소문자 `[a-z0-9._]` 1~30자. 마침표로 시작·끝나거나 연속되면 400 |
 | `region` | 선택 | 시·도, ≤40자 |
 | `preferredPeriod` | 선택 | 희망 시기, ≤80자 |
 | `scale` | 선택 | 규모, ≤80자 |
@@ -36,19 +38,22 @@ B2B 메타 광고(카페·매장, 축제·행사, 관광공사)의 도착지인 
 | `landingPath` | 선택 | 제출한 페이지 경로(예: `/b2b/`), ≤200자 |
 | `fax` | 허니팟 | 화면에는 없는 숨은 input. 값이 있으면 저장하지 않고 201 `{ "id": 0 }` |
 
+고른 방법의 칸이 비면 400 "선택한 연락 방법의 연락처를 입력해 주세요". 고르지 않은 칸도 보내면 형식을 보고 그대로 저장한다.
+폼은 INSTAGRAM 이고 `website` 가 비었으면 `https://www.instagram.com/<아이디>` 를 `website` 에 채워 보낸다.
+
 빈 문자열은 null 로 저장한다. 서버가 `clientIp`(X-Forwarded-For 첫 값), `userAgent`(300자에서 자름), `createdAt` 을 채운다.
 
 응답
 
 - 201 `{ "id": 123 }`
-- 400 `{ "status": 400, "message": "연락처는 필수입니다" }` — 필수 누락·형식·동의 없음. 메시지는 쉼표로 이어진다
+- 400 `{ "status": 400, "message": "선택한 연락 방법의 연락처를 입력해 주세요" }` — 필수 누락·형식·동의 없음. 메시지는 쉼표로 이어진다
 - 429 `{ "status": 429, "message": "요청이 너무 잦습니다. 잠시 후 다시 시도해주세요" }` — IP 당 `inquiry.ratelimit.per-ip`(기본 5)/`per-ip-window-seconds`(3600), 전체 `daily`(300)/일. Redis 고정 창
 
 예시
 
 ```
 curl -X POST https://api.peakpic.app/inquiries -H 'Content-Type: application/json' -d '{
-  "type": "CAFE", "organization": "디저트 카페", "contactName": "김담당", "phone": "010-1234-5678",
+  "type": "CAFE", "organization": "디저트 카페", "contactName": "김담당", "contactMethod": "PHONE", "phone": "01012345678",
   "email": "owner@example.com", "region": "서울", "preferredPeriod": "12월 초", "message": "가게 이름 넣은 프레임 받고 싶어요",
   "privacyAgreed": true, "marketingAgreed": false,
   "utm": { "source": "meta", "medium": "paid_social", "campaign": "b2b_1102", "content": "b2b_cafe", "term": "feed" },
@@ -69,8 +74,8 @@ curl -X POST https://api.peakpic.app/inquiries -H 'Content-Type: application/jso
 
 ```json
 {
-  "id": 123, "type": "CAFE", "organization": "디저트 카페", "contactName": "김담당", "phone": "010-1234-5678",
-  "email": null, "region": "서울", "preferredPeriod": "12월 초", "scale": null, "website": null, "message": "…",
+  "id": 123, "type": "CAFE", "organization": "디저트 카페", "contactName": "김담당", "contactMethod": "PHONE", "phone": "01012345678",
+  "email": null, "instagram": null, "region": "서울", "preferredPeriod": "12월 초", "scale": null, "website": null, "message": "…",
   "privacyAgreed": true, "marketingAgreed": false,
   "utm": { "source": "meta", "medium": "paid_social", "campaign": "b2b_1102", "content": "b2b_cafe", "term": "feed" },
   "landingPath": "/b2b/", "clientIp": "203.0.113.9", "userAgent": "Mozilla/5.0 …",
@@ -80,6 +85,7 @@ curl -X POST https://api.peakpic.app/inquiries -H 'Content-Type: application/jso
 ```
 
 시각은 UTC, 초 단위 ISO(오프셋 표기 없음) — 알림함과 같다.
+`contactMethod` 는 항상 값이 있다(컬럼 추가 전 문의는 `PHONE`). 연락할 곳은 그 방법의 칸(`phone`·`email`·`instagram`)을 본다 — 나머지는 null 일 수 있다.
 
 ### 상태
 
@@ -97,7 +103,8 @@ curl -X POST https://api.peakpic.app/inquiries -H 'Content-Type: application/jso
 
 `inquiry.webhook-url` 이 비어 있지 않으면 접수 커밋 뒤 `@Async @TransactionalEventListener(AFTER_COMMIT)` 가 Slack/Discord 호환 웹훅에
 `{ "text": "...", "content": "..." }`(Slack 은 text, Discord 는 content 를 읽는다)로 한 줄을 보낸다:
-`[B2B 문의 #123] CAFE · 디저트 카페 · 김담당 · 010-1234-5678 · 소재 b2b_cafe` + 줄바꿈 + `{inquiry.admin-url}/123`.
+`[B2B 문의 #123] CAFE · 디저트 카페 · 김담당 · 전화 01012345678 · 소재 b2b_cafe` + 줄바꿈 + `{inquiry.admin-url}/123`.
+연락처 자리는 고른 방법의 값이다: `전화 01012345678` / `메일 owner@example.com` / `인스타 @cafe_peak`.
 실패해도 접수에는 영향이 없다(지표 `inquiry.webhook.failed`, 로그). URL 은 비밀값이라 Secrets Manager 에 두고 로그에 찍지 않는다.
 
 ## 지표
@@ -121,6 +128,10 @@ curl -X POST https://api.peakpic.app/inquiries -H 'Content-Type: application/jso
 ## DDL
 
 [216-b2b-inquiries.sql](sql/216-b2b-inquiries.sql). 배포 전에 운영 DB 에 한 번 적용한다.
+
+연락 방법 선택(2026-11-07): [216-b2b-inquiry-contact-method.sql](sql/216-b2b-inquiry-contact-method.sql).
+새 컬럼(`contact_method`·`instagram`)은 ddl-auto 가 추가하지만 `phone` 의 NOT NULL 은 풀지 않으므로
+**`ALTER TABLE b2b_inquiries MODIFY phone VARCHAR(20) NULL;` 을 운영 DB 에 손으로 한 번** 실행해야 이메일·인스타 문의가 저장된다.
 
 ## 하지 않는 것
 

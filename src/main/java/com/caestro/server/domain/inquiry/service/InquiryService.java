@@ -87,8 +87,10 @@ public class InquiryService {
                 .type(request.type())
                 .organization(request.organization().strip())
                 .contactName(request.contactName().strip())
-                .phone(request.phone().strip())
+                .contactMethod(request.effectiveContactMethod())
+                .phone(blankToNull(request.phone()))
                 .email(blankToNull(request.email()))
+                .instagram(blankToNull(request.instagram()))
                 .region(blankToNull(request.region()))
                 .preferredPeriod(blankToNull(request.preferredPeriod()))
                 .scale(blankToNull(request.scale()))
@@ -109,8 +111,9 @@ public class InquiryService {
         // 4. 지표와 이벤트(웹훅은 커밋 뒤 비동기)
         meterRegistry.counter(METRIC_RECEIVED, "type", saved.getType().name()).increment();
         eventPublisher.publishEvent(new InquiryReceivedEvent(saved.getId(), saved.getType(), saved.getOrganization(),
-                saved.getContactName(), saved.getPhone(), saved.getUtmContent()));
-        log.info("Inquiry received: id={} type={} utmContent={}", saved.getId(), saved.getType(), saved.getUtmContent());
+                saved.getContactName(), saved.getContactMethod(), saved.contactValue(), saved.getUtmContent()));
+        log.info("Inquiry received: id={} type={} contactMethod={} utmContent={}", saved.getId(), saved.getType(),
+                saved.getContactMethod(), saved.getUtmContent());
         return new InquiryCreatedResponse(saved.getId());
     }
 
