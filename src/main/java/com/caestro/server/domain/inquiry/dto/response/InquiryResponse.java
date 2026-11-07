@@ -1,6 +1,7 @@
 package com.caestro.server.domain.inquiry.dto.response;
 
 import com.caestro.server.domain.inquiry.entity.Inquiry;
+import com.caestro.server.domain.inquiry.enums.ContactMethod;
 import com.caestro.server.domain.inquiry.enums.InquiryStatus;
 import com.caestro.server.domain.inquiry.enums.InquiryType;
 import java.time.LocalDateTime;
@@ -11,8 +12,10 @@ public record InquiryResponse(
         InquiryType type,
         String organization,
         String contactName,
+        ContactMethod contactMethod,
         String phone,
         String email,
+        String instagram,
         String region,
         String preferredPeriod,
         String scale,
@@ -35,8 +38,8 @@ public record InquiryResponse(
     }
 
     public static InquiryResponse from(Inquiry i) {
-        return new InquiryResponse(i.getId(), i.getType(), i.getOrganization(), i.getContactName(), i.getPhone(),
-                i.getEmail(), i.getRegion(), i.getPreferredPeriod(), i.getScale(), i.getWebsite(), i.getMessage(),
+        return new InquiryResponse(i.getId(), i.getType(), i.getOrganization(), i.getContactName(), i.getContactMethod(),
+                i.getPhone(), i.getEmail(), i.getInstagram(), i.getRegion(), i.getPreferredPeriod(), i.getScale(), i.getWebsite(), i.getMessage(),
                 i.isPrivacyAgreed(), i.isMarketingAgreed(),
                 new Utm(i.getUtmSource(), i.getUtmMedium(), i.getUtmCampaign(), i.getUtmContent(), i.getUtmTerm()),
                 i.getLandingPath(), i.getClientIp(), i.getUserAgent(), i.getStatus(), i.getAdminMemo(),

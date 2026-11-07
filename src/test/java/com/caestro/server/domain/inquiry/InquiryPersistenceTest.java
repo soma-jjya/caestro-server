@@ -12,6 +12,7 @@ import com.caestro.server.domain.inquiry.dto.request.UpdateInquiryRequest;
 import com.caestro.server.domain.inquiry.dto.response.InquiryPageResponse;
 import com.caestro.server.domain.inquiry.dto.response.InquiryResponse;
 import com.caestro.server.domain.inquiry.entity.Inquiry;
+import com.caestro.server.domain.inquiry.enums.ContactMethod;
 import com.caestro.server.domain.inquiry.enums.InquiryStatus;
 import com.caestro.server.domain.inquiry.enums.InquiryType;
 import com.caestro.server.domain.inquiry.repository.InquiryRepository;
@@ -78,8 +79,10 @@ class InquiryPersistenceTest {
         Inquiry saved = repository.findById(id).orElseThrow();
         assertThat(saved.getType()).isEqualTo(InquiryType.CAFE);
         assertThat(saved.getOrganization()).isEqualTo("디저트 카페");
+        assertThat(saved.getContactMethod()).isEqualTo(ContactMethod.PHONE);
         assertThat(saved.getPhone()).isEqualTo("010-1234-5678");
         assertThat(saved.getEmail()).isNull();
+        assertThat(saved.getInstagram()).isNull();
         assertThat(saved.getUtmContent()).isEqualTo("b2b_cafe");
         assertThat(saved.getUtmTerm()).isNull();
         assertThat(saved.isPrivacyAgreed()).isTrue();
@@ -89,6 +92,26 @@ class InquiryPersistenceTest {
         assertThat(saved.getUserAgent()).isEqualTo("Mozilla/5.0");
         assertThat(saved.getHandledAt()).isNull();
         assertThat(saved.getCreatedAt()).isNotNull();
+    }
+
+    @Test
+    @DisplayName("연락 방법: 이메일·인스타만 남긴 문의도 저장되고(phone null), 응답에 방법과 값이 실린다")
+    void submitWithoutPhone() {
+        Long email = service.submit(new CreateInquiryRequest(InquiryType.CAFE, "메일 카페", "담당자", ContactMethod.EMAIL,
+                null, "owner@example.com", null, null, null, null, null, null, true, null, null, "/b2b/", null), "ip", null).id();
+        Long insta = service.submit(new CreateInquiryRequest(InquiryType.CAFE, "인스타 카페", "담당자", ContactMethod.INSTAGRAM,
+                " ", null, "cafe_peak", null, null, null, "https://www.instagram.com/cafe_peak", null, true, null, null,
+                "/b2b/", null), "ip", null).id();
+
+        InquiryResponse byEmail = service.get(email);
+        assertThat(byEmail.contactMethod()).isEqualTo(ContactMethod.EMAIL);
+        assertThat(byEmail.phone()).isNull();
+        assertThat(byEmail.email()).isEqualTo("owner@example.com");
+        InquiryResponse byInsta = service.get(insta);
+        assertThat(byInsta.contactMethod()).isEqualTo(ContactMethod.INSTAGRAM);
+        assertThat(byInsta.phone()).isNull();
+        assertThat(byInsta.instagram()).isEqualTo("cafe_peak");
+        assertThat(byInsta.website()).isEqualTo("https://www.instagram.com/cafe_peak");
     }
 
     @Test
@@ -140,7 +163,7 @@ class InquiryPersistenceTest {
     static CreateInquiryRequest request(InquiryType type, String organization, String utmContent) {
         CreateInquiryRequest.Utm utm = utmContent == null ? null
                 : new CreateInquiryRequest.Utm("meta", "paid_social", "b2b_1102", utmContent, " ");
-        return new CreateInquiryRequest(type, organization, "담당자", "010-1234-5678", " ", null, null, null, null,
-                null, true, null, utm, "/b2b/", null);
+        return new CreateInquiryRequest(type, organization, "담당자", null, "010-1234-5678", " ", null, null, null, null,
+                null, null, true, null, utm, "/b2b/", null);
     }
 }

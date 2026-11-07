@@ -8,6 +8,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.caestro.server.domain.inquiry.entity.Inquiry;
+import com.caestro.server.domain.inquiry.enums.ContactMethod;
 import com.caestro.server.domain.inquiry.enums.InquiryStatus;
 import com.caestro.server.domain.inquiry.repository.InquiryRepository;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -87,5 +88,25 @@ class InquiryFlowTest {
                         .header("X-Studio-Key", "test-flow-key").param("status", "NEW"))
                 .andReturn().getResponse().getContentAsString()).get("count").asLong();
         assertThat(newAfter).isEqualTo(newBefore - 1);
+    }
+
+    @Test
+    @DisplayName("인스타만 남긴 문의도 실제 DB 에 저장된다 — phone NULL 허용(216-b2b-inquiry-contact-method.sql)이 빠지면 여기서 실패")
+    void submitInstagramOnly() throws Exception {
+        String ip = "198.51.100." + ThreadLocalRandom.current().nextInt(1, 255);
+        String body = objectMapper.readTree(mockMvc.perform(post("/inquiries").contentType(MediaType.APPLICATION_JSON)
+                        .header("X-Forwarded-For", ip)
+                        .content("""
+                                {"type":"CAFE","organization":"흐름 테스트 카페","contactName":"담당자","contactMethod":"INSTAGRAM",
+                                 "instagram":"flow_test.cafe","privacyAgreed":true,"landingPath":"/b2b/"}
+                                """))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString()).get("id").asText();
+        createdId = Long.parseLong(body);
+
+        Inquiry saved = repository.findById(createdId).orElseThrow();
+        assertThat(saved.getContactMethod()).isEqualTo(ContactMethod.INSTAGRAM);
+        assertThat(saved.getInstagram()).isEqualTo("flow_test.cafe");
+        assertThat(saved.getPhone()).isNull();
     }
 }

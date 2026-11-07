@@ -5,8 +5,10 @@ CREATE TABLE b2b_inquiries (
     type VARCHAR(16) NOT NULL,                 -- CAFE | FESTIVAL | TOURISM | OTHER
     organization VARCHAR(80) NOT NULL,
     contact_name VARCHAR(40) NOT NULL,
-    phone VARCHAR(20) NOT NULL,
+    contact_method VARCHAR(16) NULL,          -- PHONE | EMAIL | INSTAGRAM (NULL 은 PHONE 으로 읽는다)
+    phone VARCHAR(20) NULL,
     email VARCHAR(120) NULL,
+    instagram VARCHAR(30) NULL,
     region VARCHAR(40) NULL,
     preferred_period VARCHAR(80) NULL,
     scale VARCHAR(80) NULL,
