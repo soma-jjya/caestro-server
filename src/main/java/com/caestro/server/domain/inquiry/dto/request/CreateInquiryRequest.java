@@ -1,5 +1,6 @@
 package com.caestro.server.domain.inquiry.dto.request;
 
+import com.caestro.server.domain.inquiry.enums.ContactMethod;
 import com.caestro.server.domain.inquiry.enums.InquiryType;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.AssertTrue;
@@ -10,7 +11,8 @@ import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
 /**
- * 광고 랜딩 문의 폼. 필수는 유형·업체명·성함·휴대폰·개인정보 동의. {@code fax} 는 화면에 없는 허니팟 — 값이 있으면 봇으로 보고 저장하지 않는다.
+ * 광고 랜딩 문의 폼. 필수는 유형·업체명·성함·연락처 하나·개인정보 동의. {@code fax} 는 화면에 없는 허니팟 — 값이 있으면 봇으로 보고 저장하지 않는다.
+ * 연락처는 {@code contactMethod} 로 고른 칸(전화·이메일·인스타) 하나만 있으면 된다. 방법이 없으면 전화로 본다(옛 폼 호환).
  */
 public record CreateInquiryRequest(
 
@@ -25,13 +27,18 @@ public record CreateInquiryRequest(
         @Size(max = 40, message = "담당자 성함은 40자 이하입니다")
         String contactName,
 
-        @NotBlank(message = "연락처는 필수입니다")
+        ContactMethod contactMethod,
+
         @Pattern(regexp = "^[0-9+\\-\\s()]{8,20}$", message = "연락처 형식이 올바르지 않습니다")
         String phone,
 
         @Email(message = "이메일 형식이 올바르지 않습니다")
         @Size(max = 120, message = "이메일은 120자 이하입니다")
         String email,
+
+        // @ 와 주소를 뗀 아이디. 랜딩과 같은 규칙 — 마침표로 시작·끝나거나 연속되면 인스타가 받지 않는 아이디다
+        @Pattern(regexp = "^(?!\\.)(?!.*\\.\\.)[a-z0-9._]{1,30}(?<!\\.)$", message = "인스타그램 아이디 형식이 올바르지 않습니다")
+        String instagram,
 
         @Size(max = 40, message = "지역은 40자 이하입니다")
         String region,
@@ -63,6 +70,21 @@ public record CreateInquiryRequest(
     @AssertTrue(message = "개인정보 수집·이용에 동의해야 합니다")
     public boolean isPrivacyConsented() {
         return Boolean.TRUE.equals(privacyAgreed);
+    }
+
+    /** 고른 연락 방법. 없으면 전화 — contactMethod 가 생기기 전 폼은 phone 만 보냈다. */
+    public ContactMethod effectiveContactMethod() {
+        return contactMethod == null ? ContactMethod.PHONE : contactMethod;
+    }
+
+    @AssertTrue(message = "선택한 연락 방법의 연락처를 입력해 주세요")
+    public boolean isContactProvided() {
+        String value = switch (effectiveContactMethod()) {
+            case PHONE -> phone;
+            case EMAIL -> email;
+            case INSTAGRAM -> instagram;
+        };
+        return value != null && !value.isBlank();
     }
 
     /** 봇이 채운 숨은 칸. 사람 화면에는 없는 필드라 값이 있으면 사람이 아니다. */

@@ -1,0 +1,109 @@
+{
+  "source": "2026-09-01 #111 릴리스. 새 인스턴스의 Spring 컨텍스트가 TargetLifecycleWatcher 생성자 문제(No default constructor found)로 기동 실패. instance refresh 는 진행 중, 구버전 1대가 헬시 유지 → 사용자 영향 0. 핫픽스 배포로 해결.",
+  "alarm": {
+    "AlarmName": "peakpic-alb-unhealthy-host",
+    "AlarmDescription": "ALB 대상 그룹에서 헬스체크에 실패한 인스턴스가 있다. 사용자 요청이 이미 실패 중일 수 있다.",
+    "NewStateValue": "ALARM",
+    "OldStateValue": "OK",
+    "NewStateReason": "Threshold Crossed: 5 datapoints [1.0, 1.0, 1.0, 1.0, 1.0] were greater than or equal to the threshold (1.0).",
+    "StateChangeTime": "2026-09-01T05:41:02.771+0000",
+    "Region": "Asia Pacific (Seoul)",
+    "Trigger": {
+      "MetricName": "UnHealthyHostCount", "Namespace": "AWS/ApplicationELB", "Statistic": "MAXIMUM",
+      "Period": 60, "EvaluationPeriods": 5, "ComparisonOperator": "GreaterThanOrEqualToThreshold", "Threshold": 1.0
+    }
+  },
+  "fixtures": {
+    "query_logs": {
+      "errors": {
+        "kind": "errors", "window": "2026-09-01 05:31Z ~ 05:46Z", "log_group": "<log-group>",
+        "rows": [
+          {"@timestamp": "2026-09-01 05:39:48.120", "logger_name": "org.springframework.boot.SpringApplication", "message": "Application run failed", "stack_trace": "org.springframework.beans.factory.UnsatisfiedDependencyException: Error creating bean with name 'targetLifecycleWatcher' defined in file [/app/com/caestro/server/domain/signaling/service/TargetLifecycleWatcher.class]: Unsatisfied dependency expressed through constructor parameter 0\nCaused by: org.springframework.beans.BeanInstantiationException: Failed to instantiate [com.caestro.server.domain.signaling.service.TargetLifecycleWatcher]: No default constructor found\nCaused by: java.lang.NoSuchMethodException: com.caestro.server.domain.signaling.service.TargetLifecycleWatcher.<init>()"},
+          {"@timestamp": "2026-09-01 05:36:51.004", "logger_name": "org.springframework.boot.SpringApplication", "message": "Application run failed", "stack_trace": "org.springframework.beans.factory.UnsatisfiedDependencyException: Error creating bean with name 'targetLifecycleWatcher' defined in file [/app/com/caestro/server/domain/signaling/service/TargetLifecycleWatcher.class]: Unsatisfied dependency expressed through constructor parameter 0\nCaused by: org.springframework.beans.BeanInstantiationException: Failed to instantiate [com.caestro.server.domain.signaling.service.TargetLifecycleWatcher]: No default constructor found"},
+          {"@timestamp": "2026-09-01 05:33:57.418", "logger_name": "org.springframework.boot.SpringApplication", "message": "Application run failed", "stack_trace": "org.springframework.beans.factory.UnsatisfiedDependencyException: Error creating bean with name 'targetLifecycleWatcher' defined in file [/app/com/caestro/server/domain/signaling/service/TargetLifecycleWatcher.class]: Unsatisfied dependency expressed through constructor parameter 0\nCaused by: org.springframework.beans.BeanInstantiationException: Failed to instantiate [com.caestro.server.domain.signaling.service.TargetLifecycleWatcher]: No default constructor found"}
+        ]
+      },
+      "summary": {
+        "kind": "summary", "window": "2026-09-01 05:31Z ~ 05:46Z", "log_group": "<log-group>",
+        "rows": [
+          {"level": "ERROR", "logger_name": "org.springframework.boot.SpringApplication", "n": "3"},
+          {"level": "WARN", "logger_name": "org.springframework.context.support.AbstractApplicationContext", "n": "3"}
+        ]
+      },
+      "volume": {
+        "kind": "volume", "window": "2026-09-01 05:31Z ~ 05:46Z", "log_group": "<log-group>",
+        "rows": [
+          {"bin(1m)": "2026-09-01 05:33:00.000", "n": "212", "errors": "1"},
+          {"bin(1m)": "2026-09-01 05:34:00.000", "n": "14", "errors": "0"},
+          {"bin(1m)": "2026-09-01 05:36:00.000", "n": "208", "errors": "1"},
+          {"bin(1m)": "2026-09-01 05:37:00.000", "n": "13", "errors": "0"},
+          {"bin(1m)": "2026-09-01 05:39:00.000", "n": "215", "errors": "1"},
+          {"bin(1m)": "2026-09-01 05:40:00.000", "n": "12", "errors": "0"},
+          {"bin(1m)": "2026-09-01 05:41:00.000", "n": "11", "errors": "0"}
+        ]
+      },
+      "search": {
+        "kind": "search", "window": "2026-09-01 05:31Z ~ 05:46Z", "log_group": "<log-group>",
+        "rows": [
+          {"@timestamp": "2026-09-01 05:39:48.120", "level": "ERROR", "logger_name": "org.springframework.boot.SpringApplication", "message": "Application run failed"},
+          {"@timestamp": "2026-09-01 05:39:47.900", "level": "WARN", "logger_name": "org.springframework.context.support.AbstractApplicationContext", "message": "Exception encountered during context initialization - cancelling refresh attempt: org.springframework.beans.factory.UnsatisfiedDependencyException: Error creating bean with name 'targetLifecycleWatcher'"}
+        ]
+      },
+      "default": {"kind": "search", "window": "2026-09-01 05:31Z ~ 05:46Z", "log_group": "<log-group>", "rows": []}
+    },
+    "query_metrics": {
+      "alb_healthy_hosts": {"metric": "alb_healthy_hosts", "stat": "Minimum", "period_s": 60, "window": "2026-09-01 05:11Z ~ 05:46Z",
+                            "points": [["05:30", 2], ["05:31", 2], ["05:32", 2], ["05:33", 1], ["05:34", 1], ["05:35", 1], ["05:36", 1], ["05:37", 1], ["05:38", 1], ["05:39", 1], ["05:40", 1], ["05:41", 1]],
+                            "summary": {"count": 12, "min": 1, "max": 2, "sum": 15, "last": 1}},
+      "alb_unhealthy_hosts": {"metric": "alb_unhealthy_hosts", "stat": "Maximum", "period_s": 60, "window": "2026-09-01 05:11Z ~ 05:46Z",
+                              "points": [["05:30", 0], ["05:31", 0], ["05:32", 0], ["05:33", 1], ["05:34", 1], ["05:35", 1], ["05:36", 1], ["05:37", 1], ["05:38", 1], ["05:39", 1], ["05:40", 1], ["05:41", 1]],
+                              "summary": {"count": 12, "min": 0, "max": 1, "sum": 9, "last": 1}},
+      "alb_5xx": {"metric": "alb_5xx", "stat": "Sum", "period_s": 60, "window": "2026-09-01 05:11Z ~ 05:46Z",
+                  "points": [["05:30", 0], ["05:33", 0], ["05:36", 0], ["05:39", 0], ["05:41", 0]],
+                  "summary": {"count": 5, "min": 0, "max": 0, "sum": 0, "last": 0}},
+      "alb_requests": {"metric": "alb_requests", "stat": "Sum", "period_s": 60, "window": "2026-09-01 05:11Z ~ 05:46Z",
+                       "points": [["05:30", 14], ["05:33", 15], ["05:36", 13], ["05:39", 16], ["05:41", 12]],
+                       "summary": {"count": 5, "min": 12, "max": 16, "sum": 70, "last": 12}},
+      "ec2_cpu": {"metric": "ec2_cpu", "stat": "Average", "period_s": 60, "window": "2026-09-01 05:11Z ~ 05:46Z",
+                  "points": [["05:30", 4.1], ["05:33", 38.2], ["05:34", 6.0], ["05:36", 37.5], ["05:37", 5.8], ["05:39", 39.0], ["05:40", 6.2]],
+                  "summary": {"count": 7, "min": 4.1, "max": 39.0, "sum": 136.8, "last": 6.2}},
+      "default": {"metric": "?", "stat": "-", "period_s": 60, "window": "2026-09-01 05:11Z ~ 05:46Z", "points": [], "summary": {"count": 0}}
+    },
+    "query_access_logs": {
+      "500": {"window": "2026-09-01 05:36Z ~ 05:46Z", "files_read": 3, "requests_in_window": 70, "matched": 0, "status_min": 500, "by_status": {}, "top_client_ips": [], "top_user_agents": [], "top_requests": [], "distinct_ips": 0},
+      "0": {
+        "window": "2026-09-01 05:36Z ~ 05:46Z", "files_read": 3, "requests_in_window": 70, "matched": 70, "status_min": 0,
+        "by_status": {"200": 58, "401": 3, "101": 9},
+        "top_client_ips": [{"ip": "10.0.0.5", "n": 20}, {"ip": "203.0.113.40", "n": 18}, {"ip": "203.0.113.41", "n": 16}],
+        "top_user_agents": [{"ua": "ELB-HealthChecker/2.0", "n": 20}, {"ua": "okhttp/4.12.0", "n": 26}, {"ua": "CFNetwork/1568 Darwin/24", "n": 24}],
+        "top_requests": [{"request": "GET /actuator/health/readiness", "n": 20}, {"request": "GET /sessions/current", "n": 14}, {"request": "GET /signaling", "n": 9}, {"request": "POST /auth/refresh", "n": 7}],
+        "distinct_ips": 5
+      },
+      "default": {"window": "2026-09-01 05:36Z ~ 05:46Z", "files_read": 3, "requests_in_window": 70, "matched": 0, "status_min": 0, "by_status": {}, "top_client_ips": [], "top_user_agents": [], "top_requests": [], "distinct_ips": 0}
+    },
+    "recent_deploys": {
+      "asg": "peakpic-asg", "alarm_time": "2026-09-01T05:41:02+00:00",
+      "refreshes": [
+        {"status": "InProgress", "start": "2026-09-01T05:31:40Z", "end": null, "percentage_complete": 0, "minutes_before_alarm": 9},
+        {"status": "Successful", "start": "2026-08-30T02:10:05Z", "end": "2026-08-30T02:18:30Z", "percentage_complete": 100, "minutes_before_alarm": 3091}
+      ],
+      "activities": [
+        {"start": "2026-09-01T05:38:55Z", "status": "Successful", "description": "Terminating EC2 instance: i-0f11", "cause": "At 2026-09-01T05:38:50Z an instance was taken out of service in response to an ELB system health check failure."},
+        {"start": "2026-09-01T05:38:58Z", "status": "Successful", "description": "Launching a new EC2 instance: i-0f12", "cause": "instance refresh — replacing unhealthy instance"},
+        {"start": "2026-09-01T05:35:50Z", "status": "Successful", "description": "Terminating EC2 instance: i-0f10", "cause": "At 2026-09-01T05:35:45Z an instance was taken out of service in response to an ELB system health check failure."},
+        {"start": "2026-09-01T05:35:55Z", "status": "Successful", "description": "Launching a new EC2 instance: i-0f11", "cause": "instance refresh — replacing unhealthy instance"},
+        {"start": "2026-09-01T05:31:50Z", "status": "Successful", "description": "Launching a new EC2 instance: i-0f10", "cause": "instance refresh"}
+      ],
+      "commits": [
+        {"sha": "5e6f7a8", "date": "2026-09-01T05:27:00Z", "message": "Merge pull request #112 from soma-jjya/feat/#111-imds-drain"},
+        {"sha": "1a2b3c4", "date": "2026-09-01T05:20:00Z", "message": "feat: IMDS target-lifecycle-state 폴링으로 종료 예정 인스턴스를 즉시 드레인 - ALB 등록 해제보다 먼저 1012 를 보낸다 (#111)"},
+        {"sha": "9d8c7b6", "date": "2026-08-30T02:05:00Z", "message": "Merge pull request #108 from soma-jjya/feat/#106-ws-drain"}
+      ]
+    }
+  },
+  "expect": {
+    "category": ["deploy_regression"],
+    "user_impact": ["none"],
+    "mentions_any": ["TargetLifecycleWatcher", "#111", "기동", "No default constructor"]
+  }
+}

@@ -136,3 +136,22 @@ aws cloudwatch describe-alarms --region ap-northeast-2 --alarm-name-prefix peakp
 - Discord 웹훅 URL은 Lambda 환경변수로만 주입한다. 레포·스크립트에 하드코딩 금지.
 - 알람 추가 시 `create-alarms.sh`에 함께 기록한다 (콘솔에서만 만들면 재구축 불가).
 - 출시 1~2주 후 B그룹 임계값 재조정 + 오탐/미탐 회고 예정.
+
+## 4단계 — 알람 분석 (#230)
+
+알람이 "무엇이 임계값을 넘었다"까지만 말한다면, 그 다음 질문("누가 어떤 경로를 불러 무슨 예외가 났나, 배포 때문인가,
+사용자 영향인가")은 사람이 콘솔·Grafana·로그를 열어 답해 왔다. 2026-09-29 5xx 알람 때 이 조사에 한 시간이 걸렸다.
+`peakpic-alert-analyze` Lambda 가 같은 토픽을 구독해 로그·지표·ALB 액세스 로그·배포 기록을 모으고,
+모델이 도구를 골라 조사한 뒤 결론을 같은 Discord 채널에 "🔎 분석" 임베드로 따라 붙인다(1~2분 뒤).
+
+```
+CloudWatch 알람 ─▶ SNS(peakpic-alarms) ─┬─▶ peakpic-alert-notify   ─▶ 🚨 발생 (즉시)
+                                        └─▶ peakpic-alert-analyze  ─▶ 🔎 분석 (ALARM 전이만, 필터 정책)
+```
+
+| 파일 | 역할 |
+|---|---|
+| `setup-analyze.sh` | 읽기 전용 역할·패키지·함수·필터 구독 생성 (멱등). `LOG_GROUP`·`DISCORD_WEBHOOK_URL` 필요 |
+| `../../lambda/alert-analyze/` | 도구 4종·플레이북·조사 루프·골든 셋. 설계와 검증 방법은 그 README |
+
+원칙: 읽기 전용(자동 조치 없음), 수치 없는 근거는 코드가 버림, 모델이 실패해도 수집한 원자료는 올림, 과거 알람 3건 골든 셋으로 채점.

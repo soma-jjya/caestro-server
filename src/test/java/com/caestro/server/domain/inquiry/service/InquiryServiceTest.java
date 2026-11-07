@@ -14,6 +14,7 @@ import com.caestro.server.domain.b2b.repository.B2bProjectRepository;
 import com.caestro.server.domain.inquiry.dto.request.CreateInquiryRequest;
 import com.caestro.server.domain.inquiry.dto.request.UpdateInquiryRequest;
 import com.caestro.server.domain.inquiry.entity.Inquiry;
+import com.caestro.server.domain.inquiry.enums.ContactMethod;
 import com.caestro.server.domain.inquiry.enums.InquiryStatus;
 import com.caestro.server.domain.inquiry.enums.InquiryType;
 import com.caestro.server.domain.inquiry.event.InquiryReceivedEvent;
@@ -102,7 +103,31 @@ class InquiryServiceTest {
         verify(events).publishEvent(event.capture());
         assertThat(event.getValue().id()).isEqualTo(42L);
         assertThat(event.getValue().utmContent()).isEqualTo("b2b_festival");
+        // 방법이 없던 옛 폼 → 전화로 저장하고 이벤트 연락처도 전화번호
+        assertThat(saved.getValue().getContactMethod()).isEqualTo(ContactMethod.PHONE);
+        assertThat(event.getValue().contactMethod()).isEqualTo(ContactMethod.PHONE);
+        assertThat(event.getValue().contact()).isEqualTo("010-1234-5678");
         assertThat(meters.counter(InquiryService.METRIC_RECEIVED, "type", "FESTIVAL").count()).isEqualTo(1.0);
+    }
+
+    @Test
+    @DisplayName("인스타를 고르면 방법·아이디를 저장하고 이벤트 연락처도 아이디, 빈 전화 칸은 null")
+    void submitByInstagram() {
+        given(rateLimiter.tryAcquire(any(), anyInt(), any())).willReturn(true);
+        given(repository.save(any())).willAnswer(inv -> inv.getArgument(0));
+
+        service.submit(new CreateInquiryRequest(InquiryType.CAFE, "카페", "담당자", ContactMethod.INSTAGRAM, "", null,
+                "cafe_peak", null, null, null, null, null, true, false, null, null, null), "1.2.3.4", null);
+
+        ArgumentCaptor<Inquiry> saved = ArgumentCaptor.forClass(Inquiry.class);
+        verify(repository).save(saved.capture());
+        assertThat(saved.getValue().getContactMethod()).isEqualTo(ContactMethod.INSTAGRAM);
+        assertThat(saved.getValue().getInstagram()).isEqualTo("cafe_peak");
+        assertThat(saved.getValue().getPhone()).isNull();
+        ArgumentCaptor<InquiryReceivedEvent> event = ArgumentCaptor.forClass(InquiryReceivedEvent.class);
+        verify(events).publishEvent(event.capture());
+        assertThat(event.getValue().contactMethod()).isEqualTo(ContactMethod.INSTAGRAM);
+        assertThat(event.getValue().contact()).isEqualTo("cafe_peak");
     }
 
     @Test
@@ -119,8 +144,8 @@ class InquiryServiceTest {
     }
 
     static CreateInquiryRequest request(String fax) {
-        return new CreateInquiryRequest(InquiryType.FESTIVAL, "  고흥 유자축제 ", "담당자", "010-1234-5678", null, null,
-                "2026-11", null, null, null, true, false,
+        return new CreateInquiryRequest(InquiryType.FESTIVAL, "  고흥 유자축제 ", "담당자", null, "010-1234-5678", null,
+                null, null, "2026-11", null, null, null, true, false,
                 new CreateInquiryRequest.Utm("meta", null, null, "b2b_festival", null), "/b2b/", fax);
     }
 }

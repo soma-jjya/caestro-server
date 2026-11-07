@@ -8,6 +8,7 @@ import static org.springframework.test.web.client.match.MockRestRequestMatchers.
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withServerError;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
+import com.caestro.server.domain.inquiry.enums.ContactMethod;
 import com.caestro.server.domain.inquiry.enums.InquiryType;
 import com.caestro.server.domain.inquiry.event.InquiryReceivedEvent;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
@@ -23,7 +24,7 @@ import org.springframework.web.client.RestClient;
 class InquiryWebhookNotifierTest {
 
     static final InquiryReceivedEvent EVENT = new InquiryReceivedEvent(42L, InquiryType.CAFE, "디저트 카페", "김담당",
-            "010-1234-5678", "b2b_cafe");
+            ContactMethod.PHONE, "01012345678", "b2b_cafe");
 
     @Test
     @DisplayName("URL 이 비어 있으면 꺼진 상태 — 호출 없음")
@@ -45,7 +46,7 @@ class InquiryWebhookNotifierTest {
         server.expect(requestTo("https://hooks.example/abc"))
                 .andExpect(method(HttpMethod.POST))
                 .andExpect(content().contentType(MediaType.APPLICATION_JSON))
-                .andExpect(jsonPath("$.text", Matchers.containsString("[B2B 문의 #42] CAFE · 디저트 카페 · 김담당 · 010-1234-5678 · 소재 b2b_cafe")))
+                .andExpect(jsonPath("$.text", Matchers.containsString("[B2B 문의 #42] CAFE · 디저트 카페 · 김담당 · 전화 01012345678 · 소재 b2b_cafe")))
                 .andExpect(jsonPath("$.text", Matchers.containsString("https://peakpic.app/admin/inquiries/42")))
                 .andExpect(jsonPath("$.content", Matchers.startsWith("[B2B 문의 #42]")))
                 .andRespond(withSuccess());
@@ -57,6 +58,21 @@ class InquiryWebhookNotifierTest {
 
         server.verify();
         assertThat(meters.find(InquiryWebhookNotifier.METRIC_FAILED).counter()).isNull();
+    }
+
+    @Test
+    @DisplayName("연락처 자리는 고른 방법의 값: 전화 / 메일 / 인스타 @아이디")
+    void rendersChosenContact() {
+        InquiryWebhookNotifier notifier = new InquiryWebhookNotifier("https://hooks.example/abc", "",
+                RestClient.builder().build(), new SimpleMeterRegistry());
+
+        assertThat(notifier.render(EVENT)).isEqualTo("[B2B 문의 #42] CAFE · 디저트 카페 · 김담당 · 전화 01012345678 · 소재 b2b_cafe");
+        assertThat(notifier.render(new InquiryReceivedEvent(43L, InquiryType.FESTIVAL, "유자축제", "담당자",
+                ContactMethod.EMAIL, "owner@example.com", null)))
+                .isEqualTo("[B2B 문의 #43] FESTIVAL · 유자축제 · 담당자 · 메일 owner@example.com");
+        assertThat(notifier.render(new InquiryReceivedEvent(44L, InquiryType.CAFE, "카페", "담당자",
+                ContactMethod.INSTAGRAM, "cafe_peak", "b2b_cafe_space")))
+                .isEqualTo("[B2B 문의 #44] CAFE · 카페 · 담당자 · 인스타 @cafe_peak · 소재 b2b_cafe_space");
     }
 
     @Test

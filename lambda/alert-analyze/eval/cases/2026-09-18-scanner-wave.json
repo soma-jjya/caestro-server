@@ -1,0 +1,102 @@
+{
+  "source": "2026-09-18 18:1x~18:2x KST alb-5xx-spike. 사람 조사 결과: 외부 스캐너가 /.env, /wp-login.php 등 없는 경로를 인스턴스당 약 14건 호출. permitAll 접두 아래 없는 경로가 NoResourceFoundException → 500. 사용자 영향 없음. 발표 전이라 수정은 #137 로 미룸.",
+  "alarm": {
+    "AlarmName": "peakpic-alb-5xx-spike",
+    "AlarmDescription": "서버 5XX 오류가 급증했다. 앱 예외 또는 백엔드 장애를 의심한다.",
+    "NewStateValue": "ALARM",
+    "OldStateValue": "OK",
+    "NewStateReason": "Threshold Crossed: 1 datapoint [28.0 (18/09/26 09:15:00)] was greater than the threshold (5.0).",
+    "StateChangeTime": "2026-09-18T09:21:33.105+0000",
+    "Region": "Asia Pacific (Seoul)",
+    "Trigger": {
+      "MetricName": "HTTPCode_Target_5XX_Count", "Namespace": "AWS/ApplicationELB", "Statistic": "SUM",
+      "Period": 300, "EvaluationPeriods": 1, "ComparisonOperator": "GreaterThanThreshold", "Threshold": 5.0
+    }
+  },
+  "fixtures": {
+    "query_logs": {
+      "errors": {
+        "kind": "errors", "window": "2026-09-18 09:16Z ~ 09:26Z", "log_group": "<log-group>",
+        "rows": [
+          {"@timestamp": "2026-09-18 09:19:12.401", "logger_name": "com.caestro.server.global.exception.GlobalExceptionHandler", "message": "INTERNAL_SERVER_ERROR GET /.env", "stack_trace": "org.springframework.web.servlet.resource.NoResourceFoundException: No static resource .env.\n\tat org.springframework.web.servlet.resource.ResourceHttpRequestHandler.handleRequest(ResourceHttpRequestHandler.java:585)"},
+          {"@timestamp": "2026-09-18 09:19:11.877", "logger_name": "com.caestro.server.global.exception.GlobalExceptionHandler", "message": "INTERNAL_SERVER_ERROR GET /.git/config", "stack_trace": "org.springframework.web.servlet.resource.NoResourceFoundException: No static resource .git/config."},
+          {"@timestamp": "2026-09-18 09:19:11.302", "logger_name": "com.caestro.server.global.exception.GlobalExceptionHandler", "message": "INTERNAL_SERVER_ERROR GET /wp-login.php", "stack_trace": "org.springframework.web.servlet.resource.NoResourceFoundException: No static resource wp-login.php."},
+          {"@timestamp": "2026-09-18 09:19:10.750", "logger_name": "com.caestro.server.global.exception.GlobalExceptionHandler", "message": "INTERNAL_SERVER_ERROR GET /auth/nope", "stack_trace": "org.springframework.web.servlet.resource.NoResourceFoundException: No static resource auth/nope."},
+          {"@timestamp": "2026-09-18 09:19:10.211", "logger_name": "com.caestro.server.global.exception.GlobalExceptionHandler", "message": "INTERNAL_SERVER_ERROR GET /phpmyadmin/index.php", "stack_trace": "org.springframework.web.servlet.resource.NoResourceFoundException: No static resource phpmyadmin/index.php."},
+          {"@timestamp": "2026-09-18 09:19:09.688", "logger_name": "com.caestro.server.global.exception.GlobalExceptionHandler", "message": "INTERNAL_SERVER_ERROR GET /swagger-ui/../../etc/passwd", "stack_trace": "org.springframework.web.servlet.resource.NoResourceFoundException: No static resource swagger-ui/etc/passwd."},
+          {"@timestamp": "2026-09-18 09:19:09.144", "logger_name": "com.caestro.server.global.exception.GlobalExceptionHandler", "message": "INTERNAL_SERVER_ERROR GET /api-docs/.env", "stack_trace": "org.springframework.web.servlet.resource.NoResourceFoundException: No static resource api-docs/.env."},
+          {"@timestamp": "2026-09-18 09:18:58.902", "logger_name": "com.caestro.server.global.exception.GlobalExceptionHandler", "message": "INTERNAL_SERVER_ERROR GET /.env", "stack_trace": "org.springframework.web.servlet.resource.NoResourceFoundException: No static resource .env."},
+          {"@timestamp": "2026-09-18 09:18:58.377", "logger_name": "com.caestro.server.global.exception.GlobalExceptionHandler", "message": "INTERNAL_SERVER_ERROR GET /.git/config", "stack_trace": "org.springframework.web.servlet.resource.NoResourceFoundException: No static resource .git/config."},
+          {"@timestamp": "2026-09-18 09:18:57.840", "logger_name": "com.caestro.server.global.exception.GlobalExceptionHandler", "message": "INTERNAL_SERVER_ERROR GET /wp-login.php", "stack_trace": "org.springframework.web.servlet.resource.NoResourceFoundException: No static resource wp-login.php."},
+          {"@timestamp": "2026-09-18 09:18:57.301", "logger_name": "com.caestro.server.global.exception.GlobalExceptionHandler", "message": "INTERNAL_SERVER_ERROR GET /auth/nope", "stack_trace": "org.springframework.web.servlet.resource.NoResourceFoundException: No static resource auth/nope."},
+          {"@timestamp": "2026-09-18 09:18:56.760", "logger_name": "com.caestro.server.global.exception.GlobalExceptionHandler", "message": "INTERNAL_SERVER_ERROR GET /phpmyadmin/index.php", "stack_trace": "org.springframework.web.servlet.resource.NoResourceFoundException: No static resource phpmyadmin/index.php."}
+        ]
+      },
+      "summary": {
+        "kind": "summary", "window": "2026-09-18 09:16Z ~ 09:26Z", "log_group": "<log-group>",
+        "rows": [
+          {"level": "ERROR", "logger_name": "com.caestro.server.global.exception.GlobalExceptionHandler", "n": "28"},
+          {"level": "WARN", "logger_name": "org.springframework.web.servlet.PageNotFound", "n": "6"}
+        ]
+      },
+      "volume": {
+        "kind": "volume", "window": "2026-09-18 09:16Z ~ 09:26Z", "log_group": "<log-group>",
+        "rows": [
+          {"bin(1m)": "2026-09-18 09:17:00.000", "n": "9", "errors": "0"},
+          {"bin(1m)": "2026-09-18 09:18:00.000", "n": "31", "errors": "14"},
+          {"bin(1m)": "2026-09-18 09:19:00.000", "n": "33", "errors": "14"},
+          {"bin(1m)": "2026-09-18 09:20:00.000", "n": "8", "errors": "0"},
+          {"bin(1m)": "2026-09-18 09:21:00.000", "n": "7", "errors": "0"}
+        ]
+      },
+      "default": {"kind": "search", "window": "2026-09-18 09:16Z ~ 09:26Z", "log_group": "<log-group>", "rows": []}
+    },
+    "query_metrics": {
+      "alb_5xx": {"metric": "alb_5xx", "stat": "Sum", "period_s": 60, "window": "2026-09-18 08:51Z ~ 09:26Z",
+                  "points": [["09:16", 0], ["09:17", 0], ["09:18", 14], ["09:19", 14], ["09:20", 0], ["09:21", 0]],
+                  "summary": {"count": 6, "min": 0, "max": 14, "sum": 28, "last": 0}},
+      "alb_healthy_hosts": {"metric": "alb_healthy_hosts", "stat": "Minimum", "period_s": 60, "window": "2026-09-18 08:51Z ~ 09:26Z",
+                            "points": [["09:16", 2], ["09:17", 2], ["09:18", 2], ["09:19", 2], ["09:20", 2], ["09:21", 2]],
+                            "summary": {"count": 6, "min": 2, "max": 2, "sum": 12, "last": 2}},
+      "default": {"metric": "?", "stat": "-", "period_s": 60, "window": "2026-09-18 08:51Z ~ 09:26Z", "points": [], "summary": {"count": 0}}
+    },
+    "query_access_logs": {
+      "500": {
+        "window": "2026-09-18 09:16Z ~ 09:26Z", "files_read": 4, "requests_in_window": 88, "matched": 28, "status_min": 500,
+        "by_status": {"500": 28},
+        "top_client_ips": [{"ip": "198.51.100.77", "n": 28}],
+        "top_user_agents": [{"ua": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0 Safari/537.36", "n": 28}],
+        "top_requests": [{"request": "GET /.env", "n": 4}, {"request": "GET /.git/config", "n": 4}, {"request": "GET /wp-login.php", "n": 4}, {"request": "GET /auth/nope", "n": 4}, {"request": "GET /phpmyadmin/index.php", "n": 4}, {"request": "GET /swagger-ui/../../etc/passwd", "n": 4}, {"request": "GET /api-docs/.env", "n": 4}],
+        "distinct_ips": 1
+      },
+      "0": {
+        "window": "2026-09-18 09:16Z ~ 09:26Z", "files_read": 4, "requests_in_window": 88, "matched": 88, "status_min": 0,
+        "by_status": {"200": 52, "500": 28, "401": 5, "404": 3},
+        "top_client_ips": [{"ip": "198.51.100.77", "n": 28}, {"ip": "10.0.0.5", "n": 20}, {"ip": "203.0.113.40", "n": 11}],
+        "top_user_agents": [{"ua": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0 Safari/537.36", "n": 28}, {"ua": "ELB-HealthChecker/2.0", "n": 20}, {"ua": "okhttp/4.12.0", "n": 22}, {"ua": "CFNetwork/1568 Darwin/24", "n": 14}],
+        "top_requests": [{"request": "GET /actuator/health/readiness", "n": 20}, {"request": "GET /sessions/current", "n": 12}, {"request": "POST /auth/refresh", "n": 8}, {"request": "GET /.env", "n": 4}, {"request": "GET /wp-login.php", "n": 4}],
+        "distinct_ips": 7
+      },
+      "default": {"window": "2026-09-18 09:16Z ~ 09:26Z", "files_read": 4, "requests_in_window": 88, "matched": 0, "status_min": 0, "by_status": {}, "top_client_ips": [], "top_user_agents": [], "top_requests": [], "distinct_ips": 0}
+    },
+    "recent_deploys": {
+      "asg": "peakpic-asg", "alarm_time": "2026-09-18T09:21:33+00:00",
+      "refreshes": [
+        {"status": "Successful", "start": "2026-09-16T07:40:02Z", "end": "2026-09-16T07:47:55Z", "percentage_complete": 100, "minutes_before_alarm": 3101}
+      ],
+      "activities": [
+        {"start": "2026-09-16T07:44:10Z", "status": "Successful", "description": "Terminating EC2 instance: i-0ccc", "cause": "instance refresh"},
+        {"start": "2026-09-16T07:40:10Z", "status": "Successful", "description": "Launching a new EC2 instance: i-0ddd", "cause": "instance refresh"}
+      ],
+      "commits": [
+        {"sha": "c0ffee1", "date": "2026-09-16T07:36:00Z", "message": "Merge pull request #130 from soma-jjya/feat/guest-rate-limit"},
+        {"sha": "deadbe2", "date": "2026-09-15T12:03:00Z", "message": "fix: 게스트 발급 한도 30/분으로 조정 + 429 오탐 관측 지표 (#129)"}
+      ]
+    }
+  },
+  "expect": {
+    "category": ["external_scanner"],
+    "user_impact": ["none"],
+    "mentions_any": ["스캐너", ".env", "wp-login", "198.51.100.77"]
+  }
+}

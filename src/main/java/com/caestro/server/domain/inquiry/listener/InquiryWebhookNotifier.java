@@ -74,12 +74,12 @@ public class InquiryWebhookNotifier {
         }
     }
 
-    /** 채널 한 줄: 유형·업체·담당자·연락처·소재, 그리고 관리자 링크. */
+    /** 채널 한 줄: 유형·업체·담당자·연락처(고른 방법)·소재, 그리고 관리자 링크. */
     String render(InquiryReceivedEvent event) {
         StringBuilder sb = new StringBuilder()
                 .append("[B2B 문의 #").append(event.id()).append("] ")
                 .append(event.type().name()).append(" · ").append(event.organization())
-                .append(" · ").append(event.contactName()).append(" · ").append(event.phone());
+                .append(" · ").append(event.contactName()).append(" · ").append(contactLabel(event));
         if (event.utmContent() != null) {
             sb.append(" · 소재 ").append(event.utmContent());
         }
@@ -87,5 +87,14 @@ public class InquiryWebhookNotifier {
             sb.append("\n").append(adminUrl).append("/").append(event.id());
         }
         return sb.toString();
+    }
+
+    // 고른 방법을 앞에 붙여 채널에서 바로 어디로 연락할지 보이게: 전화 01012345678 / 메일 a@b.com / 인스타 @cafe_peak
+    private static String contactLabel(InquiryReceivedEvent event) {
+        return switch (event.contactMethod()) {
+            case PHONE -> "전화 " + event.contact();
+            case EMAIL -> "메일 " + event.contact();
+            case INSTAGRAM -> "인스타 @" + event.contact();
+        };
     }
 }
