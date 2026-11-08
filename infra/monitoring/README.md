@@ -72,22 +72,30 @@ aws ssm start-session --profile peakpic --region ap-northeast-2 \
   prod=APPLICATION_PROD_YML 시크릿의 `metrics.token`
 - 새 지표를 추가하면 별도 조치 없이 자동 수집된다 (pull 모델)
 
-## B2B 축제 전용 서버 지표 (#236)
+## B2B 축제 전용 서버 지표 (#236, #241)
 
-축제마다 따로 띄운 B2B 서버(peakpic-b2b-server)는 별도 VPC 라 EC2 디스커버리로 찾지 못한다. 잡 `peakpic-b2b-festival` 이 공개 ALB 를 거쳐 그 축제의 운영자 키로 긁는다.
-대상과 키는 모니터링 EC2 의 `~/monitoring/` 에 파일로 두고 커밋하지 않는다(`.gitignore`).
+축제마다 따로 띄운 B2B 서버(peakpic-b2b-server)는 별도 VPC 라 EC2 디스커버리로 찾지 못한다. 잡 `peakpic-b2b-festival` 이 공개 ALB 를 거쳐 긁는다.
+- **대상**: `b2b_targets.json`(file_sd). 축제 서버 워크플로가 서버를 만들 때 S3(`peakpic-b2b-terraform-state/monitoring/b2b_targets.json`)를 갱신한다. `b2b-targets-sync.sh` 가 1분마다 받아 갈아 끼운다
+- **키**: `b2b_admin_key` 파일에 모든 축제 공통 **계측 키** 하나(축제 서버의 `/actuator/prometheus` 에서만 통한다). 축제를 추가·교체해도 손댈 것이 없다
 
-**두 파일이 없으면 Prometheus 설정 검사가 실패해 기동하지 않는다.** 그러니 `prometheus.yml`·`docker-compose.yml` 을 갱신하기 전에 먼저 만든다.
+두 파일이 없으면 Prometheus 설정 검사가 실패해 기동하지 않는다. 처음 한 번은 파일을 먼저 만들고 설정을 갱신한다.
+
+### 한 번만: 설치
 
 ```bash
+# 1) (CloudShell) 모니터링 EC2 역할에 대상 목록 읽기 권한
+ROLE=$(aws ec2 describe-instances --instance-ids <모니터링 인스턴스ID> --query 'Reservations[0].Instances[0].IamInstanceProfile.Arn' --output text | sed 's|.*/||' | xargs -I{} aws iam get-instance-profile --instance-profile-name {} --query 'InstanceProfile.Roles[0].RoleName' --output text)
+aws iam put-role-policy --role-name "$ROLE" --policy-name b2b-targets-read --policy-document '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Action":"s3:GetObject","Resource":"arn:aws:s3:::peakpic-b2b-terraform-state/monitoring/b2b_targets.json"}]}'
+# 계측 키 확인(화면에 한 번만): Secrets Manager peakpic-b2b/prod-<아무 축제> 의 metricsKey
+
+# 2) (모니터링 EC2, SSM) 키 파일·동기화 스크립트·cron
 cd ~/monitoring
-# 축제 서버 대상: 주소와 경로. slug 는 축제 주소 이름
-printf '[{"targets":["<slug>.<축제 API 도메인>"],"labels":{"__metrics_path__":"/projects/<slug>/actuator/prometheus","slug":"<slug>"}}]' > b2b_targets.json
-# 운영자 키: CloudShell 에서 Secrets Manager peakpic-b2b/prod-<slug> 의 adminKey 를 확인해 붙여 넣는다(개행 없이)
-printf '%s' '<adminKey>' > b2b_admin_key && chmod 600 b2b_admin_key
-sudo docker-compose up -d --force-recreate prometheus
+printf '%s' '<metricsKey>' > b2b_admin_key && sudo chown 65534:65534 b2b_admin_key && chmod 600 b2b_admin_key   # Prometheus 는 nobody 로 읽는다
+curl -fsSO https://raw.githubusercontent.com/soma-jjya/caestro-server/main/infra/monitoring/b2b-targets-sync.sh && chmod +x b2b-targets-sync.sh
+./b2b-targets-sync.sh && cat b2b_targets.json
+command -v crontab >/dev/null || { sudo dnf install -y -q cronie && sudo systemctl enable --now crond; }   # AL2023 에는 cron 이 없다
+( crontab -l 2>/dev/null | grep -v b2b-targets-sync; echo "* * * * * $HOME/monitoring/b2b-targets-sync.sh" ) | crontab -
+sudo docker-compose restart prometheus   # 키를 바꿨을 때만
 ```
 
-확인: Prometheus `/targets` 에서 `peakpic-b2b-festival` UP, `jvm_memory_used_bytes{job="peakpic-b2b-festival"}`.
-축제를 바꾸면 두 파일만 고친다(대상 파일은 자동으로 다시 읽고, 키를 바꿨으면 prometheus 를 재시작한다). 축제가 없을 때는 대상 파일을 `[]` 로 두고 키 파일은 아무 값이나 남긴다.
-
+확인: Prometheus `/targets` 에서 `peakpic-b2b-festival` 이 축제 수만큼 UP, `jvm_memory_used_bytes{job="peakpic-b2b-festival"}` 에 `slug` 라벨.
