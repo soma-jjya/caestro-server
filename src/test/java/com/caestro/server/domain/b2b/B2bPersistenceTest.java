@@ -156,8 +156,8 @@ class B2bPersistenceTest {
     }
 
     @ParameterizedTest
-    @ValueSource(ints = {1, 2, 3})
-    void oneToThreeFramesCanPublishResumeAndCreateSessions(int count) {
+    @ValueSource(ints = {1, 3, 10})
+    void oneToTenFramesCanPublishResumeAndCreateSessions(int count) {
         var live = projects.publish(ready("yuja", count).id());
         assertThat(live.status()).isEqualTo(B2bProject.Status.LIVE);
         assertThat(live.publishedAt()).isNotNull();
@@ -200,8 +200,8 @@ class B2bPersistenceTest {
     }
 
     @ParameterizedTest
-    @ValueSource(ints = {0, 1, 2, 3})
-    void draftAndPausedCanKeepZeroToThreeIncompleteFramesButCannotGoLive(int count) {
+    @ValueSource(ints = {0, 3, 10})
+    void draftAndPausedCanKeepZeroToTenIncompleteFramesButCannotGoLive(int count) {
         List<ReplaceB2bFramesRequest.Frame> incomplete = new ArrayList<>();
         for (int i = 0; i < count; i++) {
             incomplete.add(new ReplaceB2bFramesRequest.Frame(null, "준비 중 " + i,
@@ -249,12 +249,14 @@ class B2bPersistenceTest {
 
     @ParameterizedTest
     @ValueSource(strings = {"DRAFT", "LIVE", "PAUSED"})
-    void moreThanThreeFramesAreRejectedWithoutChangingExistingFrames(String status) {
+    void moreThanTenFramesAreRejectedWithoutChangingExistingFrames(String status) {
         var project = ready("yuja");
         if (!status.equals("DRAFT")) projects.publish(project.id());
         if (status.equals("PAUSED")) projects.pause(project.id());
-        var request = new ReplaceB2bFramesRequest(List.of(input(null, "1", uploadedId),
-                input(null, "2", uploadedId), input(null, "3", uploadedId), input(null, "4", uploadedId)));
+        // 상한 10개(#237). 11개는 저장 전에 거부한다
+        List<ReplaceB2bFramesRequest.Frame> eleven = new ArrayList<>();
+        for (int i = 1; i <= 11; i++) eleven.add(input(null, String.valueOf(i), uploadedId));
+        var request = new ReplaceB2bFramesRequest(eleven);
 
         error(() -> projects.replaceFrames(project.id(), request), ErrorCode.B2B_INVALID_FRAME);
         var unchanged = projects.get(project.id());
