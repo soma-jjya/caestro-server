@@ -8,6 +8,8 @@ services:
     volumes:
       - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - ./metrics_token:/etc/prometheus/metrics_token:ro
+      - ./b2b_admin_key:/etc/prometheus/b2b_admin_key:ro        # B2B 축제 서버 운영자 키(#236, 커밋 금지)
+      - ./b2b_targets.json:/etc/prometheus/b2b_targets.json:ro  # B2B 축제 서버 대상(#236, 커밋 금지)
       - prom-data:/prometheus
     command:
       - --config.file=/etc/prometheus/prometheus.yml

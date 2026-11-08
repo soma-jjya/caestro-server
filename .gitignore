@@ -62,3 +62,7 @@ load-test/k6/b2b/generated/
 load-test/results/local-b2b/
 
 docs/
+
+# B2B 축제 서버 지표 수집 파일(#236) — 모니터링 EC2 에만 둔다
+infra/monitoring/b2b_admin_key
+infra/monitoring/b2b_targets.json
