@@ -9,8 +9,11 @@ import jakarta.validation.constraints.Size;
 import java.util.List;
 
 public record ReplaceB2bFramesRequest(
-        @NotNull @Size(max = 3) List<@NotNull @Valid Frame> frames
+        @NotNull @Size(max = ReplaceB2bFramesRequest.MAX_FRAMES) List<@NotNull @Valid Frame> frames
 ) {
+    /** 프로젝트당 프레임 상한. 축제 전용 서버(peakpic-b2b-server)도 같은 값이어야 반영이 된다 (#237) */
+    public static final int MAX_FRAMES = 10;
+
     public record Frame(
             @Size(max = 40) String id,
             @NotBlank @Size(max = 30) String name,
