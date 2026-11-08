@@ -10,4 +10,6 @@ trap 'rm -f "$TMP"' EXIT
 aws s3 cp --only-show-errors "$SOURCE" "$TMP" || exit 0
 python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); assert isinstance(d,list) and all(isinstance(e.get("targets"),list) for e in d)' "$TMP" || exit 0
 cmp -s "$TMP" "$DIR/b2b_targets.json" && exit 0
-chmod 644 "$TMP" && mv "$TMP" "$DIR/b2b_targets.json"
+# 내용만 덮어쓴다. docker-compose 가 이 파일 하나를 마운트해 컨테이너가 inode 를 붙잡으므로
+# mv 로 바꾸면 컨테이너 안은 옛 목록 그대로다(#244)
+cat "$TMP" > "$DIR/b2b_targets.json"
