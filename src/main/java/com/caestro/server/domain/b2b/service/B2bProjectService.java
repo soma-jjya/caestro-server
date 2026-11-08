@@ -93,7 +93,7 @@ public class B2bProjectService {
         List<B2bFrame> existing = frames.findByProjectIdOrderByDisplayOrderAsc(id);
         Map<String, B2bFrame> byId = existing.stream().collect(Collectors.toMap(B2bFrame::getId, f -> f));
         List<ReplaceB2bFramesRequest.Frame> inputs = request.frames();
-        if (inputs == null || inputs.size() > 3) throw new CustomException(ErrorCode.B2B_INVALID_FRAME);
+        if (inputs == null || inputs.size() > ReplaceB2bFramesRequest.MAX_FRAMES) throw new CustomException(ErrorCode.B2B_INVALID_FRAME);
 
         // 1. 다른 프로젝트 id와 중복 id는 저장 전에 거부한다.
         Set<String> kept = new HashSet<>();
@@ -133,7 +133,7 @@ public class B2bProjectService {
         return B2bProjectResponse.from(project, replacement.stream().map(mapper::response).toList(), clock.getZone());
     }
 
-    /** DRAFT → LIVE. 프레임은 1~3개이며 모두 유효한 이미지·창 4개를 가져야 한다. */
+    /** DRAFT → LIVE. 프레임은 1~10개이며 모두 유효한 이미지·창 4개를 가져야 한다. */
     @Transactional
     public B2bProjectResponse publish(String id) { return transition(id, Status.DRAFT, Status.LIVE); }
 
@@ -168,7 +168,7 @@ public class B2bProjectService {
     }
 
     private void requirePublishable(List<B2bFrame> choices) {
-        if (choices.isEmpty() || choices.size() > 3) throw new CustomException(ErrorCode.B2B_NOT_PUBLISHABLE);
+        if (choices.isEmpty() || choices.size() > ReplaceB2bFramesRequest.MAX_FRAMES) throw new CustomException(ErrorCode.B2B_NOT_PUBLISHABLE);
         for (B2bFrame frame : choices) {
             if (frame.getImage() == null || B2bPolicy.windows(mapper.windows(frame.getWindowsJson())).size() != 4) {
                 throw new CustomException(ErrorCode.B2B_NOT_PUBLISHABLE);
