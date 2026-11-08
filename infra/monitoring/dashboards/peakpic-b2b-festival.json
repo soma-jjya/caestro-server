@@ -7,7 +7,7 @@
  ],
  "timezone": "Asia/Seoul",
  "schemaVersion": 39,
- "version": 1,
+ "version": 2,
  "refresh": "30s",
  "time": {
   "from": "now-3h",
@@ -140,7 +140,7 @@
       "type": "prometheus",
       "uid": "${ds}"
      },
-     "expr": "sum(rate(http_server_requests_seconds_count{job=\"peakpic-b2b-festival\",slug=~\"$slug\"}[1m]))"
+     "expr": "sum(rate(http_server_requests_seconds_count{job=\"peakpic-b2b-festival\",slug=~\"$slug\"}[5m]))"
     }
    ]
   },
@@ -254,7 +254,7 @@
       "type": "prometheus",
       "uid": "${ds}"
      },
-     "expr": "sum(jvm_memory_used_bytes{job=\"peakpic-b2b-festival\",slug=~\"$slug\",area=\"heap\"}) / sum(jvm_memory_max_bytes{job=\"peakpic-b2b-festival\",slug=~\"$slug\",area=\"heap\"})"
+     "expr": "max(sum by (host) (last_over_time(jvm_memory_used_bytes{job=\"peakpic-b2b-festival\",slug=~\"$slug\",area=\"heap\"}[2m])) / sum by (host) (last_over_time(jvm_memory_max_bytes{job=\"peakpic-b2b-festival\",slug=~\"$slug\",area=\"heap\"}[2m])))"
     }
    ]
   },
@@ -296,7 +296,7 @@
       "type": "prometheus",
       "uid": "${ds}"
      },
-     "expr": "sum by (status) (rate(http_server_requests_seconds_count{job=\"peakpic-b2b-festival\",slug=~\"$slug\"}[1m]))",
+     "expr": "sum by (status) (rate(http_server_requests_seconds_count{job=\"peakpic-b2b-festival\",slug=~\"$slug\"}[5m]))",
      "legendFormat": "{{status}}"
     }
    ]
@@ -348,7 +348,7 @@
       "type": "prometheus",
       "uid": "${ds}"
      },
-     "expr": "max by (uri) (http_server_requests_seconds_max{job=\"peakpic-b2b-festival\",slug=~\"$slug\"})",
+     "expr": "max by (uri) (max_over_time(http_server_requests_seconds_max{job=\"peakpic-b2b-festival\",slug=~\"$slug\"}[2m]))",
      "legendFormat": "최대 {{uri}}"
     }
    ]
@@ -443,7 +443,7 @@
    "id": 9,
    "type": "timeseries",
    "title": "JVM 힙 (사용 / 최대)",
-   "description": "ALB 가 인스턴스 하나에만 보내 서버 한 대 값이다. 서버별은 CloudWatch PeakPicB2B/Host",
+   "description": "서버(host)별. 수집은 ALB 경유라 서버마다 1~2분 간격으로 갱신된다",
    "datasource": {
     "type": "prometheus",
     "uid": "${ds}"
@@ -477,8 +477,8 @@
       "type": "prometheus",
       "uid": "${ds}"
      },
-     "expr": "sum(jvm_memory_used_bytes{job=\"peakpic-b2b-festival\",slug=~\"$slug\",area=\"heap\"})",
-     "legendFormat": "사용"
+     "expr": "sum by (host) (last_over_time(jvm_memory_used_bytes{job=\"peakpic-b2b-festival\",slug=~\"$slug\",area=\"heap\"}[2m]))",
+     "legendFormat": "사용 {{host}}"
     },
     {
      "refId": "B",
@@ -486,8 +486,8 @@
       "type": "prometheus",
       "uid": "${ds}"
      },
-     "expr": "sum(jvm_memory_max_bytes{job=\"peakpic-b2b-festival\",slug=~\"$slug\",area=\"heap\"})",
-     "legendFormat": "최대"
+     "expr": "sum by (host) (last_over_time(jvm_memory_max_bytes{job=\"peakpic-b2b-festival\",slug=~\"$slug\",area=\"heap\"}[2m]))",
+     "legendFormat": "최대 {{host}}"
     }
    ]
   },
@@ -529,15 +529,15 @@
       "type": "prometheus",
       "uid": "${ds}"
      },
-     "expr": "max(jvm_gc_pause_seconds_max{job=\"peakpic-b2b-festival\",slug=~\"$slug\"})",
-     "legendFormat": "최대"
+     "expr": "max by (host) (max_over_time(jvm_gc_pause_seconds_max{job=\"peakpic-b2b-festival\",slug=~\"$slug\"}[2m]))",
+     "legendFormat": "{{host}}"
     }
    ]
   },
   {
    "id": 11,
    "type": "timeseries",
-   "title": "DB 연결 (풀 15)",
+   "title": "DB 연결 (서버별, 풀 15)",
    "description": "",
    "datasource": {
     "type": "prometheus",
@@ -572,8 +572,8 @@
       "type": "prometheus",
       "uid": "${ds}"
      },
-     "expr": "sum(hikaricp_connections_active{job=\"peakpic-b2b-festival\",slug=~\"$slug\"})",
-     "legendFormat": "사용"
+     "expr": "sum by (host) (last_over_time(hikaricp_connections_active{job=\"peakpic-b2b-festival\",slug=~\"$slug\"}[2m]))",
+     "legendFormat": "사용 {{host}}"
     },
     {
      "refId": "B",
@@ -581,8 +581,8 @@
       "type": "prometheus",
       "uid": "${ds}"
      },
-     "expr": "sum(hikaricp_connections_pending{job=\"peakpic-b2b-festival\",slug=~\"$slug\"})",
-     "legendFormat": "대기"
+     "expr": "sum by (host) (last_over_time(hikaricp_connections_pending{job=\"peakpic-b2b-festival\",slug=~\"$slug\"}[2m]))",
+     "legendFormat": "대기 {{host}}"
     },
     {
      "refId": "C",
@@ -590,8 +590,8 @@
       "type": "prometheus",
       "uid": "${ds}"
      },
-     "expr": "sum(hikaricp_connections_max{job=\"peakpic-b2b-festival\",slug=~\"$slug\"})",
-     "legendFormat": "최대"
+     "expr": "max(last_over_time(hikaricp_connections_max{job=\"peakpic-b2b-festival\",slug=~\"$slug\"}[2m]))",
+     "legendFormat": "최대(서버당)"
     }
    ]
   },
@@ -633,8 +633,8 @@
       "type": "prometheus",
       "uid": "${ds}"
      },
-     "expr": "sum(tomcat_threads_busy_threads{job=\"peakpic-b2b-festival\",slug=~\"$slug\"})",
-     "legendFormat": "바쁨"
+     "expr": "sum by (host) (last_over_time(tomcat_threads_busy_threads{job=\"peakpic-b2b-festival\",slug=~\"$slug\"}[2m]))",
+     "legendFormat": "바쁨 {{host}}"
     },
     {
      "refId": "B",
@@ -642,8 +642,8 @@
       "type": "prometheus",
       "uid": "${ds}"
      },
-     "expr": "sum(tomcat_threads_config_max_threads{job=\"peakpic-b2b-festival\",slug=~\"$slug\"})",
-     "legendFormat": "최대"
+     "expr": "max(last_over_time(tomcat_threads_config_max_threads{job=\"peakpic-b2b-festival\",slug=~\"$slug\"}[2m]))",
+     "legendFormat": "최대(서버당)"
     }
    ]
   },
@@ -685,11 +685,11 @@
       "type": "prometheus",
       "uid": "${ds}"
      },
-     "expr": "max(process_cpu_usage{job=\"peakpic-b2b-festival\",slug=~\"$slug\"})",
-     "legendFormat": "process"
+     "expr": "max by (host) (last_over_time(process_cpu_usage{job=\"peakpic-b2b-festival\",slug=~\"$slug\"}[2m]))",
+     "legendFormat": "{{host}}"
     }
    ]
   }
  ],
- "description": "축제 전용 서버(peakpic-b2b-server) 앱 지표. 잡 peakpic-b2b-festival, 축제는 slug 로 고른다. 서버 메모리·CPU·ALB 는 CloudWatch, 알림은 Discord"
+ "description": "축제 전용 서버(peakpic-b2b-server) 앱 지표. 잡 peakpic-b2b-festival, 축제는 slug 로 고른다. ALB 경유 수집이라 서버(host)마다 따로 계산한다(#48): 누적값은 rate 5분, 현재값은 최근 2분 마지막 값. 서버 메모리·CPU·ALB 는 CloudWatch"
 }
