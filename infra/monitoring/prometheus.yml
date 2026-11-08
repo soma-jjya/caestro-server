@@ -26,3 +26,14 @@ scrape_configs:
         target_label: instance_id
       - source_labels: [__meta_ec2_availability_zone]
         target_label: az
+
+  # B2B 축제 전용 서버(peakpic-b2b-server). 별도 VPC 라 EC2 디스커버리가 닿지 않아 공개 ALB 를 거쳐 긁는다 (#236)
+  # 대상(주소·경로)은 b2b_targets.json, 운영자 키는 b2b_admin_key 에서 읽는다. 둘 다 모니터링 EC2 에만 두고 커밋하지 않는다
+  # 키가 축제마다 달라 한 번에 한 축제만 긁는다. ALB 가 인스턴스 하나에 보내므로 인스턴스별 값은 CloudWatch 를 본다
+  - job_name: peakpic-b2b-festival
+    scheme: https
+    authorization:
+      type: Bearer
+      credentials_file: /etc/prometheus/b2b_admin_key
+    file_sd_configs:
+      - files: [/etc/prometheus/b2b_targets.json]
