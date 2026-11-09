@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# CloudWatch 알람 7종 생성. put-metric-alarm은 덮어쓰기라 여러 번 실행해도 안전하다.
+# CloudWatch 알람 생성 (지표 알람 8종 + 복합 알람 1종). put-metric-alarm은 덮어쓰기라 여러 번 실행해도 안전하다.
 # 임계값 근거는 README.md 참고. 대상 리소스는 자동 탐색하며 환경변수로 덮어쓸 수 있다.
 #
 #   ./create-alarms.sh
@@ -47,6 +47,15 @@ alarm() {
   echo "  ✓ ${name}"
 }
 
+# 알리지 않는 알람. 복합 알람의 재료로만 쓴다. put-metric-alarm 은 전체를 덮어쓰므로 기존 알림 동작도 함께 떨어진다.
+alarm_silent() {
+  local name=$1 desc=$2
+  shift 2
+  aws cloudwatch put-metric-alarm --region "$REGION" \
+    --alarm-name "$name" --alarm-description "$desc" "$@"
+  echo "  ✓ ${name} (알림 없음)"
+}
+
 echo "▶ A그룹 — 사실 판정형 (베이스라인 불필요)"
 
 # 5분 연속: 배포(롤링 교체)로 인스턴스가 하나씩 빠지는 정상 구간(수 분)과 겹치지 않게 한다.
@@ -78,12 +87,27 @@ alarm "peakpic-rds-low-storage" "RDS 여유 공간이 4GiB 미만. 오토스케�
   --comparison-operator LessThanThreshold --threshold 4294967296 \
   --dimensions "Name=DBInstanceIdentifier,Value=${RDS_ID}" --treat-missing-data missing
 
-# 배포 직후 신규 인스턴스 잔고(관측값 42)보다 충분히 낮게 → 배포마다 울리는 오탐 방지
-alarm "peakpic-ec2-cpu-credit-low" "버스트 크레딧이 소진되어 간다. 0이 되면 성능이 기준선으로 강등된다." \
+# t3 는 런치 크레딧이 없어 새 인스턴스가 잔고 0 에서 시작한다(#231). 배포·증설 직후 15분은 그룹 Minimum 이 15 미만인 것이
+# 구조적으로 항상 참이라, 잔고만 보면 배포마다 울린다. "잔고 낮음" 과 "CPU 를 기준선(10%) 위로 계속 쓰는 중" 이 둘 다 참일 때만
+# 복합 알람으로 알린다. 새 인스턴스는 잔고가 낮아도 한가하므로 걸리지 않고, 진짜 소진은 둘 다 참이라 걸린다.
+alarm_silent "peakpic-ec2-cpu-credit-low" "버스트 크레딧 잔고가 15 미만. 단독으로는 알리지 않고 cpu-busy 와 묶어 판단한다(#231)." \
   --namespace AWS/EC2 --metric-name CPUCreditBalance \
   --statistic Minimum --period 300 --evaluation-periods 3 \
   --comparison-operator LessThanThreshold --threshold 15 \
   --dimensions "Name=AutoScalingGroupName,Value=${ASG_NAME}" --treat-missing-data missing
+
+alarm_silent "peakpic-ec2-cpu-busy" "CPU 평균이 15분째 15% 를 넘는다(t3 기준선 10% 위). 단독으로는 알리지 않는다(#231)." \
+  --namespace AWS/EC2 --metric-name CPUUtilization \
+  --statistic Average --period 300 --evaluation-periods 3 \
+  --comparison-operator GreaterThanThreshold --threshold 15 \
+  --dimensions "Name=AutoScalingGroupName,Value=${ASG_NAME}" --treat-missing-data missing
+
+aws cloudwatch put-composite-alarm --region "$REGION" \
+  --alarm-name "peakpic-ec2-cpu-credit-exhausting" \
+  --alarm-description "CPU 크레딧이 15 미만이면서 CPU 를 15% 위로 계속 쓰고 있다. 0 이 되면 기준선 성능으로 강등되거나(standard) 추가 과금된다(unlimited)." \
+  --alarm-rule 'ALARM("peakpic-ec2-cpu-credit-low") AND ALARM("peakpic-ec2-cpu-busy")' \
+  --alarm-actions "$TOPIC_ARN" --ok-actions "$TOPIC_ARN"
+echo "  ✓ peakpic-ec2-cpu-credit-exhausting (복합: credit-low AND cpu-busy)"
 
 echo "▶ B그룹 — 보수적 초기값 (출시 후 재조정)"
 
@@ -101,6 +125,15 @@ alarm "peakpic-redis-memory-high" "Redis 메모리 사용률이 높다. 한계�
   --dimensions "Name=CacheClusterId,Value=${CACHE_ID}" --treat-missing-data missing
 
 echo
+# 크레딧 모드 확인(#231 전제). unlimited 면 잔고 0 에서 성능 강등 대신 과금이 난다. 어느 쪽이든 복합 알람은 "크레딧을 태우는 중" 신호로 유효하다.
+INSTANCE_ID=$(aws autoscaling describe-auto-scaling-groups --region "$REGION" --auto-scaling-group-names "$ASG_NAME" \
+  --query "AutoScalingGroups[0].Instances[0].InstanceId" --output text 2>/dev/null || true)
+if [ -n "$INSTANCE_ID" ] && [ "$INSTANCE_ID" != "None" ]; then
+  CREDIT_MODE=$(aws ec2 describe-instance-credit-specifications --region "$REGION" --instance-ids "$INSTANCE_ID" \
+    --query "InstanceCreditSpecifications[0].CpuCredits" --output text 2>/dev/null || echo "?")
+  echo "크레딧 모드: ${CREDIT_MODE} (${INSTANCE_ID})"
+fi
+echo
 echo "완료. 상태 확인:"
-echo "  aws cloudwatch describe-alarms --region ${REGION} --alarm-name-prefix peakpic- \\"
-echo "    --query 'MetricAlarms[].{name:AlarmName,state:StateValue}' --output table"
+echo "  aws cloudwatch describe-alarms --region ${REGION} --alarm-name-prefix peakpic- --alarm-types MetricAlarm CompositeAlarm \\"
+echo "    --query '[MetricAlarms[].{name:AlarmName,state:StateValue,notify:length(AlarmActions)},CompositeAlarms[].{name:AlarmName,state:StateValue,notify:length(AlarmActions)}]' --output table"

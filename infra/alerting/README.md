@@ -8,7 +8,7 @@
 ## 구성
 
 ```
-CloudWatch 알람 7종 ─┐
+CloudWatch 알람 9종 ─┐
                      ├─▶ SNS(peakpic-alarms) ─▶ Lambda(peakpic-alert-notify) ─▶ Discord
 EventBridge(배포 결과)┘
 ```
@@ -16,7 +16,7 @@ EventBridge(배포 결과)┘
 | 파일 | 역할 |
 |---|---|
 | `setup-pipeline.sh` | SNS 토픽·Lambda·구독·EventBridge 규칙 생성 (멱등) |
-| `create-alarms.sh` | CloudWatch 알람 7종 생성 (멱등, 대상 리소스 자동 탐색) |
+| `create-alarms.sh` | CloudWatch 알람 9종 생성 (지표 8 + 복합 1, 멱등, 대상 리소스 자동 탐색) |
 | `../../lambda/alert-notify/` | 메시지 변환 Lambda 코드 |
 
 ### 기존 배포 알림(`deploy.yml`)과의 관계 — 중복이 아니라 짝
@@ -41,7 +41,7 @@ T+1~5분  ✅/❌ 롤링 교체 결과   ← EventBridge (이번 작업)
 CloudWatch는 AWS 관리형이라 우리 인프라와 장애 도메인이 분리되어 이 역할에 맞다.
 앱 지표(`ws_*`) 기반 알람은 성격이 달라 후속에서 Grafana로 검토한다.
 
-## 알람 7종과 임계값 근거
+## 알람 9종과 임계값 근거
 
 임계값의 원칙은 **"위험한 숫자"가 아니라 "정상 운영에서 절대 밟지 않는 숫자"** 다.
 정상 상태와 겹치는 임계값은 오탐을 낳고, 오탐이 반복되면 팀이 알람을 무시한다.
@@ -54,7 +54,9 @@ CloudWatch는 AWS 관리형이라 우리 인프라와 장애 도메인이 분리
 | `ec2-status-check-failed` | StatusCheckFailed ≥ 1, 3회 × 60s | 인스턴스/호스트 수준 장애. 배포 중 새 인스턴스 초기 검사 실패 배제 위해 3분 |
 | `redis-connections-lost` | CurrConnections < 1, 300s | 앱-Redis 단절 = 시그널링 전면 마비. 지표 결측도 이상 신호이므로 `breaching` 처리 |
 | `rds-low-storage` | FreeStorageSpace < 4GiB, 3회 × 300s | 할당 20GiB의 20%. 오토스케일링(최대 50GiB)이 자동 구제책이므로 "곧 작동하거나 실패했다"는 통지 역할 |
-| `ec2-cpu-credit-low` | CPUCreditBalance < 15, 3회 × 300s | 아래 별도 설명 |
+| `ec2-cpu-credit-low` | CPUCreditBalance < 15, 3회 × 300s | **알리지 않음.** 아래 복합 알람의 재료 |
+| `ec2-cpu-busy` | CPUUtilization 평균 > 15%, 3회 × 300s | **알리지 않음.** t3 기준선 10% 위로 계속 쓰는 중 |
+| `ec2-cpu-credit-exhausting` | 복합: ALARM(credit-low) AND ALARM(cpu-busy) | 아래 별도 설명 |
 
 ### B그룹 — 보수적 초기값 (출시 후 재조정)
 
@@ -63,20 +65,27 @@ CloudWatch는 AWS 관리형이라 우리 인프라와 장애 도메인이 분리
 | `alb-5xx-spike` | 5XX > 5건 / 300s | 출시 전 트래픽이 0에 가까워 소량도 유의미. 실트래픽 확보 후 비율(5XX/전체) 기준 전환 검토. 무트래픽 구간은 `notBreaching` |
 | `redis-memory-high` | 메모리 사용률 > 75%, 2회 × 300s | 세션은 TTL로 정리되어 증가가 유계. 실사용 추세 확인 후 조정 |
 
-### CPU 크레딧 임계값을 15로 잡은 이유
+### CPU 크레딧은 복합 알람으로 (#231)
 
 t3는 버스트형이다. 평소 CPU를 적게 쓰면 크레딧이 쌓이고(t3.micro 시간당 12개, 최대 288),
-필요할 때 태워서 순간 성능을 낸다. **0이 되면 기준선(10%) 성능으로 강등**되어 앱이 갑자기 느려진다.
+필요할 때 태워서 순간 성능을 낸다. **0이 되면 기준선(10%) 성능으로 강등**되어(standard 모드) 앱이 갑자기 느려지고,
+unlimited 모드면 강등 대신 **추가 과금**이 난다.
 
-관측된 잔고 42는 크레딧을 태워서 줄어든 값이 아니라 **배포로 인스턴스가 교체되어 아직 못 쌓은 값**이었다.
-따라서 임계값을 40 근처로 잡으면 **배포할 때마다 오탐**이 난다.
+처음에는 잔고 하나로 알렸다(< 15, 15분). 그런데 **배포(롤링 교체)마다 울렸다.**
+t3는 T2와 달리 런치 크레딧이 없어 새 인스턴스는 **잔고 0에서 시작**하고, 유휴 상태로도 15에 닿으려면 약 75분이 걸린다.
+교체 직후 15분 동안 그룹 Minimum이 15 미만인 것은 구조적으로 항상 참이라, 임계값을 더 낮추거나 기간을 늘려도
+배포 오탐은 조건 따라 남고 진짜 소진은 더 늦게 알게 된다. (초기 README의 "배포 직후 관측값 42"는 교체 한참 뒤에 읽은 값이었다.)
 
-```
-0 ───── 15 ───────── 42 ──────────── 288
-성능강등  알람        배포 직후 시작점   최대 누적
-```
+그래서 **"잔고가 낮다"와 "크레딧을 태우고 있다"가 둘 다 참일 때만** 알린다.
 
-15는 배포 직후 상태와 겹치지 않으면서 0에 닿기 한참 전에 알린다. 여기에 15분 연속 조건으로 스파이크를 배제한다.
+| 상황 | credit-low | cpu-busy | 알림 |
+|---|---|---|---|
+| 배포·증설 직후 새 인스턴스 | ALARM (잔고 0부터) | OK (한가함) | 없음 |
+| 진짜 소진 (트래픽으로 계속 태움) | ALARM | ALARM | **발생** |
+
+두 재료 알람에는 알림 동작이 없고, 복합 알람 `peakpic-ec2-cpu-credit-exhausting`에만 SNS가 걸린다.
+축제 서버(B2B, `peakpic-b2b-server` `infra/festival/observability.tf`)도 같은 구조다.
+`create-alarms.sh`가 끝에 현재 인스턴스의 크레딧 모드(standard/unlimited)를 출력한다. 어느 쪽이든 복합 알람은 "지금 크레딧을 태우는 중"이라는 신호로 유효하다.
 
 ### 오탐 조정 기록 — 배포 중 UnHealthyHost 알람 (2026-08-22)
 
@@ -103,7 +112,7 @@ ASG 차원 + `Minimum` 통계면 "그룹 안 어느 인스턴스든 위험하면
 export DISCORD_WEBHOOK_URL='https://discord.com/api/webhooks/...'
 ./setup-pipeline.sh
 
-# 2. 알람 7종
+# 2. 알람 9종 (지표 8 + 복합 1)
 ./create-alarms.sh
 ```
 
@@ -124,9 +133,10 @@ aws cloudwatch set-alarm-state --region ap-northeast-2 \
 aws cloudwatch set-alarm-state --region ap-northeast-2 \
   --alarm-name peakpic-alb-unhealthy-host --state-value OK --state-reason "테스트 종료"
 
-# 전체 알람 상태
+# 전체 알람 상태 (복합 알람 포함)
 aws cloudwatch describe-alarms --region ap-northeast-2 --alarm-name-prefix peakpic- \
-  --query 'MetricAlarms[].{name:AlarmName,state:StateValue}' --output table
+  --alarm-types MetricAlarm CompositeAlarm \
+  --query '[MetricAlarms[].{name:AlarmName,state:StateValue},CompositeAlarms[].{name:AlarmName,state:StateValue}]' --output table
 ```
 
 강제 발화 후 잠시 뒤 실제 지표로 재평가되므로 상태는 자동 정상화된다.
