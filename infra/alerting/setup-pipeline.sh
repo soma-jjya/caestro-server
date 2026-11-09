@@ -65,7 +65,7 @@ ROLE_ARN=$(aws iam get-role --role-name "$ROLE_NAME" --query Role.Arn --output t
 
 echo "▶ 3/5 Lambda 배포"
 ZIP=$(mktemp -d)/function.zip
-(cd "$SOURCE_DIR" && zip -q -r "$ZIP" handler.py format.py)
+(cd "$SOURCE_DIR" && zip -q -r "$ZIP" handler.py format.py alarm_catalog.py)
 if aws lambda get-function --function-name "$FUNCTION_NAME" --region "$REGION" >/dev/null 2>&1; then
   aws lambda update-function-code --function-name "$FUNCTION_NAME" --zip-file "fileb://$ZIP" --region "$REGION" >/dev/null
   aws lambda wait function-updated --function-name "$FUNCTION_NAME" --region "$REGION"
