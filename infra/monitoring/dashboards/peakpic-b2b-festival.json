@@ -7,7 +7,7 @@
  ],
  "timezone": "Asia/Seoul",
  "schemaVersion": 39,
- "version": 2,
+ "version": 3,
  "refresh": "30s",
  "time": {
   "from": "now-3h",
@@ -177,7 +177,8 @@
         "value": 0.01
        }
       ]
-     }
+     },
+     "noValue": "0%"
     },
     "overrides": []
    },
@@ -197,9 +198,10 @@
       "type": "prometheus",
       "uid": "${ds}"
      },
-     "expr": "sum(rate(http_server_requests_seconds_count{job=\"peakpic-b2b-festival\",slug=~\"$slug\",status=~\"5..\"}[5m])) / clamp_min(sum(rate(http_server_requests_seconds_count{job=\"peakpic-b2b-festival\",slug=~\"$slug\"}[5m])),1e-9)"
+     "expr": "(sum(rate(http_server_requests_seconds_count{job=\"peakpic-b2b-festival\",slug=~\"$slug\",status=~\"5..\"}[5m])) or vector(0)) / clamp_min(sum(rate(http_server_requests_seconds_count{job=\"peakpic-b2b-festival\",slug=~\"$slug\"}[5m])),1e-9)"
     }
-   ]
+   ],
+   "description": "5분 창 전체 요청 중 5xx 비율. 5xx 가 한 건도 없으면 0% (#250)."
   },
   {
    "id": 4,
@@ -598,8 +600,8 @@
   {
    "id": 12,
    "type": "timeseries",
-   "title": "톰캣 스레드 사용",
-   "description": "",
+   "title": "JVM 스레드",
+   "description": "서버별 라이브 스레드 수와 기동 후 최대. 톰캣 전용 지표는 축제 서버가 노출하지 않아 JVM 스레드로 본다 (#250).",
    "datasource": {
     "type": "prometheus",
     "uid": "${ds}"
@@ -633,8 +635,8 @@
       "type": "prometheus",
       "uid": "${ds}"
      },
-     "expr": "sum by (host) (last_over_time(tomcat_threads_busy_threads{job=\"peakpic-b2b-festival\",slug=~\"$slug\"}[2m]))",
-     "legendFormat": "바쁨 {{host}}"
+     "expr": "sum by (host) (last_over_time(jvm_threads_live_threads{job=\"peakpic-b2b-festival\",slug=~\"$slug\"}[2m]))",
+     "legendFormat": "라이브 {{host}}"
     },
     {
      "refId": "B",
@@ -642,7 +644,7 @@
       "type": "prometheus",
       "uid": "${ds}"
      },
-     "expr": "max(last_over_time(tomcat_threads_config_max_threads{job=\"peakpic-b2b-festival\",slug=~\"$slug\"}[2m]))",
+     "expr": "max(last_over_time(jvm_threads_peak_threads{job=\"peakpic-b2b-festival\",slug=~\"$slug\"}[2m]))",
      "legendFormat": "최대(서버당)"
     }
    ]
