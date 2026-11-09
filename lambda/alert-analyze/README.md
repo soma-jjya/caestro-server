@@ -7,7 +7,7 @@ CloudWatch 알람이 울리면 **사람이 콘솔을 열기 전에** 로그·지
 
 ```
 CloudWatch 알람 ─▶ SNS(peakpic-alarms) ─┬─▶ alert-notify  ─▶ Discord "🚨 발생"        (즉시)
-                                        └─▶ alert-analyze ─▶ Discord "🔎 분석"        (1~2분 뒤)
+                                        └─▶ alert-analyze ─▶ Discord "🔎 분석 · 알람 제목 · 서비스" (1~2분 뒤)
                                               │ 선조회(플레이북) → 모델이 도구를 골라 추가 조사 → submit_report
                                               ├─ query_logs          CloudWatch Logs Insights
                                               ├─ query_metrics       CloudWatch 지표(허용 목록)
@@ -35,7 +35,7 @@ CloudWatch 알람 ─▶ SNS(peakpic-alarms) ─┬─▶ alert-notify  ─▶ D
 | `tools.py` | 도구 4종 구현(`AwsTools`)과 모델에 주는 스키마(`TOOL_SPECS`). ALB 로그 파서·집계는 순수 함수 |
 | `playbooks.py` | 알람 이름 → 선조회 목록 + 조사 안내 + 깊이(full/summary) |
 | `investigate.py` | 조사 루프(Anthropic Messages API, 도구 왕복 상한 6회·입력 토큰 15만 상한), `submit_report` 스키마, 근거 필터 |
-| `report.py` | 결론 → Discord 임베드. 실패 시 원자료 임베드 |
+| `report.py` | 결론 → Discord 임베드. 실패 시 원자료 임베드. 제목은 `../alert-notify/alarm_catalog.py` 의 사람 말 알람 이름표를 쓴다(#254, `setup-analyze.sh` 가 패키지에 복사) |
 | `redact.py` | 도구 결과의 토큰·키·이메일·전화번호 마스킹(모델에 보내기 전) |
 | `fixtures.py` | AWS 없이 도구를 대신하는 대역(골든 셋·로컬 테스트용) |
 | `local_test.py` | AWS·LLM 없이 전 구성요소 검증(가짜 모델로 루프까지) |

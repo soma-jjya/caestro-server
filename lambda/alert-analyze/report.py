@@ -1,4 +1,10 @@
-"""조사 결과(report dict) → Discord 임베드. AWS·LLM 무관, 로컬 테스트 대상."""
+"""조사 결과(report dict) → Discord 임베드. AWS·LLM 무관, 로컬 테스트 대상.
+
+모양은 alert-notify 와 맞춘다(#254): 제목 '🔎 분석 · 사람 말 알람 제목 · 서비스', 본문 첫 줄은 굵은 결론 한 줄,
+칸 이름은 한국어, 시스템 이름과 비용 수치는 footer.
+"""
+
+from alarm_catalog import alarm_headline
 
 COLOR_RED = 15158332
 COLOR_AMBER = 16098851
@@ -22,28 +28,37 @@ CATEGORY_LABEL = {
     "unknown": "원인 미상",
 }
 
+# 폴백 임베드의 칸 이름. 도구 이름 대신 사람이 아는 말로
+TOOL_LABEL = {
+    "query_logs": "앱 로그",
+    "query_metrics": "지표",
+    "query_access_logs": "접근 기록 (ALB)",
+    "recent_deploys": "최근 배포",
+}
+
+EVIDENCE_LIMIT = 5
+LIST_LIMIT = 3
+
 
 def build_report_embed(alarm, report, trace):
     icon, color, impact = IMPACT_LABEL.get(report.get("user_impact"), IMPACT_LABEL["unknown"])
     category = CATEGORY_LABEL.get(report.get("category"), report.get("category", ""))
-    fields = [
-        {"name": "분류", "value": f"{category} · {impact}", "inline": False},
-        {"name": "무슨 일", "value": _clip(report.get("what_happened") or "-", 1024)},
-    ]
+    fields = [{"name": "무슨 일이 있었나", "value": _clip(report.get("what_happened") or "-", 1024)}]
     if report.get("evidence"):
-        fields.append({"name": "근거", "value": _bullets(report["evidence"])})
+        fields.append({"name": "근거", "value": _bullets(report["evidence"], EVIDENCE_LIMIT)})
     if report.get("probable_causes"):
-        fields.append({"name": "유력 원인", "value": _bullets(report["probable_causes"])})
+        fields.append({"name": "왜 그런 것 같나", "value": _bullets(report["probable_causes"], LIST_LIMIT)})
     if report.get("next_checks"):
-        fields.append({"name": "확인할 것", "value": _bullets(report["next_checks"])})
+        fields.append({"name": "지금 할 일", "value": _bullets(report["next_checks"], LIST_LIMIT)})
     if report.get("similar_past"):
-        fields.append({"name": "과거 사례", "value": _clip(report["similar_past"], 512)})
+        fields.append({"name": "비슷한 과거", "value": _clip(report["similar_past"], 512)})
+    headline = _clip(report.get("headline") or "결론 없음", 200)
     return {
-        "title": _clip(f"{icon} 분석 · {alarm.get('AlarmName', '')}", 256),
-        "description": _clip(report.get("headline") or "", 2000),
+        "title": _clip(f"🔎 분석 · {alarm_headline(alarm.get('AlarmName', ''))}", 256),
+        "description": f"**{headline}**\n{icon} {impact} · {category}",
         "color": color,
         "fields": fields,
-        "footer": {"text": _footer(trace)},
+        "footer": {"text": _footer(alarm, trace)},
     }
 
 
@@ -51,13 +66,14 @@ def build_fallback_embed(alarm, prefetched, trace, reason):
     """모델이 결론을 못 냈을 때: 선조회한 원자료 요약이라도 올린다. 분석 실패가 침묵이 되면 안 된다."""
     fields = []
     for item in prefetched[:4]:
-        fields.append({"name": item["tool"], "value": _clip(_raw_summary(item["result"]), 1024)})
+        label = TOOL_LABEL.get(item["tool"], item["tool"])
+        fields.append({"name": label, "value": _clip(_raw_summary(item["result"]), 1024)})
     return {
-        "title": _clip(f"⚪ 분석 실패 · {alarm.get('AlarmName', '')}", 256),
-        "description": _clip(f"모델 결론 없음 ({reason}). 아래는 자동 수집한 원자료 요약.", 2000),
+        "title": _clip(f"⚪ 분석 못 함 · {alarm_headline(alarm.get('AlarmName', ''))}", 256),
+        "description": _clip(f"모델이 결론을 못 냈어요 ({reason}). 자동으로 모은 자료만 올려요.", 2000),
         "color": COLOR_GRAY,
         "fields": fields,
-        "footer": {"text": _footer(trace)},
+        "footer": {"text": _footer(alarm, trace)},
     }
 
 
@@ -89,9 +105,11 @@ def _row_line(row):
     return " ".join(p for p in parts if p)
 
 
-def _bullets(items, limit=1024):
-    text = "\n".join(f"• {str(i)}" for i in items[:8])
-    return _clip(text, limit) or "-"
+def _bullets(items, limit):
+    text = "\n".join(f"• {str(i)}" for i in items[:limit])
+    if len(items) > limit:
+        text += f"\n… 외 {len(items) - limit}개"
+    return _clip(text, 1024) or "-"
 
 
 def _clip(text, limit):
@@ -99,7 +117,8 @@ def _clip(text, limit):
     return text if len(text) <= limit else text[: limit - 1] + "…"
 
 
-def _footer(trace):
+def _footer(alarm, trace):
+    """시스템 알람 이름과 비용 수치. README 가 '실전 수치는 footer 에 찍힌다'고 약속한 자리다."""
     calls = len(trace.get("tool_calls", []))
-    return (f"{trace.get('model', '')} · 도구 {calls}회 · 토큰 {trace.get('input_tokens', 0)}/{trace.get('output_tokens', 0)}"
-            f" · {trace.get('elapsed_s', 0)}초")
+    return (f"{alarm.get('AlarmName', '')} · 도구 {calls}회 · {trace.get('elapsed_s', 0)}초"
+            f" · 토큰 {trace.get('input_tokens', 0):,}/{trace.get('output_tokens', 0):,}")

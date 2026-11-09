@@ -6,7 +6,11 @@
 import json
 import sys
 from datetime import datetime, timezone
+from pathlib import Path
 from types import SimpleNamespace
+
+# 알람 이름표는 alert-notify 와 같은 파일을 쓴다. 배포 패키지에는 setup-analyze.sh 가 복사해 넣는다 (#254)
+sys.path.append(str(Path(__file__).resolve().parent.parent / "alert-notify"))  # 뒤에 붙인다: handler.py 이름이 겹친다
 
 from fixtures import FixtureTools
 import handler
@@ -144,9 +148,14 @@ def test_investigate_loop_with_fake_model():
     assert trace["tool_calls"][:3] == ["query_logs", "query_access_logs", "recent_deploys"], trace["tool_calls"]
     assert trace["tool_calls"][-1] == "query_logs"
     embed = build_report_embed(case["alarm"], report, trace)
-    assert embed["title"].startswith("🟢 분석") and any(f["name"] == "근거" for f in embed["fields"]), embed
+    assert embed["title"] == "🔎 분석 · 서버 오류(5xx) 급증 · 앱 (B2C)", embed["title"]
+    assert embed["description"].startswith("**") and "🟢 사용자 영향 없음 · 외부 스캐너·봇" in embed["description"], embed
+    assert any(f["name"] == "근거" for f in embed["fields"]), embed
+    assert "peakpic-alb-5xx-spike" in embed["footer"]["text"] and "도구" in embed["footer"]["text"], embed["footer"]
     fallback = build_fallback_embed(case["alarm"], prefetched, trace, reason="테스트")
+    assert fallback["title"] == "⚪ 분석 못 함 · 서버 오류(5xx) 급증 · 앱 (B2C)", fallback["title"]
     assert fallback["fields"] and "요청" in fallback["fields"][1]["value"], fallback
+    assert fallback["fields"][1]["name"] == "접근 기록 (ALB)", fallback["fields"][1]["name"]
     print(json.dumps(embed, ensure_ascii=False, indent=2))
 
 

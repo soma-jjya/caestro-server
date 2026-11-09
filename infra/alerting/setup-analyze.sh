@@ -86,6 +86,7 @@ BUILD=$(mktemp -d)
 python3 -m pip install -q -r "$SOURCE_DIR/requirements.txt" --target "$BUILD" \
   --platform manylinux2014_x86_64 --implementation cp --python-version 3.12 --only-binary=:all: --upgrade
 cp "$SOURCE_DIR"/*.py "$BUILD"/
+cp "$SOURCE_DIR"/../alert-notify/alarm_catalog.py "$BUILD"/   # 알람 이름표는 alert-notify 와 같은 파일을 쓴다 (#254)
 rm -rf "$BUILD"/local_test.py "$BUILD"/fixtures.py "$BUILD"/*.dist-info/RECORD
 ZIP="$BUILD.zip"
 (cd "$BUILD" && zip -q -r "$ZIP" . -x '*/__pycache__/*')

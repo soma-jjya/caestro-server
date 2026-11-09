@@ -177,7 +177,8 @@ def main():
 
         print(json.dumps(embed, ensure_ascii=False, indent=2) if as_json else preview(embed))
         if post:
-            embed["footer"] = {"text": f"시험 전송 · {label} · " + (embed.get("footer") or {}).get("text", "")}
+            original = (embed.get("footer") or {}).get("text", "")
+            embed["footer"] = {"text": " · ".join(part for part in (f"시험 전송 · {label}", original) if part)}
             print(f"→ Discord 발송 HTTP {_post(hook, embed)}")
 
     print(f"\n전체 {len(CASES)}개 케이스 통과")

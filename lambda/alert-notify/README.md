@@ -7,6 +7,7 @@ SNS로 들어온 CloudWatch 알람·배포 이벤트를 Discord 임베드로 변
 
 | 파일 | 역할 |
 |---|---|
+| `alarm_catalog.py` | 알람 접미사 → 사람 말 제목·설명·영향, 서비스 판별. **분석 Lambda 도 이 파일을 쓴다**(#254) |
 | `format.py` | 보낼지 판단(`should_notify`) + 메시지 → Discord 임베드 변환 (AWS 무관, 로컬 테스트 가능) |
 | `handler.py` | Lambda 진입점. SNS 레코드 파싱 → 판단 → 변환 → 웹훅 POST |
 | `local_test.py` | 로컬 검증 (AWS 없이 10개 케이스: 전이 판단·단위 표기·복합 알람·배포 결과) |
@@ -26,7 +27,7 @@ SNS로 들어온 CloudWatch 알람·배포 이벤트를 Discord 임베드로 변
 
 ## 임베드 모양
 
-알람 이름은 `peakpic-{접미사}`(앱) 또는 `peakpic-b2b-{slug}-{접미사}`(축제)다. `ALARM_CATALOG` 가 접미사마다
+알람 이름은 `peakpic-{접미사}`(앱) 또는 `peakpic-b2b-{slug}-{접미사}`(축제)다. `alarm_catalog.py` 의 `ALARM_CATALOG` 가 접미사마다
 사람 말 제목·무슨 일인지·손님 영향을 갖고 있고, `classify_alarm` 이 서비스를 가린다. 시스템 이름은 footer 로 내린다.
 
 ```
@@ -45,7 +46,7 @@ CloudWatch 에서 보기
 - 배포 결과: `✅ 배포 반영 완료 · 앱 (B2C)` / `❌ 배포 반영 실패 · …`. `deploy.yml` 의 "🚀 배포 시작" 과 짝을 이루는 **후반부**다.
   GitHub Actions 는 refresh 트리거까지만 알 수 있고, 실제 교체 성공 여부는 몇 분 뒤 이 경로로 온다.
 
-새 알람을 만들면 `ALARM_CATALOG` 에 접미사를 추가한다. 지표가 새것이면 `METRICS` 에 단위도 넣는다.
+새 알람을 만들면 `alarm_catalog.py` 의 `ALARM_CATALOG` 에 접미사를 추가한다. 지표가 새것이면 `METRICS` 에 단위도 넣는다.
 
 ## 로컬 테스트
 
