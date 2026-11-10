@@ -89,6 +89,22 @@ public enum ErrorCode {
     NOTIFICATION_NOT_FOUND(404, "알림이 없습니다"),
     // B2B 문의 (#216)
     INQUIRY_NOT_FOUND(404, "문의를 찾을 수 없습니다"),
+    // 포즈추천 알고리즘 설정 (#260, contracts/recommend-config.md). 400 은 무엇이 틀렸는지 덧붙여 내려간다
+    RECOMMEND_NOT_FOUND(404, "추천 설정 버전을 찾을 수 없습니다"),
+    RECOMMEND_INVALID(400, "추천 설정 값이 올바르지 않습니다"),
+    RECOMMEND_ACTIVE_LOCKED(409, "게시 중인 버전은 고치거나 지울 수 없습니다. 복제해서 고친 뒤 게시해주세요"),
+    RECOMMEND_HEAD_INVALID(400, "헤드 JSON 이 올바르지 않습니다"),
+    RECOMMEND_MODEL_INVALID(400, "모델 파일이 올바르지 않습니다"),
+    RECOMMEND_FILE_TOO_LARGE(413, "파일이 너무 큽니다 (헤드 JSON 최대 5MB, 모델 최대 32MB)"),
+    // 개발자 평가 데이터 (#260, contracts/dev-evaluations.md)
+    DEV_EVAL_INVALID(400, "평가 기록 값이 올바르지 않습니다"),
+    DEV_EVAL_FORBIDDEN(403, "다른 사용자의 평가 기록입니다"),
+    DEV_EVAL_NOT_FOUND(404, "평가 기록을 찾을 수 없습니다"),
+    DEV_EVAL_PHOTO_NOT_FOUND(404, "평가 사진이 없습니다"),
+    DEV_EVAL_LIMIT(409, "평가 기록은 한 사람당 최대 3000개까지 올릴 수 있습니다"),
+    DEV_EVAL_INVALID_PHOTO(400, "사진 파일(JPEG/PNG/WebP)이 아닙니다"),
+    DEV_EVAL_TOO_LARGE(413, "평가 기록이 너무 큽니다 (최대 32KB)"),
+    DEV_EVAL_PHOTO_TOO_LARGE(413, "사진이 너무 큽니다 (최대 8MB)"),
 
     BAD_REQUEST(400, "잘못된 요청입니다"),
     RESOURCE_NOT_FOUND(404, "요청한 경로를 찾을 수 없습니다"),
