@@ -49,6 +49,20 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
+    @DisplayName("덧붙인 말(detail)이 있으면 message 는 '기본 문구: 덧붙인 말', 없으면 기본 문구 그대로")
+    void detailIsAppended() {
+        ResponseEntity<?> withDetail = handler.customExceptionHandler(
+                new CustomException(ErrorCode.RECOMMEND_INVALID, "params.place.sure 는 0~1 사이 숫자여야 합니다"));
+        ResponseEntity<?> plain = handler.customExceptionHandler(new CustomException(ErrorCode.RECOMMEND_INVALID));
+
+        assertThat(withDetail.getStatusCode().value()).isEqualTo(400);
+        assertThat(((com.caestro.server.global.exception.error.ErrorDto) withDetail.getBody()).getMessage())
+                .isEqualTo("추천 설정 값이 올바르지 않습니다: params.place.sure 는 0~1 사이 숫자여야 합니다");
+        assertThat(((com.caestro.server.global.exception.error.ErrorDto) plain.getBody()).getMessage())
+                .isEqualTo(ErrorCode.RECOMMEND_INVALID.getMessage());
+    }
+
+    @Test
     @DisplayName("4xx CustomException은 로그 소음을 만들지 않는다")
     void clientSideCustomException_isSilent() {
         ResponseEntity<?> response = handler.customExceptionHandler(

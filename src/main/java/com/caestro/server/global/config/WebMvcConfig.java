@@ -1,6 +1,8 @@
 package com.caestro.server.global.config;
 
 import com.caestro.server.domain.catalog.controller.CatalogUploadSizeInterceptor;
+import com.caestro.server.domain.catalog.controller.RecommendFileSizeInterceptor;
+import com.caestro.server.domain.deveval.controller.DevEvaluationUploadSizeInterceptor;
 import com.caestro.server.domain.fill.controller.FillUploadSizeInterceptor;
 import com.caestro.server.global.exception.error.ErrorCode;
 import org.springframework.beans.factory.annotation.Value;
@@ -30,6 +32,20 @@ public class WebMvcConfig implements WebMvcConfigurer {
     @Value("${catalog.max-video-bytes:15728640}")
     private long maxCatalogVideoBytes;
 
+    // 추천 설정 헤드 JSON·모델 상한 — CatalogRecommendService 와 같은 키
+    @Value("${catalog.recommend.max-head-bytes:5242880}")
+    private long maxRecommendHeadBytes;
+
+    @Value("${catalog.recommend.max-model-bytes:33554432}")
+    private long maxRecommendModelBytes;
+
+    // 개발자 평가 기록 JSON·사진 상한 — DevEvaluationService 와 같은 키
+    @Value("${dev-eval.max-record-bytes:32768}")
+    private long maxDevEvalRecordBytes;
+
+    @Value("${dev-eval.max-photo-bytes:8388608}")
+    private long maxDevEvalPhotoBytes;
+
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
         registry.addInterceptor(new FillUploadSizeInterceptor(maxImageBytes, maxGifBytes, maxClipBytes))
@@ -38,5 +54,9 @@ public class WebMvcConfig implements WebMvcConfigurer {
                 .addPathPatterns("/catalog/studio/images");
         registry.addInterceptor(new CatalogUploadSizeInterceptor(maxCatalogVideoBytes, ErrorCode.CATALOG_VIDEO_TOO_LARGE))
                 .addPathPatterns("/catalog/studio/videos");
+        registry.addInterceptor(new RecommendFileSizeInterceptor(maxRecommendHeadBytes, maxRecommendModelBytes))
+                .addPathPatterns("/catalog/studio/recommend/files");
+        registry.addInterceptor(new DevEvaluationUploadSizeInterceptor(maxDevEvalRecordBytes, maxDevEvalPhotoBytes))
+                .addPathPatterns("/dev/evaluations/*", "/dev/evaluations/*/photo");
     }
 }

@@ -52,6 +52,8 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/fills/*/images/*").permitAll()
                         // 카탈로그(디자이너가 올린 프레임·배너) 읽기: 앱·웹이 로그인 전에도 내려받는다
                         .requestMatchers(HttpMethod.GET, "/catalog/frames", "/catalog/frames/*", "/catalog/banners", "/catalog/pose", "/catalog/images/*").permitAll()
+                        // 포즈추천 알고리즘 설정 게시본(#260, contracts/recommend-config.md): 앱이 로그인 전에도 받는다
+                        .requestMatchers(HttpMethod.GET, "/catalog/recommend").permitAll()
                         // Google Play 실시간 알림(Pub/Sub 푸시): JWT 가 없다. 컨트롤러가 URL 의 ?token= 으로 확인한다
                         .requestMatchers(HttpMethod.POST, "/subscriptions/google-play/notifications").permitAll()
                         // App Store 서버 알림(V2): JWT 가 없다. 컨트롤러가 URL 의 ?token= 으로 확인한다
@@ -79,6 +81,8 @@ public class SecurityConfig {
                         ).permitAll()
                         // 운영 조회(가입·로그인·구독, 읽기 전용): 스튜디오와 같은 키 (contracts/studio-ops.md)
                         .requestMatchers("/admin/ops/**").hasAnyRole("STUDIO", "ADMIN")
+                        // 개발자 평가 데이터 열람(#260, contracts/dev-evaluations.md): 얼굴이 담긴 사진이라 같은 키·ADMIN 만. 앱 토큰은 403
+                        .requestMatchers("/admin/dev/**").hasAnyRole("STUDIO", "ADMIN")
                         .requestMatchers("/admin/**").hasRole("ADMIN")
                         .anyRequest().authenticated()
                 )
@@ -98,7 +102,8 @@ public class SecurityConfig {
                 .map(String::trim).filter(origin -> !origin.isEmpty()).toList());
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("Authorization", "Content-Type", "If-None-Match", "X-Studio-Key"));
-        config.setExposedHeaders(List.of("ETag"));
+        // Content-Disposition: 관리자 페이지가 CSV 내려받기(/admin/dev/evaluations.csv)의 파일 이름을 읽는다
+        config.setExposedHeaders(List.of("ETag", "Content-Disposition"));
         config.setMaxAge(3600L);
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", config);
