@@ -7,6 +7,9 @@ import com.caestro.server.domain.ops.dto.response.OpsSubscriptionResponse;
 import com.caestro.server.domain.ops.dto.response.OpsUserDetailResponse;
 import com.caestro.server.domain.ops.dto.response.OpsUserPageResponse;
 import com.caestro.server.domain.ops.dto.response.OpsUserResponse;
+import com.caestro.server.domain.ops.repository.OpsSubscriptionCounts;
+import com.caestro.server.domain.ops.repository.OpsSubscriptionRepository;
+import com.caestro.server.domain.ops.repository.OpsUserCounts;
 import com.caestro.server.domain.ops.repository.OpsUserRepository;
 import com.caestro.server.domain.push.repository.PushTokenRepository;
 import com.caestro.server.domain.subscription.entity.Subscription;
@@ -18,11 +21,14 @@ import com.caestro.server.domain.user.repository.UserRepository;
 import com.caestro.server.global.exception.CustomException;
 import com.caestro.server.global.exception.error.ErrorCode;
 import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
@@ -43,38 +49,51 @@ public class StudioOpsService {
     /** "오늘"이 바뀌는 곳: 한도(daily limit)와 같은 서울 자정. */
     private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
     private static final List<String> PROVIDERS = List.of("kakao", "google", "apple", "guest", "deleted");
+    /** 상단 숫자는 이 시간 안에서는 다시 세지 않는다. 응답의 generatedAt 이 센 시각이라 화면이 "n 기준"으로 보여 준다 (#257). */
+    static final Duration STATS_TTL = Duration.ofSeconds(60);
 
     private final UserRepository userRepository;
     private final OpsUserRepository opsUserRepository;
+    private final OpsSubscriptionRepository opsSubscriptionRepository;
     private final SubscriptionRepository subscriptionRepository;
     private final PushTokenRepository pushTokenRepository;
     private final Clock clock;
 
+    private final AtomicReference<CachedStats> statsCache = new AtomicReference<>();
+
+    private record CachedStats(OpsStatsResponse value, Instant computedAt) {
+    }
+
+    /**
+     * 상단 숫자. 테이블을 users 1번·subscriptions 1번만 통과하고(전에는 count 17번, 전부 풀스캔) 60초 동안 재사용한다.
+     * 인스턴스마다 따로 캐시하므로 서버 2대면 DB 는 분당 최대 4번 센다.
+     */
     @Transactional(readOnly = true)
     public OpsStatsResponse stats() {
+        Instant at = clock.instant();
+        CachedStats hit = statsCache.get();
+        if (hit != null && hit.computedAt().plus(STATS_TTL).isAfter(at)) return hit.value();
+        OpsStatsResponse fresh = computeStats();
+        statsCache.set(new CachedStats(fresh, at));
+        return fresh;
+    }
+
+    /** 캐시를 비운다. 테스트와, 숫자를 당장 다시 세야 할 때. */
+    public void evictStatsCache() {
+        statsCache.set(null);
+    }
+
+    private OpsStatsResponse computeStats() {
         LocalDateTime now = LocalDateTime.now(clock);
         LocalDateTime today = startOfSeoulDay(now);
         LocalDateTime weekAgo = today.minusDays(6);
-        OpsStatsResponse.Users users = new OpsStatsResponse.Users(
-                userRepository.count(),
-                userRepository.countByOauthProviderAndDeletedAtIsNull("kakao"),
-                userRepository.countByOauthProviderAndDeletedAtIsNull("google"),
-                userRepository.countByOauthProviderAndDeletedAtIsNull("apple"),
-                userRepository.countByOauthProviderIsNullAndDeletedAtIsNull(),
-                userRepository.countByDeletedAtIsNotNull(),
-                userRepository.countByCreatedAtGreaterThanEqual(today),
-                userRepository.countByCreatedAtGreaterThanEqual(weekAgo),
-                userRepository.countByLastLoginAtGreaterThanEqual(today),
-                userRepository.countByLastLoginAtGreaterThanEqual(weekAgo),
-                userRepository.countDistinctDeviceKeys(),
-                userRepository.countByDeviceKeyIsNullAndDeletedAtIsNull());
-        SubscriptionStatus active = SubscriptionStatus.ACTIVE;
+        OpsUserCounts u = opsUserRepository.countSummary(today, weekAgo);
+        OpsStatsResponse.Users users = new OpsStatsResponse.Users(u.total(), u.kakao(), u.google(), u.apple(), u.guest(), u.deleted(),
+                u.newToday(), u.newLast7Days(), u.activeToday(), u.activeLast7Days(), u.devices(), u.withoutDevice());
+        OpsSubscriptionCounts s = opsSubscriptionRepository.countActive(SubscriptionStatus.ACTIVE, now,
+                SubscriptionStore.GOOGLE_PLAY, SubscriptionStore.APP_STORE, SubscriptionStore.MANUAL);
         OpsStatsResponse.Subscriptions subscriptions = new OpsStatsResponse.Subscriptions(
-                subscriptionRepository.countByStatusAndExpiresAtAfter(active, now),
-                subscriptionRepository.countByStatusAndExpiresAtAfterAndStore(active, now, SubscriptionStore.GOOGLE_PLAY),
-                subscriptionRepository.countByStatusAndExpiresAtAfterAndStore(active, now, SubscriptionStore.APP_STORE),
-                subscriptionRepository.countByStatusAndExpiresAtAfterAndStore(active, now, SubscriptionStore.MANUAL),
-                subscriptionRepository.countByStatusAndExpiresAtAfterAndAutoRenewing(active, now, false));
+                s.active(), s.googlePlay(), s.appStore(), s.manual(), s.autoRenewOff());
         return new OpsStatsResponse(users, subscriptions, now);
     }
 

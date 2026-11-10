@@ -28,21 +28,4 @@ public interface UserRepository extends JpaRepository<User, Long> {
             """)
     int touchLastLogin(@Param("id") Long id, @Param("at") LocalDateTime at, @Param("platform") String platform,
                        @Param("deviceKey") String deviceKey);
-
-    long countByOauthProviderAndDeletedAtIsNull(String oauthProvider);
-
-    long countByOauthProviderIsNullAndDeletedAtIsNull();
-
-    long countByDeletedAtIsNotNull();
-
-    long countByCreatedAtGreaterThanEqual(LocalDateTime since);
-
-    long countByLastLoginAtGreaterThanEqual(LocalDateTime since);
-
-    /** 운영 요약: 기기 키가 기록된 서로 다른 폰 수(탈퇴 포함 계정의 마지막 폰 기준). */
-    @Query("select count(distinct u.deviceKey) from User u where u.deviceKey is not null")
-    long countDistinctDeviceKeys();
-
-    /** 운영 요약: 아직 기기 키가 없는 계정(업데이트 전 앱이거나 그 뒤로 앱을 안 연 계정, 탈퇴 제외). */
-    long countByDeviceKeyIsNullAndDeletedAtIsNull();
 }
