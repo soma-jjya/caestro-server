@@ -5,7 +5,8 @@
     python3 eval/replay.py --case 2026-09-29   # 이름에 포함된 케이스만
     python3 eval/replay.py --model claude-opus-5-5 --runs 3
 
-판정: category·user_impact 가 기대 목록 안에 있고, mentions_any 중 하나 이상이 보고서에 등장하면 통과.
+판정: category·user_impact 가 기대 목록 안에 있고, mentions_any 중 하나 이상이 보고서에 등장하고,
+      이슈 문지기(#233)의 '생성 여부'가 expect.issue 와 같으면 통과.
 """
 
 import argparse
@@ -17,15 +18,21 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
 from fixtures import FixtureTools  # noqa: E402
 from investigate import DEFAULT_MODEL, investigate  # noqa: E402
+from triage import decide  # noqa: E402
 
 CASE_DIR = pathlib.Path(__file__).parent / "cases"
 
 
-def grade(case, report):
+def grade(case, report, observations=()):
     expect = case["expect"]
     if report is None:
         return False, ["보고서 없음"]
     problems = []
+    if "issue" in expect:
+        verdict = decide(case["alarm"], report, observations)
+        if verdict["ok"] != expect["issue"]:
+            why = " · ".join(verdict["reasons"]) or verdict["draft"]["title"]
+            problems.append(f"이슈 {'생성' if verdict['ok'] else '안 만듦'} ≠ 기대 {'생성' if expect['issue'] else '안 만듦'} ({why})")
     if report["category"] not in expect["category"]:
         problems.append(f"category {report['category']} ∉ {expect['category']}")
     if report["user_impact"] not in expect["user_impact"]:
@@ -60,8 +67,8 @@ def main():
         case = json.loads(path.read_text())
         for run in range(args.runs):
             tools = FixtureTools(case["fixtures"])
-            report, trace, _ = investigate(case["alarm"], tools, client, model=args.model)
-            ok, problems = grade(case, report)
+            report, trace, observations = investigate(case["alarm"], tools, client, model=args.model)
+            ok, problems = grade(case, report, observations)
             total += 1
             passed += ok
             tokens_in += trace["input_tokens"]

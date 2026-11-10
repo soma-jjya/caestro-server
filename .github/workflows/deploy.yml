@@ -87,17 +87,19 @@ jobs:
         run: |
           COMMIT_MSG=$(git log -1 --pretty=%s)
           if [ "$JOB_STATUS" = "success" ] && [ -n "$REFRESH_ID" ]; then
-            TITLE="🚀 배포됨 · 롤링 교체 시작"; COLOR=3066993
-            NOTE="새 이미지 push 완료, instance refresh 시작. 몇 분 뒤 ALB 헬스체크로 최종 반영 확인."
+            TITLE="🚀 배포 시작 · 앱 (B2C)"; COLOR=3066993
+            NOTE="새 이미지를 올리고 서버 교체를 시작했어요. 몇 분 뒤 '배포 반영 완료' 알림이 따라와요."
           else
-            TITLE="❌ 배포 실패 (미반영)"; COLOR=15158332
-            NOTE="빌드/푸시 또는 refresh 트리거 단계에서 실패 — 새 버전이 나가지 않았습니다. 로그 확인 필요."
+            TITLE="❌ 배포 실패 · 앱 (B2C)"; COLOR=15158332
+            NOTE="빌드·푸시 또는 교체 시작 단계에서 실패했어요. 새 버전은 나가지 않았어요. 실행 로그를 확인하세요."
           fi
+          # 알림 Lambda(lambda/alert-notify)와 같은 모양: 제목 '상태 · 서비스', 본문 한두 줄, 시스템 식별자는 footer (#249)
           curl -sf -H "Content-Type: application/json" -X POST "$DISCORD_WEBHOOK_URL" -d @- <<JSON
           {"embeds":[{"title":"${TITLE}","description":"${NOTE}","color":${COLOR},
             "fields":[
               {"name":"커밋","value":"[\`${GITHUB_SHA:0:7}\`](https://github.com/${GITHUB_REPOSITORY}/commit/${GITHUB_SHA}) ${COMMIT_MSG}"},
-              {"name":"actor","value":"${GITHUB_ACTOR}","inline":true},
-              {"name":"실행","value":"[로그](https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID})","inline":true}
-            ]}]}
+              {"name":"배포한 사람","value":"${GITHUB_ACTOR}","inline":true},
+              {"name":"실행 로그","value":"[열기](https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID})","inline":true}
+            ],
+            "footer":{"text":"${REFRESH_ID:-refresh 미시작}"}}]}
           JSON

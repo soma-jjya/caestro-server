@@ -4,7 +4,7 @@ import json
 import os
 import urllib.request
 
-from format import build_embed
+from format import build_embed, should_notify
 
 TIMEOUT_SECONDS = 15
 
@@ -15,15 +15,21 @@ def lambda_handler(event, context):
         raise RuntimeError("DISCORD_WEBHOOK_URL 환경변수 미설정")
 
     region = os.environ.get("AWS_REGION", "ap-northeast-2")
-    sent = 0
+    sent = skipped = 0
     for record in event.get("Records", []):
         sns = record.get("Sns") or {}
         message = _parse(sns.get("Message", ""), sns.get("Subject"))
+        notify, reason = should_notify(message)
+        if not notify:
+            # 서버 생성·교체 때의 '데이터 부족→정상' 같은 전이는 채널만 길어지므로 기록만 남긴다 (#249)
+            print(f"건너뜀 {message.get('AlarmName')}: {reason}")
+            skipped += 1
+            continue
         _post(hook, build_embed(message, region))
         sent += 1
 
-    print(f"Discord 게시 완료: {sent}건")
-    return {"sent": sent}
+    print(f"Discord 게시 완료: {sent}건, 건너뜀 {skipped}건")
+    return {"sent": sent, "skipped": skipped}
 
 
 def _parse(raw, subject):

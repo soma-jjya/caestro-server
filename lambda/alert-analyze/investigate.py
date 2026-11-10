@@ -103,7 +103,8 @@ def build_user_message(alarm, playbook, prefetched):
 
 
 def investigate(alarm, tools, client, model=DEFAULT_MODEL, max_steps=MAX_STEPS, effort=None, fallbacks=True):
-    """알람 하나를 조사한다. (report|None, trace, prefetched) 를 돌려준다."""
+    """알람 하나를 조사한다. (report|None, trace, observations) 를 돌려준다.
+    observations 는 선조회 결과가 먼저, 그 뒤에 모델이 추가로 부른 도구 결과가 순서대로 붙는다(이슈 문지기 #233 가 읽는다)."""
     started = time.time()
     playbook = playbook_for(alarm.get("AlarmName"))
     prefetched = [{"tool": name, "args": args, "result": run_tool(tools, name, args)} for name, args in playbook["prefetch"]]
@@ -159,6 +160,7 @@ def investigate(alarm, tools, client, model=DEFAULT_MODEL, max_steps=MAX_STEPS, 
                 continue
             trace["tool_calls"].append(use.name)
             payload = run_tool(tools, use.name, use.input)
+            prefetched.append({"tool": use.name, "args": use.input, "result": payload})
             results.append({
                 "type": "tool_result",
                 "tool_use_id": use.id,

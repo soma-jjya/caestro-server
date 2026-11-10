@@ -11,9 +11,12 @@ import urllib.request
 from datetime import datetime, timezone
 
 from investigate import DEFAULT_MODEL, investigate
-from report import build_fallback_embed, build_report_embed
+from report import add_issue_field, build_fallback_embed, build_report_embed
 
 _api_key_cache = None
+_github_token_cache = None
+# 이슈 본문에서 지울 인프라 이름(공개 레포): 이 환경변수들의 값
+INFRA_ENV_KEYS = ("LOG_GROUP", "ALB_LOG_BUCKET", "ALB_LOG_PREFIX", "ALB_DIM", "TG_DIM", "ASG_NAME", "CACHE_ID", "RDS_ID")
 
 
 def lambda_handler(event, context):
@@ -51,7 +54,8 @@ def _analyze_and_post(alarm):
         from tools import AwsTools
         import anthropic
 
-        tools = AwsTools(parse_alarm_time(alarm.get("StateChangeTime")))
+        when = parse_alarm_time(alarm.get("StateChangeTime"))
+        tools = AwsTools(when)
         client = anthropic.Anthropic(api_key=_api_key(), max_retries=1, timeout=60.0)
         report, trace, prefetched = investigate(alarm, tools, client, model=model,
                                                fallbacks=os.environ.get("FALLBACKS", "on") != "off")
@@ -59,6 +63,7 @@ def _analyze_and_post(alarm):
             embed = build_fallback_embed(alarm, prefetched, trace, reason=f"stop={trace.get('stop')}")
         else:
             embed = build_report_embed(alarm, report, trace)
+            triage_issue(alarm, report, prefetched, when, embed)
     except Exception as e:  # noqa: BLE001 — 분석 실패를 알림으로 남기고 끝낸다
         print(f"[alert-analyze] failed: {type(e).__name__}: {e}")
         embed = build_fallback_embed(alarm, prefetched, trace, reason=f"{type(e).__name__}")
@@ -70,6 +75,42 @@ def _analyze_and_post(alarm):
     status = post_discord(hook, embed)
     print(f"[alert-analyze] discord {status}")
     return 1 if 200 <= status < 300 else 0
+
+
+def triage_issue(alarm, report, observations, when, embed, env=None):
+    """결론이 앱 결함·배포 회귀면 GitHub 이슈로(#233). ISSUE_CREATE=off|shadow(기본)|on.
+    어떤 실패도 분석 알림을 막지 않는다 — 임베드에 '실패' 한 줄로 남기고 끝낸다."""
+    env = os.environ if env is None else env
+    mode = (env.get("ISSUE_CREATE") or "shadow").strip().lower()
+    if mode == "off":
+        return None
+    from github_issues import GitHubIssues, sync
+    from triage import decide
+
+    try:
+        verdict = decide(alarm, report, observations, when)
+        if not verdict["ok"]:
+            outcome = {"action": "gate", "note": " · ".join(verdict["reasons"])}
+            print(f"[alert-analyze] issue gate: {outcome['note']}")
+            if mode == "shadow":
+                add_issue_field(embed, outcome, mode)
+            return outcome
+        draft = verdict["draft"]
+        repo = env.get("GITHUB_REPO", "")
+        if not repo:
+            raise RuntimeError("GITHUB_REPO 없음")
+        token = _github_token(env) if mode == "on" else (env.get("GITHUB_TOKEN") or "")
+        if mode == "on" and not token:
+            raise RuntimeError("GITHUB_TOKEN 또는 GITHUB_SECRET_ID 없음")
+        secrets = [env.get(k) or "" for k in INFRA_ENV_KEYS]
+        outcome = sync(GitHubIssues(repo, token), draft, mode, secrets)
+        outcome["title"] = draft["title"]
+        outcome["fingerprint"] = draft["fingerprint"]
+    except Exception as e:  # noqa: BLE001
+        outcome = {"action": "failed", "note": f"{type(e).__name__}: {e}"[:200]}
+    print(f"[alert-analyze] issue {outcome['action']}: {outcome.get('note') or outcome.get('url') or ''}")
+    add_issue_field(embed, outcome, mode)
+    return outcome
 
 
 def post_discord(hook, embed):
@@ -100,19 +141,33 @@ def _parse_message(record):
 def _api_key():
     """ANTHROPIC_API_KEY 환경변수 또는 Secrets Manager(ANTHROPIC_SECRET_ID). 실행 중 1회만 읽는다."""
     global _api_key_cache
-    if _api_key_cache:
-        return _api_key_cache
-    key = os.environ.get("ANTHROPIC_API_KEY", "").strip()
-    if not key and os.environ.get("ANTHROPIC_SECRET_ID"):
-        import boto3
-
-        value = boto3.client("secretsmanager").get_secret_value(SecretId=os.environ["ANTHROPIC_SECRET_ID"])["SecretString"]
-        try:
-            parsed = json.loads(value)
-            key = parsed.get("ANTHROPIC_API_KEY") or parsed.get("api_key") or ""
-        except ValueError:
-            key = value.strip()
-    if not key:
+    if not _api_key_cache:
+        _api_key_cache = _secret(os.environ, "ANTHROPIC_API_KEY", "ANTHROPIC_SECRET_ID", ("ANTHROPIC_API_KEY", "api_key"))
+    if not _api_key_cache:
         raise RuntimeError("ANTHROPIC_API_KEY 또는 ANTHROPIC_SECRET_ID 가 필요하다")
-    _api_key_cache = key
-    return key
+    return _api_key_cache
+
+
+def _github_token(env):
+    """GITHUB_TOKEN 환경변수 또는 Secrets Manager(GITHUB_SECRET_ID). 없으면 빈 문자열 — 모드에 따라 호출자가 판단한다."""
+    global _github_token_cache
+    if not _github_token_cache:
+        _github_token_cache = _secret(env, "GITHUB_TOKEN", "GITHUB_SECRET_ID", ("GITHUB_TOKEN", "token"))
+    return _github_token_cache
+
+
+def _secret(env, value_key, secret_id_key, json_keys):
+    """환경변수 값이 있으면 그것을, 아니면 Secrets Manager 시크릿(평문 또는 JSON 의 json_keys 중 하나)을 읽는다."""
+    value = (env.get(value_key) or "").strip()
+    if value or not env.get(secret_id_key):
+        return value
+    import boto3
+
+    raw = boto3.client("secretsmanager").get_secret_value(SecretId=env[secret_id_key])["SecretString"]
+    try:
+        parsed = json.loads(raw)
+    except ValueError:
+        return raw.strip()
+    if not isinstance(parsed, dict):
+        return raw.strip()
+    return next((str(parsed[k]).strip() for k in json_keys if parsed.get(k)), "")

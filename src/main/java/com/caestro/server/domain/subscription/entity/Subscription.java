@@ -13,6 +13,7 @@ import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
@@ -37,7 +38,9 @@ import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 @EntityListeners(AuditingEntityListener.class)
 @Table(
         name = "subscriptions",
-        uniqueConstraints = @UniqueConstraint(name = "uk_subscriptions_purchase_token", columnNames = "purchase_token")
+        uniqueConstraints = @UniqueConstraint(name = "uk_subscriptions_purchase_token", columnNames = "purchase_token"),
+        // "status = ACTIVE and expires_at > now" 가 등호 → 범위 순으로 타고, store·auto_renewing 은 행을 안 읽고 인덱스 안에서 거른다 (#257)
+        indexes = @Index(name = "idx_subscriptions_active", columnList = "status, expires_at, store, auto_renewing")
 )
 public class Subscription {
 

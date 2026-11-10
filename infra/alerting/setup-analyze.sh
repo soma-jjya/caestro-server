@@ -6,6 +6,9 @@
 #
 # 전제: Secrets Manager 에 모델 API 키 시크릿이 있어야 한다(기본 이름 peakpic/anthropic-api-key, 평문 또는 {"ANTHROPIC_API_KEY": "..."}).
 #   aws secretsmanager create-secret --name peakpic/anthropic-api-key --secret-string 'sk-ant-...'
+# 선택: 이슈 자동 생성(#233)을 ISSUE_CREATE=on 으로 켜려면 fine-grained PAT(이 레포 한정, Issues 쓰기) 시크릿이 있어야 한다.
+#   aws secretsmanager create-secret --name peakpic/github-issue-token --secret-string 'github_pat_...'
+#   기본 ISSUE_CREATE=shadow 는 토큰 없이 '만들었을 이슈'만 Discord 에 보여준다.
 
 set -euo pipefail
 
@@ -17,6 +20,8 @@ POLICY_NAME="${POLICY_NAME:-peakpic-alert-analyze-readonly}"
 ASG_NAME="${ASG_NAME:-peakpic-asg}"
 GITHUB_REPO="${GITHUB_REPO:-soma-jjya/caestro-server}"
 ANTHROPIC_SECRET_ID="${ANTHROPIC_SECRET_ID:-peakpic/anthropic-api-key}"
+ISSUE_CREATE="${ISSUE_CREATE:-shadow}"
+GITHUB_SECRET_ID="${GITHUB_SECRET_ID:-peakpic/github-issue-token}"
 MODEL="${MODEL:-claude-opus-5-5}"
 SOURCE_DIR="${SOURCE_DIR:-$(cd "$(dirname "$0")/../../lambda/alert-analyze" && pwd)}"
 
@@ -48,6 +53,12 @@ ALB_LOG_PREFIX="${ALB_LOG_PREFIX:-$(echo "$ATTRS" | python3 -c 'import json,sys;
 aws secretsmanager describe-secret --region "$REGION" --secret-id "$ANTHROPIC_SECRET_ID" >/dev/null \
   || { echo "✗ 시크릿 ${ANTHROPIC_SECRET_ID} 가 없다 — 머리말의 create-secret 참고"; exit 1; }
 SECRET_ARN=$(aws secretsmanager describe-secret --region "$REGION" --secret-id "$ANTHROPIC_SECRET_ID" --query ARN --output text)
+# 이슈 토큰 시크릿은 선택: 있으면 읽기 권한과 환경변수를 붙이고, 없으면 shadow 로만 동작한다
+GITHUB_SECRET_ARN=$(aws secretsmanager describe-secret --region "$REGION" --secret-id "$GITHUB_SECRET_ID" --query ARN --output text 2>/dev/null || true)
+if [ "$ISSUE_CREATE" = "on" ] && [ -z "$GITHUB_SECRET_ARN" ]; then
+  echo "✗ ISSUE_CREATE=on 인데 시크릿 ${GITHUB_SECRET_ID} 가 없다 — 머리말의 create-secret 참고"; exit 1
+fi
+echo "  이슈 자동 생성(#233): ISSUE_CREATE=${ISSUE_CREATE}, 토큰 시크릿 $([ -n "$GITHUB_SECRET_ARN" ] && echo 있음 || echo 없음)"
 echo "  ALB=${LB_DIM} TG=${TG_DIM} ASG=${ASG_NAME} RDS=${RDS_ID} Redis=${CACHE_ID}"
 echo "  로그 그룹=${LOG_GROUP} 액세스 로그=s3://${ALB_LOG_BUCKET}/${ALB_LOG_PREFIX}"
 
@@ -73,7 +84,8 @@ aws iam put-role-policy --role-name "$ROLE_NAME" --policy-name "$POLICY_NAME" --
     {"Sid": "AccessLogsRead", "Effect": "Allow", "Action": ["s3:GetObject"], "Resource": "arn:aws:s3:::${ALB_LOG_BUCKET}/*"},
     {"Sid": "Deploys", "Effect": "Allow",
      "Action": ["autoscaling:DescribeInstanceRefreshes", "autoscaling:DescribeScalingActivities"], "Resource": "*"},
-    {"Sid": "ApiKey", "Effect": "Allow", "Action": ["secretsmanager:GetSecretValue"], "Resource": "${SECRET_ARN}"}
+    {"Sid": "ApiKey", "Effect": "Allow", "Action": ["secretsmanager:GetSecretValue"],
+     "Resource": ["${SECRET_ARN}"${GITHUB_SECRET_ARN:+, "${GITHUB_SECRET_ARN}"}]}
   ]
 }
 JSON
@@ -86,13 +98,14 @@ BUILD=$(mktemp -d)
 python3 -m pip install -q -r "$SOURCE_DIR/requirements.txt" --target "$BUILD" \
   --platform manylinux2014_x86_64 --implementation cp --python-version 3.12 --only-binary=:all: --upgrade
 cp "$SOURCE_DIR"/*.py "$BUILD"/
+cp "$SOURCE_DIR"/../alert-notify/alarm_catalog.py "$BUILD"/   # 알람 이름표는 alert-notify 와 같은 파일을 쓴다 (#254)
 rm -rf "$BUILD"/local_test.py "$BUILD"/fixtures.py "$BUILD"/*.dist-info/RECORD
 ZIP="$BUILD.zip"
 (cd "$BUILD" && zip -q -r "$ZIP" . -x '*/__pycache__/*')
 echo "  ✓ $(du -h "$ZIP" | cut -f1)"
 
 echo "▶ 3/5 Lambda"
-ENV_VARS="Variables={DISCORD_WEBHOOK_URL=${DISCORD_WEBHOOK_URL},LOG_GROUP=${LOG_GROUP},ALB_LOG_BUCKET=${ALB_LOG_BUCKET},ALB_LOG_PREFIX=${ALB_LOG_PREFIX},ALB_DIM=${LB_DIM},TG_DIM=${TG_DIM},ASG_NAME=${ASG_NAME},CACHE_ID=${CACHE_ID},RDS_ID=${RDS_ID},GITHUB_REPO=${GITHUB_REPO},ANTHROPIC_SECRET_ID=${ANTHROPIC_SECRET_ID},MODEL=${MODEL}}"
+ENV_VARS="Variables={DISCORD_WEBHOOK_URL=${DISCORD_WEBHOOK_URL},LOG_GROUP=${LOG_GROUP},ALB_LOG_BUCKET=${ALB_LOG_BUCKET},ALB_LOG_PREFIX=${ALB_LOG_PREFIX},ALB_DIM=${LB_DIM},TG_DIM=${TG_DIM},ASG_NAME=${ASG_NAME},CACHE_ID=${CACHE_ID},RDS_ID=${RDS_ID},GITHUB_REPO=${GITHUB_REPO},ANTHROPIC_SECRET_ID=${ANTHROPIC_SECRET_ID},MODEL=${MODEL},ISSUE_CREATE=${ISSUE_CREATE}${GITHUB_SECRET_ARN:+,GITHUB_SECRET_ID=${GITHUB_SECRET_ID}}}"
 if aws lambda get-function --function-name "$FUNCTION_NAME" --region "$REGION" >/dev/null 2>&1; then
   aws lambda update-function-code --function-name "$FUNCTION_NAME" --zip-file "fileb://$ZIP" --region "$REGION" >/dev/null
   aws lambda wait function-updated --function-name "$FUNCTION_NAME" --region "$REGION"

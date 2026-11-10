@@ -1,0 +1,697 @@
+{
+ "uid": "peakpic-b2b-festival",
+ "title": "PeakPic B2B 축제 서버",
+ "tags": [
+  "peakpic",
+  "b2b"
+ ],
+ "timezone": "Asia/Seoul",
+ "schemaVersion": 39,
+ "version": 3,
+ "refresh": "30s",
+ "time": {
+  "from": "now-3h",
+  "to": "now"
+ },
+ "templating": {
+  "list": [
+   {
+    "name": "ds",
+    "label": "데이터 소스",
+    "type": "datasource",
+    "query": "prometheus",
+    "current": {}
+   },
+   {
+    "name": "slug",
+    "label": "축제",
+    "type": "query",
+    "datasource": {
+     "type": "prometheus",
+     "uid": "${ds}"
+    },
+    "query": {
+     "query": "label_values(up{job=\"peakpic-b2b-festival\"}, slug)",
+     "refId": "slug"
+    },
+    "refresh": 2,
+    "includeAll": true,
+    "multi": true,
+    "current": {}
+   }
+  ]
+ },
+ "panels": [
+  {
+   "id": 1,
+   "type": "stat",
+   "title": "수집 상태 (1 = 정상)",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "${ds}"
+   },
+   "gridPos": {
+    "h": 4,
+    "w": 6,
+    "x": 0,
+    "y": 0
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "none",
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "red",
+        "value": null
+       },
+       {
+        "color": "green",
+        "value": 1
+       }
+      ]
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ]
+    },
+    "colorMode": "background",
+    "graphMode": "area"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "${ds}"
+     },
+     "expr": "min(up{job=\"peakpic-b2b-festival\",slug=~\"$slug\"})"
+    }
+   ]
+  },
+  {
+   "id": 2,
+   "type": "stat",
+   "title": "초당 요청",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "${ds}"
+   },
+   "gridPos": {
+    "h": 4,
+    "w": 6,
+    "x": 6,
+    "y": 0
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "reqps",
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "green",
+        "value": null
+       }
+      ]
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ]
+    },
+    "colorMode": "background",
+    "graphMode": "area"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "${ds}"
+     },
+     "expr": "sum(rate(http_server_requests_seconds_count{job=\"peakpic-b2b-festival\",slug=~\"$slug\"}[5m]))"
+    }
+   ]
+  },
+  {
+   "id": 3,
+   "type": "stat",
+   "title": "5xx 비율",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "${ds}"
+   },
+   "gridPos": {
+    "h": 4,
+    "w": 6,
+    "x": 12,
+    "y": 0
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "percentunit",
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "green",
+        "value": null
+       },
+       {
+        "color": "orange",
+        "value": 0.001
+       },
+       {
+        "color": "red",
+        "value": 0.01
+       }
+      ]
+     },
+     "noValue": "0%"
+    },
+    "overrides": []
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ]
+    },
+    "colorMode": "background",
+    "graphMode": "area"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "${ds}"
+     },
+     "expr": "(sum(rate(http_server_requests_seconds_count{job=\"peakpic-b2b-festival\",slug=~\"$slug\",status=~\"5..\"}[5m])) or vector(0)) / clamp_min(sum(rate(http_server_requests_seconds_count{job=\"peakpic-b2b-festival\",slug=~\"$slug\"}[5m])),1e-9)"
+    }
+   ],
+   "description": "5분 창 전체 요청 중 5xx 비율. 5xx 가 한 건도 없으면 0% (#250)."
+  },
+  {
+   "id": 4,
+   "type": "stat",
+   "title": "힙 사용률",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "${ds}"
+   },
+   "gridPos": {
+    "h": 4,
+    "w": 6,
+    "x": 18,
+    "y": 0
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "percentunit",
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "green",
+        "value": null
+       },
+       {
+        "color": "orange",
+        "value": 0.7
+       },
+       {
+        "color": "red",
+        "value": 0.85
+       }
+      ]
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ]
+    },
+    "colorMode": "background",
+    "graphMode": "area"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "${ds}"
+     },
+     "expr": "max(sum by (host) (last_over_time(jvm_memory_used_bytes{job=\"peakpic-b2b-festival\",slug=~\"$slug\",area=\"heap\"}[2m])) / sum by (host) (last_over_time(jvm_memory_max_bytes{job=\"peakpic-b2b-festival\",slug=~\"$slug\",area=\"heap\"}[2m])))"
+    }
+   ]
+  },
+  {
+   "id": 5,
+   "type": "timeseries",
+   "title": "초당 요청 (상태 코드별)",
+   "description": "",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "${ds}"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 12,
+    "x": 0,
+    "y": 4
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "reqps",
+     "min": 0
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom"
+    },
+    "tooltip": {
+     "mode": "multi"
+    }
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "${ds}"
+     },
+     "expr": "sum by (status) (rate(http_server_requests_seconds_count{job=\"peakpic-b2b-festival\",slug=~\"$slug\"}[5m]))",
+     "legendFormat": "{{status}}"
+    }
+   ]
+  },
+  {
+   "id": 6,
+   "type": "timeseries",
+   "title": "평균·최대 응답 시간 (경로별)",
+   "description": "",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "${ds}"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 12,
+    "x": 12,
+    "y": 4
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "s",
+     "min": 0
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom"
+    },
+    "tooltip": {
+     "mode": "multi"
+    }
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "${ds}"
+     },
+     "expr": "sum by (uri) (rate(http_server_requests_seconds_sum{job=\"peakpic-b2b-festival\",slug=~\"$slug\"}[5m])) / sum by (uri) (rate(http_server_requests_seconds_count{job=\"peakpic-b2b-festival\",slug=~\"$slug\"}[5m]))",
+     "legendFormat": "평균 {{uri}}"
+    },
+    {
+     "refId": "B",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "${ds}"
+     },
+     "expr": "max by (uri) (max_over_time(http_server_requests_seconds_max{job=\"peakpic-b2b-festival\",slug=~\"$slug\"}[2m]))",
+     "legendFormat": "최대 {{uri}}"
+    }
+   ]
+  },
+  {
+   "id": 7,
+   "type": "timeseries",
+   "title": "B2B 작업 p95 (생성·조회·업로드 등)",
+   "description": "",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "${ds}"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 12,
+    "x": 0,
+    "y": 12
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "s",
+     "min": 0
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom"
+    },
+    "tooltip": {
+     "mode": "multi"
+    }
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "${ds}"
+     },
+     "expr": "histogram_quantile(0.95, sum by (le, operation) (rate(b2b_operation_seconds_bucket{job=\"peakpic-b2b-festival\",slug=~\"$slug\"}[5m])))",
+     "legendFormat": "{{operation}}"
+    }
+   ]
+  },
+  {
+   "id": 8,
+   "type": "timeseries",
+   "title": "B2B 작업 처리율 (결과별)",
+   "description": "",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "${ds}"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 12,
+    "x": 12,
+    "y": 12
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "ops",
+     "min": 0
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom"
+    },
+    "tooltip": {
+     "mode": "multi"
+    }
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "${ds}"
+     },
+     "expr": "sum by (operation, outcome) (rate(b2b_operation_seconds_count{job=\"peakpic-b2b-festival\",slug=~\"$slug\"}[5m]))",
+     "legendFormat": "{{operation}} / {{outcome}}"
+    }
+   ]
+  },
+  {
+   "id": 9,
+   "type": "timeseries",
+   "title": "JVM 힙 (사용 / 최대)",
+   "description": "서버(host)별. 수집은 ALB 경유라 서버마다 1~2분 간격으로 갱신된다",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "${ds}"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 8,
+    "x": 0,
+    "y": 20
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "bytes",
+     "min": 0
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom"
+    },
+    "tooltip": {
+     "mode": "multi"
+    }
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "${ds}"
+     },
+     "expr": "sum by (host) (last_over_time(jvm_memory_used_bytes{job=\"peakpic-b2b-festival\",slug=~\"$slug\",area=\"heap\"}[2m]))",
+     "legendFormat": "사용 {{host}}"
+    },
+    {
+     "refId": "B",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "${ds}"
+     },
+     "expr": "sum by (host) (last_over_time(jvm_memory_max_bytes{job=\"peakpic-b2b-festival\",slug=~\"$slug\",area=\"heap\"}[2m]))",
+     "legendFormat": "최대 {{host}}"
+    }
+   ]
+  },
+  {
+   "id": 10,
+   "type": "timeseries",
+   "title": "GC 멈춤 최대",
+   "description": "",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "${ds}"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 8,
+    "x": 8,
+    "y": 20
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "s",
+     "min": 0
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom"
+    },
+    "tooltip": {
+     "mode": "multi"
+    }
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "${ds}"
+     },
+     "expr": "max by (host) (max_over_time(jvm_gc_pause_seconds_max{job=\"peakpic-b2b-festival\",slug=~\"$slug\"}[2m]))",
+     "legendFormat": "{{host}}"
+    }
+   ]
+  },
+  {
+   "id": 11,
+   "type": "timeseries",
+   "title": "DB 연결 (서버별, 풀 15)",
+   "description": "",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "${ds}"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 8,
+    "x": 16,
+    "y": 20
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "none",
+     "min": 0
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom"
+    },
+    "tooltip": {
+     "mode": "multi"
+    }
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "${ds}"
+     },
+     "expr": "sum by (host) (last_over_time(hikaricp_connections_active{job=\"peakpic-b2b-festival\",slug=~\"$slug\"}[2m]))",
+     "legendFormat": "사용 {{host}}"
+    },
+    {
+     "refId": "B",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "${ds}"
+     },
+     "expr": "sum by (host) (last_over_time(hikaricp_connections_pending{job=\"peakpic-b2b-festival\",slug=~\"$slug\"}[2m]))",
+     "legendFormat": "대기 {{host}}"
+    },
+    {
+     "refId": "C",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "${ds}"
+     },
+     "expr": "max(last_over_time(hikaricp_connections_max{job=\"peakpic-b2b-festival\",slug=~\"$slug\"}[2m]))",
+     "legendFormat": "최대(서버당)"
+    }
+   ]
+  },
+  {
+   "id": 12,
+   "type": "timeseries",
+   "title": "JVM 스레드",
+   "description": "서버별 라이브 스레드 수와 기동 후 최대. 톰캣 전용 지표는 축제 서버가 노출하지 않아 JVM 스레드로 본다 (#250).",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "${ds}"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 12,
+    "x": 0,
+    "y": 28
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "none",
+     "min": 0
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom"
+    },
+    "tooltip": {
+     "mode": "multi"
+    }
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "${ds}"
+     },
+     "expr": "sum by (host) (last_over_time(jvm_threads_live_threads{job=\"peakpic-b2b-festival\",slug=~\"$slug\"}[2m]))",
+     "legendFormat": "라이브 {{host}}"
+    },
+    {
+     "refId": "B",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "${ds}"
+     },
+     "expr": "max(last_over_time(jvm_threads_peak_threads{job=\"peakpic-b2b-festival\",slug=~\"$slug\"}[2m]))",
+     "legendFormat": "최대(서버당)"
+    }
+   ]
+  },
+  {
+   "id": 13,
+   "type": "timeseries",
+   "title": "앱 CPU",
+   "description": "",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "${ds}"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 12,
+    "x": 12,
+    "y": 28
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "percentunit",
+     "min": 0
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom"
+    },
+    "tooltip": {
+     "mode": "multi"
+    }
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "${ds}"
+     },
+     "expr": "max by (host) (last_over_time(process_cpu_usage{job=\"peakpic-b2b-festival\",slug=~\"$slug\"}[2m]))",
+     "legendFormat": "{{host}}"
+    }
+   ]
+  }
+ ],
+ "description": "축제 전용 서버(peakpic-b2b-server) 앱 지표. 잡 peakpic-b2b-festival, 축제는 slug 로 고른다. ALB 경유 수집이라 서버(host)마다 따로 계산한다(#48): 누적값은 rate 5분, 현재값은 최근 2분 마지막 값. 서버 메모리·CPU·ALB 는 CloudWatch"
+}

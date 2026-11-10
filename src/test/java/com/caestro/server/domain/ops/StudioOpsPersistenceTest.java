@@ -81,6 +81,7 @@ class StudioOpsPersistenceTest {
         pushTokens.deleteAll();
         subscriptions.deleteAll();
         users.deleteAll();
+        service.evictStatsCache();   // 서비스 빈은 테스트끼리 공유되고 Clock 이 고정이라 캐시가 저절로 안 식는다
         kakao = users.save(User.builder().oauthProvider("kakao").oauthId("3812345678").nickname("유자").build());
         google = users.save(User.builder().oauthProvider("google").oauthId("108123456789042").nickname("이상협").build());
         guest = users.save(User.builder().deviceId("device-abcdef-123").build());
@@ -181,6 +182,45 @@ class StudioOpsPersistenceTest {
         assertThat(stats.subscriptions().appStore()).isZero();
         assertThat(stats.subscriptions().autoRenewOff()).isZero();
         assertThat(users.findById(google.getId()).orElseThrow().getLastLoginAt()).isEqualTo(NOW_LOCAL.minusHours(1));
+    }
+
+    @Test
+    @DisplayName("상단 숫자 캐시(#257): 60초 안에는 같은 응답, 비우면 다시 센다. 스토어별·해지 예약도 한 방 쿼리가 센다")
+    void statsCache() {
+        OpsStatsResponse first = service.stats();
+        users.save(User.builder().oauthProvider("kakao").oauthId("9999").nickname("새 사람").build());
+        subscriptions.save(sub(guest, SubscriptionStore.MANUAL, "yearly", SubscriptionStatus.ACTIVE, NOW_LOCAL.plusDays(300), false));
+        assertThat(service.stats()).isSameAs(first);                 // Clock 고정 → TTL 안이라 DB 를 다시 안 읽는다
+        service.evictStatsCache();
+        OpsStatsResponse fresh = service.stats();
+        assertThat(fresh.users().total()).isEqualTo(first.users().total() + 1);
+        assertThat(fresh.users().kakao()).isEqualTo(2);
+        assertThat(fresh.subscriptions().active()).isEqualTo(2);
+        assertThat(fresh.subscriptions().manual()).isEqualTo(1);
+        assertThat(fresh.subscriptions().autoRenewOff()).isEqualTo(1);   // 수동 구독만 자동 갱신 꺼짐
+        assertThat(fresh.generatedAt()).isEqualTo(NOW_LOCAL);
+    }
+
+    @Test
+    @DisplayName("상단 숫자(#257): 행이 하나도 없어도 전부 0 (sum 의 null 을 0 으로)")
+    void statsEmpty() {
+        pushTokens.deleteAll();
+        subscriptions.deleteAll();
+        users.deleteAll();
+        service.evictStatsCache();
+        OpsStatsResponse stats = service.stats();
+        assertThat(stats.users()).isEqualTo(new OpsStatsResponse.Users(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0));
+        assertThat(stats.subscriptions()).isEqualTo(new OpsStatsResponse.Subscriptions(0, 0, 0, 0, 0));
+    }
+
+    @Test
+    @DisplayName("인덱스(#257): 엔티티에 선언한 인덱스가 스키마에 만들어진다")
+    void indexesDeclared() {
+        java.util.List<String> names = jdbc.queryForList(
+                "select distinct index_name from information_schema.indexes where table_name in ('USERS', 'SUBSCRIPTIONS')", String.class);
+        assertThat(names).contains("IDX_USERS_DELETED_PROVIDER", "IDX_SUBSCRIPTIONS_ACTIVE");
+        // 로그인마다 갱신되는 컬럼에는 두지 않는다 — 한 방 집계는 인덱스를 안 타므로 쓰기 비용만 남는다
+        assertThat(names).noneMatch(n -> n.contains("LAST_LOGIN") || n.contains("CREATED_AT") || n.contains("DEVICE_KEY"));
     }
 
     @Test
