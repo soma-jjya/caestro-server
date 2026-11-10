@@ -67,10 +67,4 @@ public interface SubscriptionRepository extends JpaRepository<Subscription, Long
             """)
     List<Subscription> findOpsPage(@Param("status") SubscriptionStatus status, @Param("store") SubscriptionStore store,
                                    @Param("cursor") Long cursor, Pageable pageable);
-
-    long countByStatusAndExpiresAtAfter(SubscriptionStatus status, LocalDateTime now);
-
-    long countByStatusAndExpiresAtAfterAndStore(SubscriptionStatus status, LocalDateTime now, SubscriptionStore store);
-
-    long countByStatusAndExpiresAtAfterAndAutoRenewing(SubscriptionStatus status, LocalDateTime now, Boolean autoRenewing);
 }
