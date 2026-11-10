@@ -165,3 +165,6 @@ CloudWatch 알람 ─▶ SNS(peakpic-alarms) ─┬─▶ peakpic-alert-notify  
 | `../../lambda/alert-analyze/` | 도구 4종·플레이북·조사 루프·골든 셋. 설계와 검증 방법은 그 README |
 
 원칙: 읽기 전용(자동 조치 없음), 수치 없는 근거는 코드가 버림, 모델이 실패해도 수집한 원자료는 올림, 과거 알람 3건 골든 셋으로 채점.
+
+결론이 앱 결함·배포 회귀면 GitHub 이슈까지 만든다(#233, `ISSUE_CREATE=shadow` 기본 → 정밀도를 잰 뒤 `on`).
+`on` 은 이슈 쓰기 PAT 시크릿(`peakpic/github-issue-token`)이 유일한 쓰기 권한이며 이 레포의 Issues 에 한정된다. 규칙은 그 README "이슈 자동 생성".

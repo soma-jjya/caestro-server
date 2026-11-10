@@ -62,6 +62,29 @@ def build_report_embed(alarm, report, trace):
     }
 
 
+def add_issue_field(embed, outcome, mode):
+    """이슈 처리 결과(#233)를 임베드 마지막 칸에 한 줄로. outcome 은 github_issues.sync 결과 또는 {"action": "gate"|"failed", "note"}."""
+    action = outcome.get("action")
+    number = outcome.get("number")
+    url = outcome.get("url")
+    link = f"[#{number}]({url})" if number and url else (f"#{number}" if number else "")
+    if action == "created":
+        value = f"{link} 새로 만듦"
+    elif action == "commented":
+        value = f"{link} {outcome.get('nth')}회째 코멘트"
+    elif action == "skipped":
+        value = f"{link} {outcome.get('note')} → 건너뜀"
+    elif action == "shadow":
+        value = f"만들 것 · {outcome.get('title', '')} · {outcome.get('note')}"
+    elif action == "gate":
+        value = f"만들지 않음 · {outcome.get('note')}"
+    else:
+        value = f"실패 · {outcome.get('note')}"
+    name = "📝 이슈 (섀도)" if mode == "shadow" else "📝 이슈"
+    embed.setdefault("fields", []).append({"name": name, "value": _clip(value, 1024)})
+    return embed
+
+
 def build_fallback_embed(alarm, prefetched, trace, reason):
     """모델이 결론을 못 냈을 때: 선조회한 원자료 요약이라도 올린다. 분석 실패가 침묵이 되면 안 된다."""
     fields = []

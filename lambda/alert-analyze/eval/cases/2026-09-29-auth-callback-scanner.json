@@ -104,6 +104,7 @@
   "expect": {
     "category": ["external_scanner"],
     "user_impact": ["none"],
-    "mentions_any": ["/auth/callback", "스캐너", "zgrab"]
+    "mentions_any": ["/auth/callback", "스캐너", "zgrab"],
+    "issue": false
   }
 }

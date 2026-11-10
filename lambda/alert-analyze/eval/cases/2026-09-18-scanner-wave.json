@@ -97,6 +97,7 @@
   "expect": {
     "category": ["external_scanner"],
     "user_impact": ["none"],
-    "mentions_any": ["스캐너", ".env", "wp-login", "198.51.100.77"]
+    "mentions_any": ["스캐너", ".env", "wp-login", "198.51.100.77"],
+    "issue": false
   }
 }
