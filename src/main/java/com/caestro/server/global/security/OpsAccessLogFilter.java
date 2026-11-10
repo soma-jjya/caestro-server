@@ -13,7 +13,8 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 /**
- * 운영 조회(/admin/ops/**, contracts/studio-ops.md)를 누가 언제 무엇을 봤는지 한 줄씩 남긴다(개인정보 접속 기록).
+ * 운영 조회(/admin/ops/**, contracts/studio-ops.md)와 개발자 평가 열람(/admin/dev/**, 얼굴이 담긴 사진)을
+ * 누가 언제 무엇을 봤는지 한 줄씩 남긴다(개인정보 접속 기록).
  * 보안 체인 안쪽(인가를 통과한 요청)에서만 돈다. 검색어 같은 값은 남기지 않고 쓴 파라미터 이름만 남긴다.
  */
 @Slf4j
@@ -23,7 +24,7 @@ public class OpsAccessLogFilter extends OncePerRequestFilter {
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
         String uri = request.getRequestURI();
-        return uri == null || !uri.startsWith(StudioKeyFilter.OPS_PATH_PREFIX);
+        return uri == null || !(uri.startsWith(StudioKeyFilter.OPS_PATH_PREFIX) || uri.startsWith(StudioKeyFilter.DEV_PATH_PREFIX));
     }
 
     @Override

@@ -35,7 +35,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         if (errorCode.getStatus() >= 500) {
             log.warn("Server-side CustomException: {} ({})", errorCode.name(), errorCode.getStatus());
         }
-        ErrorDto errorDto = new ErrorDto(errorCode.getStatus(), errorCode.getMessage());
+        ErrorDto errorDto = new ErrorDto(errorCode.getStatus(), e.responseMessage());
         return new ResponseEntity<>(errorDto, HttpStatusCode.valueOf(errorCode.getStatus()));
     }
 
