@@ -218,8 +218,9 @@ class StudioOpsPersistenceTest {
     void indexesDeclared() {
         java.util.List<String> names = jdbc.queryForList(
                 "select distinct index_name from information_schema.indexes where table_name in ('USERS', 'SUBSCRIPTIONS')", String.class);
-        assertThat(names).contains("IDX_USERS_DELETED_PROVIDER", "IDX_USERS_CREATED_AT", "IDX_USERS_LAST_LOGIN_AT",
-                "IDX_USERS_DEVICE_KEY", "IDX_SUBSCRIPTIONS_ACTIVE");
+        assertThat(names).contains("IDX_USERS_DELETED_PROVIDER", "IDX_SUBSCRIPTIONS_ACTIVE");
+        // 로그인마다 갱신되는 컬럼에는 두지 않는다 — 한 방 집계는 인덱스를 안 타므로 쓰기 비용만 남는다
+        assertThat(names).noneMatch(n -> n.contains("LAST_LOGIN") || n.contains("CREATED_AT") || n.contains("DEVICE_KEY"));
     }
 
     @Test

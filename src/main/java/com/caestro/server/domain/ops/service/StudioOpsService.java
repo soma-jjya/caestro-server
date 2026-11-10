@@ -32,6 +32,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -40,6 +41,7 @@ import org.springframework.transaction.annotation.Transactional;
  * 스튜디오 운영 화면의 읽기 전용 조회 (contracts/studio-ops.md): 가입 경로, 마지막 로그인, Pro 구독.
  * 쓰기는 없다. 구매 토큰은 어떤 응답에도 싣지 않고, 소셜·기기 id 는 가려서 보낸다.
  */
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class StudioOpsService {
@@ -73,8 +75,11 @@ public class StudioOpsService {
         Instant at = clock.instant();
         CachedStats hit = statsCache.get();
         if (hit != null && hit.computedAt().plus(STATS_TTL).isAfter(at)) return hit.value();
+        long started = System.nanoTime();
         OpsStatsResponse fresh = computeStats();
         statsCache.set(new CachedStats(fresh, at));
+        // 집계는 users 풀스캔 1번이라 행 수에 비례한다. 이 값이 500ms 를 넘으면 배치 집계 테이블로 바꾼다(#257)
+        log.info("ops stats computed: users={} ms={}", fresh.users().total(), (System.nanoTime() - started) / 1_000_000);
         return fresh;
     }
 

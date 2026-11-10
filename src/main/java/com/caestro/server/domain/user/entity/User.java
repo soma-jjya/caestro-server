@@ -22,15 +22,10 @@ import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @Entity
 @EntityListeners(AuditingEntityListener.class)
-// 운영 요약·목록 필터용 인덱스 (#257). ddl-auto=update 가 없는 것을 만든다(MySQL 8 온라인 DDL).
-// (deleted_at, oauth_provider): "deleted_at IS NULL" 을 1번 컬럼의 등호처럼 타고 그 안에서 provider. 탈퇴(IS NOT NULL)도 같은 인덱스.
-// 나머지 셋은 범위 조건·count distinct 라 단독.
-@Table(name = "users", indexes = {
-        @Index(name = "idx_users_deleted_provider", columnList = "deleted_at, oauth_provider"),
-        @Index(name = "idx_users_created_at", columnList = "created_at"),
-        @Index(name = "idx_users_last_login_at", columnList = "last_login_at"),
-        @Index(name = "idx_users_device_key", columnList = "device_key")
-})
+// 운영 목록 provider 필터용 인덱스 (#257). ddl-auto=update 가 없는 것을 만든다(MySQL 8 온라인 DDL).
+// "deleted_at IS NULL" 을 1번 컬럼의 등호처럼 타고 그 안에서 provider. 탈퇴(IS NOT NULL)도 같은 인덱스.
+// created_at·last_login_at 에는 두지 않는다: 요약 숫자는 한 방 집계가 테이블을 통째로 읽어 인덱스 이득이 없고, 로그인마다 쓰기 비용만 든다.
+@Table(name = "users", indexes = @Index(name = "idx_users_deleted_provider", columnList = "deleted_at, oauth_provider"))
 public class User {
 
     @Id
