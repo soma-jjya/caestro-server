@@ -104,6 +104,7 @@
   "expect": {
     "category": ["deploy_regression"],
     "user_impact": ["none"],
-    "mentions_any": ["TargetLifecycleWatcher", "#111", "기동", "No default constructor"]
+    "mentions_any": ["TargetLifecycleWatcher", "#111", "기동", "No default constructor"],
+    "issue": true
   }
 }

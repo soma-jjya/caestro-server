@@ -37,6 +37,8 @@ CloudWatch 알람 ─▶ SNS(peakpic-alarms) ─┬─▶ alert-notify  ─▶ D
 | `investigate.py` | 조사 루프(Anthropic Messages API, 도구 왕복 상한 6회·입력 토큰 15만 상한), `submit_report` 스키마, 근거 필터 |
 | `report.py` | 결론 → Discord 임베드. 실패 시 원자료 임베드. 제목은 `../alert-notify/alarm_catalog.py` 의 사람 말 알람 이름표를 쓴다(#254, `setup-analyze.sh` 가 패키지에 복사) |
 | `redact.py` | 도구 결과의 토큰·키·이메일·전화번호 마스킹(모델에 보내기 전) |
+| `triage.py` | 이슈 자동 생성(#233)의 문지기·지문·본문. 순수 함수 |
+| `github_issues.py` | 이슈 찾기·만들기·재발 코멘트(#233). `ISSUE_CREATE` 모드별 동작 |
 | `fixtures.py` | AWS 없이 도구를 대신하는 대역(골든 셋·로컬 테스트용) |
 | `local_test.py` | AWS·LLM 없이 전 구성요소 검증(가짜 모델로 루프까지) |
 | `eval/replay.py` | 골든 셋 재생 — 실제 모델이 사람의 결론과 같은지 채점 |
@@ -60,6 +62,7 @@ python3 eval/replay.py --runs 3             # 일관성 확인
 ```
 
 판정 기준: `category`·`user_impact` 가 기대 안에 있고, 핵심 키워드(`mentions_any`) 중 하나 이상이 보고서에 있고, 근거가 1건 이상.
+`expect.issue` 로 이슈 문지기의 생성 여부도 채점한다 — 9/1 기동 실패는 **생성**, 스캐너 2건은 **생성 안 함**.
 
 2026-11-04 실측(`--runs 2`, claude-opus-5-5, effort medium): **6/6 통과**, 총 토큰 입력 50,637 / 출력 9,850.
 
@@ -71,6 +74,44 @@ python3 eval/replay.py --runs 3             # 일관성 확인
 
 스캐너 2건은 선조회만으로 1회에 끝났고, 기동 실패는 모델이 지표를 한 번 더 조회했다. 두 번 돌린 결론 문장이 서로 같은 뜻이었다.
 
+## 이슈 자동 생성 (#233)
+
+결론이 **우리 코드 결함·배포 회귀**면 Discord 에서 끝내지 않고 GitHub 이슈로 옮긴다(알람 → 조사 → 티켓). 가치는 생성 자체가
+아니라 "언제 만들고 언제 만들지 않는지"다 — 아무도 안 보는 이슈 더미가 되면 안 되므로, 아래 셋을 **모두** 만족할 때만 만든다.
+
+| 문지기 | 기준 | 어디서 |
+|---|---|---|
+| 분류 | `app_bug` 또는 `deploy_regression` | 모델 보고서 `category` |
+| 근거 | 수치가 붙은 근거 2건 이상 | `_clean_report` 통과 후 `evidence` |
+| 예외 | 스택에 우리 패키지(`com.caestro`)가 보이는 예외 1건 이상 | 조사 중 읽은 `query_logs` 결과의 `stack_trace` |
+
+스캐너·오탐·용량·원인 미상은 이슈가 생기지 않는다. 같은 문제는 한 이슈로 모은다:
+
+- **지문** = 최상위 예외 클래스 + 치환한 경로(숫자 → `{n}`, UUID·긴 16진수 → `{id}`) + 알람 이름 → 8자리 해시. 본문 끝에 `지문 fp:…` 로 적고 검색(`in:body`)으로 찾는다.
+- 같은 지문의 **열린** 이슈가 있으면 새로 만들지 않고 "N회째 · 시각 · 건수" 코멘트를 단다. 재발 횟수가 우선순위 근거다.
+- 사람이 `auto-triage:false-positive` 라벨을 달면 그 지문은 이후 코멘트도 달지 않는다(닫힌 이슈에 달아도 된다).
+- 검색 색인이 몇 초~몇 분 늦을 수 있어, 같은 알람이 연달아 두 번 울리면 드물게 중복이 날 수 있다. 그때는 하나를 닫으면 된다.
+
+본문(공개 레포): 모델 보고서(결론·근거·확인할 것)와 예외 클래스·우리 코드 프레임 3줄·치환한 경로로만 조립한다. 로그 원문은 넣지 않는다.
+IP·계정 ID·User-Agent·ARN 과 환경변수로 받은 인프라 이름(로그 그룹·버킷·ASG 등)은 `triage.scrub` 이 지우고, 토큰·이메일·전화번호는
+`redact` 가 지운다(`local_test.test_issue_body_has_no_secrets`). 머리말에 "자동 생성 · 사람 확인 필요", 라벨 `auto-triage` + `bug`.
+
+모드 `ISSUE_CREATE`:
+
+| 값 | 동작 |
+|---|---|
+| `shadow` (기본) | 문지기·지문·찾기까지만 하고 **만들지 않는다**. 임베드에 "📝 이슈 (섀도)" 칸으로 "만들 것 · 제목 · 새 이슈/#N 에 코멘트" 또는 "만들지 않음 · 이유"를 보여 정밀도·재현율을 잰다. 공개 레포라 토큰 없이 돈다 |
+| `on` | 실제로 만든다. fine-grained PAT(이 레포 한정, Issues 쓰기만)를 Secrets Manager(`GITHUB_SECRET_ID`)에 둔다. 문지기 탈락은 칸을 붙이지 않는다 |
+| `off` | 아무것도 하지 않는다 |
+
+어떤 실패(토큰 없음·GitHub 오류)도 분석 알림을 막지 않는다 — 임베드에 "실패 · 이유" 한 줄로 남긴다.
+
+섀도 운영 기록(정밀도 = 만들겠다고 한 것 중 맞은 비율, 재현율 = 만들었어야 한 것 중 잡은 비율):
+
+| 기간 | 분석 건수 | 만들 것 | 맞음 | 만들지 않음인데 만들었어야 | 판단 |
+|---|---|---|---|---|---|
+| (섀도 반영 뒤 기록) | | | | | |
+
 ## 설치
 
 `infra/alerting/setup-analyze.sh` 가 역할·정책·패키지·함수·SNS 구독(ALARM 전이만 받는 필터 정책)을 멱등으로 만든다.
@@ -81,7 +122,9 @@ python3 eval/replay.py --runs 3             # 일관성 확인
 | `LOG_GROUP` | 앱 로그 그룹 이름 |
 | `ALB_LOG_BUCKET` / `ALB_LOG_PREFIX` | ALB 액세스 로그 버킷·접두(설치 스크립트가 ALB 속성에서 자동 탐색) |
 | `ALB_DIM` / `TG_DIM` / `ASG_NAME` / `CACHE_ID` / `RDS_ID` | 지표 차원(설치 스크립트가 채움) |
-| `GITHUB_REPO` | `owner/repo`. 공개 레포라 토큰 없이 main 커밋을 읽는다 |
+| `GITHUB_REPO` | `owner/repo`. 공개 레포라 토큰 없이 main 커밋을 읽고 이슈를 찾는다 |
+| `ISSUE_CREATE` | 이슈 자동 생성 모드 `shadow`(기본)·`on`·`off` (#233) |
+| `GITHUB_SECRET_ID` 또는 `GITHUB_TOKEN` | `on` 일 때 이슈를 쓸 fine-grained PAT. 설치 스크립트는 시크릿이 있을 때만 붙인다 |
 | `ANTHROPIC_SECRET_ID` 또는 `ANTHROPIC_API_KEY` | 모델 API 키. 운영은 Secrets Manager 권장 |
 | `DISCORD_WEBHOOK_URL` | 분석을 올릴 채널 |
 | `MODEL` | 기본 `claude-opus-5-5` |
