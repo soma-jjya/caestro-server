@@ -66,6 +66,9 @@ cleanup:
   notification:
     cron: "0 20 5 * * *"      # 알림함(notifications)에서 보관 기간 지난 알림 삭제
     retention-days: 90
+  support:
+    cron: "0 40 5 * * *"      # 앱 문의(support_tickets)에서 마지막 메시지 뒤 보관 기간 지난 것을 사진까지 삭제 (#263)
+    retention-days: 365
 
 # 서버가 시각을 고르는 알림 배치
 notify:
@@ -171,6 +174,22 @@ inquiry:
     daily: 300
   webhook-url: ""             # 비어 있지 않으면 접수 커밋 뒤 Slack/Discord 호환 웹훅으로 요약 한 장. 운영은 Secrets Manager
   admin-url: https://peakpic.app/admin/inquiries   # 웹훅 글에 붙이는 관리자 링크
+
+# 앱 문의 (#263, contracts/support.md): 로그인 사용자의 문의 스레드 + 사진, 운영자 답변은 알림함·푸시
+support:
+  attachment-store: rds       # rds | s3. 운영은 prod yml 에서 s3. 네컷 이미지 저장소(#152)와 같은 분리
+  s3:
+    bucket: ${fill.s3.bucket}   # 기본은 네컷 버킷의 support/ 접두사. 그 버킷의 수명 주기가 fills/ 에만 걸려 있어야 한다
+    key-prefix: support         # 객체 키 = {prefix}/{ticketId}/{storeId}
+    presign-minutes: 10
+  max-attachments: 5          # 문의당 사진 장수
+  max-attachment-bytes: 5242880   # 장당 5MB
+  public-base-url: https://api.peakpic.app   # 사진 주소의 호스트
+  ratelimit:                  # 사용자(토큰) 단위 하루 고정 창. support.rejected 지표로 교정한다
+    create-daily: 5
+    message-daily: 30
+  webhook-url: ${inquiry.webhook-url:}   # 새 문의·이어 쓰기 웹훅. 기본은 B2B 문의와 같은 채널
+  admin-url: https://peakpic.app/admin/support   # 웹훅 글에 붙이는 관리자 링크
 
 ---
 # prod 프로파일(ASG 인스턴스)에서만 IMDS 감지를 켠다. application-prod.yml은 저장소 밖(CI Secret)이라

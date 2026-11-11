@@ -27,6 +27,7 @@ public class StudioKeyFilter extends OncePerRequestFilter {
     private static final String CATALOG_PATH_PREFIX = "/catalog/";
     static final String OPS_PATH_PREFIX = "/admin/ops/";
     static final String DEV_PATH_PREFIX = "/admin/dev/";
+    static final String SUPPORT_ADMIN_PATH_PREFIX = "/admin/support/";
 
     private final String studioKey;
 
@@ -49,7 +50,8 @@ public class StudioKeyFilter extends OncePerRequestFilter {
         if (studioKey == null || studioKey.isBlank()) return false;   // 미설정 시 완전 무력화
         String uri = request.getRequestURI();
         if (uri == null || !(uri.startsWith(CATALOG_PATH_PREFIX) || uri.startsWith("/b2b/admin/")
-                || uri.startsWith(OPS_PATH_PREFIX) || uri.startsWith(DEV_PATH_PREFIX))) return false;
+                || uri.startsWith(OPS_PATH_PREFIX) || uri.startsWith(DEV_PATH_PREFIX)
+                || uri.startsWith(SUPPORT_ADMIN_PATH_PREFIX))) return false;
 
         String provided = request.getHeader(HEADER);
         if (provided == null || provided.isEmpty()) return false;
