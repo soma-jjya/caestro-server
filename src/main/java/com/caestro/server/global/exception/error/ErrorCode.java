@@ -89,6 +89,12 @@ public enum ErrorCode {
     NOTIFICATION_NOT_FOUND(404, "알림이 없습니다"),
     // B2B 문의 (#216)
     INQUIRY_NOT_FOUND(404, "문의를 찾을 수 없습니다"),
+    // 앱 문의 (#263, contracts/support.md)
+    SUPPORT_LOGIN_REQUIRED(403, "로그인 후 문의할 수 있습니다"),
+    SUPPORT_TICKET_NOT_FOUND(404, "문의를 찾을 수 없습니다"),
+    SUPPORT_ATTACHMENT_NOT_FOUND(404, "첨부 사진을 찾을 수 없습니다"),
+    SUPPORT_ATTACHMENT_LIMIT(400, "사진은 문의당 최대 5장입니다"),
+    SUPPORT_ATTACHMENT_TOO_LARGE(413, "사진이 너무 큽니다 (최대 5MB)"),
     // 포즈추천 알고리즘 설정 (#260, contracts/recommend-config.md). 400 은 무엇이 틀렸는지 덧붙여 내려간다
     RECOMMEND_NOT_FOUND(404, "추천 설정 버전을 찾을 수 없습니다"),
     RECOMMEND_INVALID(400, "추천 설정 값이 올바르지 않습니다"),

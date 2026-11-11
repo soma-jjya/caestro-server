@@ -21,6 +21,7 @@
 ```
 
 `type` 과 `data` 는 푸시의 것과 같다. 앱은 푸시 탭과 목록 탭에 **같은 이동 규칙**을 쓴다(`fill_completed` → `data.code` 세션).
+`support_reply`(#263) 는 `data.ticketId` 로 앱 문의 상세(contracts/support.md)로 간다.
 
 ## 앱 동작
 

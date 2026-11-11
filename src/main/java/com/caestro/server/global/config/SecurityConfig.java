@@ -81,6 +81,8 @@ public class SecurityConfig {
                         ).permitAll()
                         // 운영 조회(가입·로그인·구독, 읽기 전용): 스튜디오와 같은 키 (contracts/studio-ops.md)
                         .requestMatchers("/admin/ops/**").hasAnyRole("STUDIO", "ADMIN")
+                        // 앱 문의 관리(#263): 관리자 페이지 서버가 같은 키로 목록·답변. 사용자 쪽 /support/** 는 아래 authenticated
+                        .requestMatchers("/admin/support/**").hasAnyRole("STUDIO", "ADMIN")
                         // 개발자 평가 데이터 열람(#260, contracts/dev-evaluations.md): 얼굴이 담긴 사진이라 같은 키·ADMIN 만. 앱 토큰은 403
                         .requestMatchers("/admin/dev/**").hasAnyRole("STUDIO", "ADMIN")
                         .requestMatchers("/admin/**").hasRole("ADMIN")
