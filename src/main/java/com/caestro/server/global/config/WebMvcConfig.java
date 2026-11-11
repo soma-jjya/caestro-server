@@ -57,6 +57,6 @@ public class WebMvcConfig implements WebMvcConfigurer {
         registry.addInterceptor(new RecommendFileSizeInterceptor(maxRecommendHeadBytes, maxRecommendModelBytes))
                 .addPathPatterns("/catalog/studio/recommend/files");
         registry.addInterceptor(new DevEvaluationUploadSizeInterceptor(maxDevEvalRecordBytes, maxDevEvalPhotoBytes))
-                .addPathPatterns("/dev/evaluations/*", "/dev/evaluations/*/photo");
+                .addPathPatterns("/dev/evaluations/*", "/dev/evaluations/*/photo", "/dev/evaluations/*/guide/*");
     }
 }

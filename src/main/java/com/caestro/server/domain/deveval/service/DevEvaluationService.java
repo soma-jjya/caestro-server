@@ -7,9 +7,11 @@ import com.caestro.server.domain.deveval.dto.response.DevEvaluationRowResponse;
 import com.caestro.server.domain.deveval.dto.response.DevEvaluationSavedResponse;
 import com.caestro.server.domain.deveval.dto.response.DevEvaluationStatsResponse;
 import com.caestro.server.domain.deveval.entity.DevEvaluation;
+import com.caestro.server.domain.deveval.entity.DevEvaluationGuide;
 import com.caestro.server.domain.deveval.entity.DevEvaluationPhoto;
 import com.caestro.server.domain.deveval.entity.DevEvaluationValues;
 import com.caestro.server.domain.deveval.repository.DevEvaluationCounts;
+import com.caestro.server.domain.deveval.repository.DevEvaluationGuideRepository;
 import com.caestro.server.domain.deveval.repository.DevEvaluationPhotoRepository;
 import com.caestro.server.domain.deveval.repository.DevEvaluationRepository;
 import com.caestro.server.domain.user.entity.User;
@@ -51,6 +53,8 @@ public class DevEvaluationService {
     // 앱이 사진마다 만드는 UUID. 주소에 그대로 들어가므로 글자를 좁힌다
     static final Pattern CLIENT_ID = Pattern.compile("^[A-Za-z0-9_-]{8,64}$");
     static final Set<String> MEDIA_TYPES = Set.of("photo", "fourcut");
+    // 직접 올린 사진 가이드 이미지의 종류: 실사(오려 낸 사람)·라인 (#266)
+    static final Set<String> GUIDE_KINDS = Set.of("photo", "line");
     static final int RATING_MAX_MIN = 2;
     static final int RATING_MAX_MAX = 100;
     static final int EXTRA_MAX_BYTES = 4096;
@@ -64,6 +68,7 @@ public class DevEvaluationService {
 
     private final DevEvaluationRepository evaluationRepository;
     private final DevEvaluationPhotoRepository photoRepository;
+    private final DevEvaluationGuideRepository guideRepository;
     private final UserRepository userRepository;
     private final ObjectMapper objectMapper;
     private final Clock clock;
@@ -76,9 +81,11 @@ public class DevEvaluationService {
     private long maxPhotoBytes;
 
     public DevEvaluationService(DevEvaluationRepository evaluationRepository, DevEvaluationPhotoRepository photoRepository,
-                                UserRepository userRepository, ObjectMapper objectMapper, Clock clock) {
+                                DevEvaluationGuideRepository guideRepository, UserRepository userRepository,
+                                ObjectMapper objectMapper, Clock clock) {
         this.evaluationRepository = evaluationRepository;
         this.photoRepository = photoRepository;
+        this.guideRepository = guideRepository;
         this.userRepository = userRepository;
         this.objectMapper = objectMapper;
         this.clock = clock;
@@ -110,12 +117,43 @@ public class DevEvaluationService {
     /** 기록이 먼저 있어야 한다(404). 이전 사진은 바꾼다. 형식은 앞 바이트로 확인한다(JPEG·PNG·WebP). */
     @Transactional
     public void uploadPhoto(Long userId, String clientId, byte[] body, String contentType) {
+        DevEvaluation evaluation = ownEvaluation(userId, clientId);
+        String id = evaluation.getId();
+        String type = checkedImage(body, contentType);
+        // 옛 사진은 읽지 않고 지운 뒤 새로 넣는다(엔티티로 덮으면 옛 블롭을 먼저 읽어 온다)
+        photoRepository.deleteQuietly(id);
+        photoRepository.save(new DevEvaluationPhoto(id, type, body));
+        evaluation.attachPhoto(body.length, type, LocalDateTime.now(clock));
+    }
+
+    /**
+     * '직접 올린 사진' 가이드의 이미지(#266): kind 는 photo(실사) 또는 line(라인). 사진과 같은 규칙(기록 먼저, 본인만,
+     * JPEG·PNG·WebP, 같은 상한)이고 같은 kind 는 바꾼다.
+     */
+    @Transactional
+    public void uploadGuide(Long userId, String clientId, String kind, byte[] body, String contentType) {
+        DevEvaluation evaluation = ownEvaluation(userId, clientId);
+        String k = guideKind(kind);
+        String type = checkedImage(body, contentType);
+        String guideId = DevEvaluationGuide.idOf(evaluation.getId(), k);
+        guideRepository.deleteQuietly(guideId);
+        guideRepository.save(new DevEvaluationGuide(guideId, evaluation.getId(), k, type, body));
+        evaluation.attachGuide(k, body.length, LocalDateTime.now(clock));
+    }
+
+    /** 내 기록: 기록이 먼저 있어야 하고(404) 남의 것이면 403. */
+    private DevEvaluation ownEvaluation(Long userId, String clientId) {
         String id = validClientId(clientId);
         DevEvaluation evaluation = evaluationRepository.findById(id)
                 .orElseThrow(() -> new CustomException(ErrorCode.DEV_EVAL_NOT_FOUND));
         if (!evaluation.isOwnedBy(userId)) {
             throw new CustomException(ErrorCode.DEV_EVAL_FORBIDDEN);
         }
+        return evaluation;
+    }
+
+    /** 올린 이미지의 형식(앞 바이트로 본 것). 밝힌 형식이 이미지가 아니거나, 상한을 넘거나, JPEG·PNG·WebP 가 아니면 거른다. */
+    private String checkedImage(byte[] body, String contentType) {
         String declared = contentType == null ? "" : contentType.split(";")[0].trim().toLowerCase();
         if (!(declared.isEmpty() || declared.equals("image/jpeg") || declared.equals("image/png")
                 || declared.equals("image/webp") || declared.equals("application/octet-stream"))) {
@@ -128,10 +166,14 @@ public class DevEvaluationService {
         if (type == null) {
             throw new CustomException(ErrorCode.DEV_EVAL_INVALID_PHOTO);
         }
-        // 옛 사진은 읽지 않고 지운 뒤 새로 넣는다(엔티티로 덮으면 옛 블롭을 먼저 읽어 온다)
-        photoRepository.deleteQuietly(id);
-        photoRepository.save(new DevEvaluationPhoto(id, type, body));
-        evaluation.attachPhoto(body.length, type, LocalDateTime.now(clock));
+        return type;
+    }
+
+    static String guideKind(String kind) {
+        if (kind == null || !GUIDE_KINDS.contains(kind)) {
+            throw invalid("가이드 이미지 종류는 photo 또는 line 입니다");
+        }
+        return kind;
     }
 
     /** 앞 바이트로 본 형식. 셋 다 아니면 null. */
@@ -167,6 +209,12 @@ public class DevEvaluationService {
     }
 
     @Transactional(readOnly = true)
+    public DevEvaluationGuide guide(String id, String kind) {
+        return guideRepository.findById(DevEvaluationGuide.idOf(id, guideKind(kind)))
+                .orElseThrow(() -> new CustomException(ErrorCode.DEV_EVAL_GUIDE_NOT_FOUND));
+    }
+
+    @Transactional(readOnly = true)
     public DevEvaluationStatsResponse stats() {
         DevEvaluationCounts c = evaluationRepository.counts();
         List<Integer> maxes = evaluationRepository.ratingMaxByUse(PageRequest.of(0, 1));
@@ -184,12 +232,13 @@ public class DevEvaluationService {
         return Math.round(ratio * ratingMax * 100.0) / 100.0;
     }
 
-    /** 지운다(사진도). 없으면 404. */
+    /** 지운다(사진·가이드 이미지도). 없으면 404. */
     @Transactional
     public void delete(String id) {
         DevEvaluation evaluation = evaluationRepository.findById(id)
                 .orElseThrow(() -> new CustomException(ErrorCode.DEV_EVAL_NOT_FOUND));
         photoRepository.deleteQuietly(id);
+        guideRepository.deleteByEvaluation(id);
         evaluationRepository.delete(evaluation);
     }
 
@@ -225,7 +274,7 @@ public class DevEvaluationService {
                 e.getRating(), e.getRatingMax(), e.isGuide(), e.getGuideVersion(), e.getGuideShot(), e.getGuideStyle(),
                 e.getShutterScore(), score, e.getMediaType(), toInstant(e.getTakenAt()), toInstant(e.getRatedAt()),
                 e.getWidth(), e.getHeight(), e.getAppVersion(), e.getDevice(), e.getNote(), extra(e.getExtraJson()),
-                e.hasPhoto(), e.getPhotoBytes(), toInstant(e.getCreatedAt()), toInstant(e.getUpdatedAt()));
+                e.hasPhoto(), e.getPhotoBytes(), e.guideImages(), toInstant(e.getCreatedAt()), toInstant(e.getUpdatedAt()));
     }
 
     // ── 검증·변환 ─────────────────────────────────────────────────────────────

@@ -25,7 +25,9 @@ public class DevEvaluationUploadSizeInterceptor implements HandlerInterceptor {
         if (!"PUT".equals(request.getMethod())) {
             return true;
         }
-        boolean photo = request.getRequestURI().endsWith("/photo");
+        // 사진과 가이드 이미지(/guide/photo·/guide/line)는 사진 상한, 나머지는 기록 상한
+        String uri = request.getRequestURI();
+        boolean photo = uri.endsWith("/photo") || uri.contains("/guide/");
         long declared = request.getContentLengthLong();
         if (declared < 0) {
             throw new CustomException(ErrorCode.LENGTH_REQUIRED);

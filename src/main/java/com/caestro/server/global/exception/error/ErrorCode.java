@@ -107,6 +107,7 @@ public enum ErrorCode {
     DEV_EVAL_FORBIDDEN(403, "다른 사용자의 평가 기록입니다"),
     DEV_EVAL_NOT_FOUND(404, "평가 기록을 찾을 수 없습니다"),
     DEV_EVAL_PHOTO_NOT_FOUND(404, "평가 사진이 없습니다"),
+    DEV_EVAL_GUIDE_NOT_FOUND(404, "가이드 이미지가 없습니다"),
     DEV_EVAL_LIMIT(409, "평가 기록은 한 사람당 최대 3000개까지 올릴 수 있습니다"),
     DEV_EVAL_INVALID_PHOTO(400, "사진 파일(JPEG/PNG/WebP)이 아닙니다"),
     DEV_EVAL_TOO_LARGE(413, "평가 기록이 너무 큽니다 (최대 32KB)"),
