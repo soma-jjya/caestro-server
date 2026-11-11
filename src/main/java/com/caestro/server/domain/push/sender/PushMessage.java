@@ -11,6 +11,7 @@ public record PushMessage(String type, String title, String body, Map<String, St
     public static final String TYPE_FILL_COMPLETED = "fill_completed";
     public static final String TYPE_FILL_EXPIRING = "fill_expiring";
     public static final String TYPE_TEST = "test";
+    public static final String TYPE_SUPPORT_REPLY = "support_reply";
     /** 알림함 행의 id (#211). 앱이 탭할 때 이 id 로 읽음을 표시한다. */
     public static final String DATA_NOTIFICATION_ID = "notificationId";
 
@@ -43,6 +44,12 @@ public record PushMessage(String type, String title, String body, Map<String, St
     public static PushMessage fillExpiring(String code, String label) {
         return new PushMessage(TYPE_FILL_EXPIRING, "네컷 사진이 곧 만료돼요!",
                 "'" + label + "' 사진이 내일 사라져요. 지금 저장해 두세요.", Map.of("code", code));
+    }
+
+    /** 앱 문의에 운영자가 답했을 때(#263). 탭하면 앱이 문의 {@code ticketId} 상세로 간다. */
+    public static PushMessage supportReply(long ticketId, String title) {
+        return new PushMessage(TYPE_SUPPORT_REPLY, "문의에 답변이 도착했어요",
+                "'" + title + "' 문의에 운영자가 답했어요. 지금 확인해 보세요.", Map.of("ticketId", Long.toString(ticketId)));
     }
 
     /** 앱 연동 확인용. 본인에게만 간다. */
