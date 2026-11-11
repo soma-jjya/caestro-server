@@ -3,6 +3,7 @@ package com.caestro.server.domain.deveval.controller;
 import com.caestro.server.domain.deveval.controller.api.DevEvaluationAdminApi;
 import com.caestro.server.domain.deveval.dto.response.DevEvaluationPageResponse;
 import com.caestro.server.domain.deveval.dto.response.DevEvaluationStatsResponse;
+import com.caestro.server.domain.deveval.entity.DevEvaluationGuide;
 import com.caestro.server.domain.deveval.entity.DevEvaluationPhoto;
 import com.caestro.server.domain.deveval.service.DevEvaluationService;
 import java.time.Clock;
@@ -62,6 +63,17 @@ public class DevEvaluationAdminController implements DevEvaluationAdminApi {
                 .contentType(MediaType.parseMediaType(photo.getContentType()))
                 .cacheControl(CacheControl.maxAge(300, TimeUnit.SECONDS).cachePrivate())
                 .body(photo.getData());
+    }
+
+    // 직접 올린 사진 가이드(사람이 담긴 사진): 평가 사진과 같은 캐시
+    @GetMapping("/evaluations/{id}/guide/{kind}")
+    @Override
+    public ResponseEntity<byte[]> guide(@PathVariable String id, @PathVariable String kind) {
+        DevEvaluationGuide guide = evaluationService.guide(id, kind);
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType(guide.getContentType()))
+                .cacheControl(CacheControl.maxAge(300, TimeUnit.SECONDS).cachePrivate())
+                .body(guide.getData());
     }
 
     @GetMapping("/evaluations.csv")

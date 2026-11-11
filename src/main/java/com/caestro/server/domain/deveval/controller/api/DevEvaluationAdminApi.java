@@ -40,6 +40,14 @@ public interface DevEvaluationAdminApi {
     })
     ResponseEntity<byte[]> photo(String id);
 
+    @Operation(summary = "직접 올린 사진 가이드 이미지", description = "kind 는 photo(실사) 또는 line(라인). 올린 형식 그대로. Cache-Control: private, max-age=300.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "이미지"),
+            @ApiResponse(responseCode = "400", description = "kind 가 photo·line 이 아님(DEV_EVAL_INVALID)"),
+            @ApiResponse(responseCode = "404", description = "없음(DEV_EVAL_GUIDE_NOT_FOUND)")
+    })
+    ResponseEntity<byte[]> guide(String id, @Parameter(description = "photo | line") String kind);
+
     @Operation(summary = "CSV 내려받기", description = "기록마다 한 줄(사진 없음). UTF-8 BOM, CRLF. 목록과 같은 guide·userId 거르기를 받습니다.")
     @ApiResponse(responseCode = "200", description = "text/csv")
     ResponseEntity<byte[]> csv(Boolean guide, Long userId);

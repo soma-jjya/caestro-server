@@ -57,6 +57,25 @@
 
 앱 순서: 기록 PUT → `hasPhoto` 가 false 면 사진 PUT. 둘 다 같은 `clientId` 라 몇 번 다시 보내도 결과가 같다.
 
+### `PUT /dev/evaluations/{clientId}/guide/{kind}` — 직접 올린 사진 가이드의 이미지 (#266)
+
+- 그 사진을 '직접 올린 사진' 가이드(`guideVersion: "user"`)로 찍었을 때, 그 가이드의 이미지. 풀 가이드는 공개 CDN 에 있어서 올리지 않는다.
+- `kind`: `photo`(실사, 오려 낸 사람) | `line`(라인). 다른 값은 400 `DEV_EVAL_INVALID`.
+- 나머지는 사진과 같다: 기록이 먼저(404 `DEV_EVAL_NOT_FOUND`), 본인만(403), JPEG·PNG·WebP 를 앞 바이트로 확인(400 `DEV_EVAL_INVALID_PHOTO`),
+  8MB(413 `DEV_EVAL_PHOTO_TOO_LARGE`), 길이 없음 411. 같은 kind 는 바꾼다. → 204
+- 사람이 담긴 사진이라 평가 사진처럼 DB 의 비공개 테이블(`dev_evaluation_guides`)에만 둔다.
+
+### extra 에 앱이 넣는 값 (기록 형식 2, android #358)
+
+서버는 extra 를 읽지 않고 그대로 돌려준다. 관리자 화면이 아래 값으로 사진 위에 가이드를 겹친다(admin #45).
+
+- `sender`: 보낸 사람. 로그인했으면 계정 닉네임, 아니면 앱에서 보낼 때 적은 이름(≤ 40자).
+- `guideRect`: `{ "x", "y", "w", "h" }` — 가이드의 정사각형 이미지 왼쪽 위와 한 변을 촬영 프레임에 대한 비율로(앱 GuideMeta 의 nx·ny·nw·nh).
+  프레임은 가로/세로가 `h / w` 이고 사진 안에 가운데로 꽉 차게 들어간다. 가이드는 보통 프레임보다 커서 프레임 밖은 잘라 낸다.
+- `guideFlip`: 가이드를 좌우로 뒤집어 그렸는지.
+- `guidePhotoUrl` · `guideLineUrl`: 풀 가이드의 실사·라인 이미지 공개 주소. 직접 올린 사진 가이드는 없다(위 PUT 으로 올린다).
+- `displayName` · `captureMode`: 폰 갤러리의 파일 이름과 찍은 화면.
+
 ## 관리자 (X-Studio-Key)
 
 ### `GET /admin/dev/evaluations?page=0&size=50&guide=true|false&userId=…`
@@ -74,7 +93,7 @@
   "shutterScore": 81.0, "photoScore": { "total": 78.0, "pose": 84.0, "place": 0.97, "shape": null } | null,
   "mediaType": "photo", "takenAt": "2026-11-10T07:12:00Z" | null, "ratedAt": "2026-11-10T07:30:00Z",
   "width": 3000, "height": 4000, "appVersion": "…", "device": "SM-S938N", "note": "…", "extra": { … } | null,
-  "hasPhoto": true, "photoBytes": 412345 | null, "createdAt": "…Z", "updatedAt": "…Z" }
+  "hasPhoto": true, "photoBytes": 412345 | null, "guideImages": ["photo", "line"], "createdAt": "…Z", "updatedAt": "…Z" }
 ```
 
 - `deviceKey` 는 운영 화면(contracts/studio-ops.md)과 같은 기기 키 해시의 앞 16자 — 같은 값이면 같은 폰. 기록 전이면 null.
@@ -85,6 +104,11 @@
 
 사진 바이트, `Content-Type` 은 올린 형식(image/jpeg·png·webp), `Cache-Control: private, max-age=300`(브라우저에만 5분, 공용 캐시 없음).
 사진이 없으면(기록이 없어도) 404 `DEV_EVAL_PHOTO_NOT_FOUND`. 헤더가 필요해서 `<img src>` 로는 못 연다 — `fetch` 로 받아 blob URL 로 보인다.
+
+### `GET /admin/dev/evaluations/{id}/guide/{kind}`
+
+직접 올린 사진 가이드의 이미지(#266). `kind` 는 `photo` | `line`(아니면 400). 행의 `guideImages` 에 있는 kind 만 있다.
+사진과 같이 올린 형식 그대로, `Cache-Control: private, max-age=300`. 없으면 404 `DEV_EVAL_GUIDE_NOT_FOUND`.
 
 ### `GET /admin/dev/evaluations/stats`
 
@@ -117,7 +141,7 @@ takenAt,ratedAt,width,height,appVersion,device,note,extra,hasPhoto,photoBytes,cr
 
 ### `DELETE /admin/dev/evaluations/{id}`
 
-기록과 사진을 함께 지운다 → 204. 없으면 404 `DEV_EVAL_NOT_FOUND`.
+기록과 사진, 가이드 이미지를 함께 지운다 → 204. 없으면 404 `DEV_EVAL_NOT_FOUND`.
 
 ## 오류
 
@@ -130,6 +154,7 @@ takenAt,ratedAt,width,height,appVersion,device,note,extra,hasPhoto,photoBytes,cr
 | `DEV_EVAL_FORBIDDEN` | 403 | 다른 사용자의 clientId (토큰 없음도 403 이지만 이 문구가 없다) |
 | `DEV_EVAL_NOT_FOUND` | 404 | 기록 없이 사진 올리기, 없는 기록 지우기 |
 | `DEV_EVAL_PHOTO_NOT_FOUND` | 404 | 관리자 사진 보기에서 사진이 없음 |
+| `DEV_EVAL_GUIDE_NOT_FOUND` | 404 | 관리자 가이드 이미지 보기에서 그 kind 가 없음 |
 | `DEV_EVAL_LIMIT` | 409 | 사용자당 3000개 초과(새 기록) |
 | `LENGTH_REQUIRED` | 411 | Content-Length 없음 |
 | `DEV_EVAL_TOO_LARGE` | 413 | 기록 JSON 32KB 초과 |
@@ -148,7 +173,8 @@ dev-eval:
 
 - `dev_evaluations`: 기록 한 건 = 한 행, id 는 `clientId`. `user_id` 는 외래키 없이 숫자(사용자 행은 탈퇴해도 남는다). 사진 크기·형식만 여기.
 - `dev_evaluation_photos`: 사진 바이트(LONGBLOB), id 는 기록 id. 목록·CSV·통계는 이 테이블을 읽지 않는다.
-- 운영은 `ddl-auto: update` 라 두 테이블은 배포 때 Hibernate 가 만든다. 아래는 ddl-auto 가 update 가 아닌 환경용.
+- `dev_evaluation_guides`(#266): 직접 올린 사진 가이드의 이미지, id 는 `기록id:kind`. `dev_evaluations` 의 `guide_photo_bytes`·`guide_line_bytes` 가 있는 kind 를 가리킨다.
+- 운영은 `ddl-auto: update` 라 테이블과 열은 배포 때 Hibernate 가 만든다. 아래는 ddl-auto 가 update 가 아닌 환경용.
 
 ```sql
 CREATE TABLE dev_evaluations (
@@ -176,6 +202,8 @@ CREATE TABLE dev_evaluations (
   extra_json         TEXT         NULL,
   photo_bytes        INT          NULL,
   photo_content_type VARCHAR(20)  NULL,
+  guide_photo_bytes  INT          NULL,
+  guide_line_bytes   INT          NULL,
   created_at         DATETIME(6)  NOT NULL,
   updated_at         DATETIME(6)  NOT NULL,
   INDEX idx_dev_evaluations_user (user_id),
@@ -186,9 +214,19 @@ CREATE TABLE dev_evaluation_photos (
   content_type VARCHAR(20) NOT NULL,
   data         LONGBLOB    NOT NULL
 );
+CREATE TABLE dev_evaluation_guides (
+  id            VARCHAR(72) NOT NULL PRIMARY KEY,
+  evaluation_id VARCHAR(64) NOT NULL,
+  kind          VARCHAR(10) NOT NULL,
+  content_type  VARCHAR(20) NOT NULL,
+  data          LONGBLOB    NOT NULL,
+  INDEX idx_dev_evaluation_guides_evaluation (evaluation_id)
+);
+-- 이미 있는 dev_evaluations 에는
+ALTER TABLE dev_evaluations ADD COLUMN guide_photo_bytes INT NULL, ADD COLUMN guide_line_bytes INT NULL;
 ```
 
 ## 클라이언트
 
-- 앱(개발자 모드 > 갤러리 평가): 평가를 매긴 사진마다 기록 PUT → 사진 PUT. 실패하면 같은 `clientId` 로 다시 보낸다. 409 `DEV_EVAL_LIMIT` 이면 멈추고 알린다.
+- 앱(개발자 모드 > 갤러리 평가): 평가를 매긴 사진마다 기록 PUT → 사진 PUT → 직접 올린 사진 가이드면 가이드 이미지 PUT. 실패하면 같은 `clientId` 로 다시 보낸다. 409 `DEV_EVAL_LIMIT` 이면 멈추고 알린다.
 - 관리자(peakpic.app/admin): 목록(가이드 있음/없음·사용자 거르기, 페이지), 사진 보기(fetch + blob), 요약 숫자, CSV 내려받기, 지우기.
