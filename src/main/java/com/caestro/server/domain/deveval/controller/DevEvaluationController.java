@@ -44,4 +44,16 @@ public class DevEvaluationController implements DevEvaluationApi {
         evaluationService.uploadPhoto(userDetails.getUserId(), clientId, body, contentType);
         return ResponseEntity.noContent().build();
     }
+
+    @PutMapping(value = "/{clientId}/guide/{kind}",
+            consumes = {MediaType.IMAGE_JPEG_VALUE, MediaType.IMAGE_PNG_VALUE, "image/webp", MediaType.APPLICATION_OCTET_STREAM_VALUE})
+    @Override
+    public ResponseEntity<Void> uploadGuide(@PathVariable String clientId,
+                                            @PathVariable String kind,
+                                            @RequestBody(required = false) byte[] body,
+                                            @RequestHeader(value = HttpHeaders.CONTENT_TYPE, required = false) String contentType,
+                                            @AuthenticationPrincipal CustomUserDetails userDetails) {
+        evaluationService.uploadGuide(userDetails.getUserId(), clientId, kind, body, contentType);
+        return ResponseEntity.noContent().build();
+    }
 }

@@ -11,6 +11,7 @@ import com.caestro.server.domain.deveval.dto.response.DevEvaluationSavedResponse
 import com.caestro.server.domain.deveval.dto.response.DevEvaluationStatsResponse;
 import com.caestro.server.domain.deveval.entity.DevEvaluation;
 import com.caestro.server.domain.deveval.entity.DevEvaluationPhoto;
+import com.caestro.server.domain.deveval.repository.DevEvaluationGuideRepository;
 import com.caestro.server.domain.deveval.repository.DevEvaluationPhotoRepository;
 import com.caestro.server.domain.deveval.repository.DevEvaluationRepository;
 import com.caestro.server.domain.deveval.service.DevEvaluationService;
@@ -71,6 +72,7 @@ class DevEvaluationPersistenceTest {
     @Autowired DevEvaluationService service;
     @Autowired DevEvaluationRepository evaluations;
     @Autowired DevEvaluationPhotoRepository photos;
+    @Autowired DevEvaluationGuideRepository guides;
     @Autowired UserRepository users;
 
     User dev;
@@ -78,6 +80,7 @@ class DevEvaluationPersistenceTest {
 
     @BeforeEach
     void setUp() {
+        guides.deleteAll();
         photos.deleteAll();
         evaluations.deleteAll();
         users.deleteAll();
@@ -301,15 +304,44 @@ class DevEvaluationPersistenceTest {
     }
 
     @Test
-    @DisplayName("지우기: 기록과 사진을 함께, 없으면 404")
+    @DisplayName("가이드 이미지(#266): 기록 먼저·남의 기록 403·kind 는 photo|line·이미지만, 같은 kind 는 바꾸고 목록에 guideImages")
+    void guide_upload() {
+        String id = id();
+        assertCode(() -> service.uploadGuide(dev.getId(), id, "photo", jpeg(100), "image/jpeg"), ErrorCode.DEV_EVAL_NOT_FOUND);
+
+        service.upsert(dev.getId(), id, record(23, true));
+        assertCode(() -> service.uploadGuide(other.getId(), id, "photo", jpeg(100), "image/jpeg"), ErrorCode.DEV_EVAL_FORBIDDEN);
+        assertCode(() -> service.uploadGuide(dev.getId(), id, "canny", jpeg(100), "image/jpeg"), ErrorCode.DEV_EVAL_INVALID);
+        assertCode(() -> service.uploadGuide(dev.getId(), id, "line", "not-an-image-at-all".getBytes(StandardCharsets.UTF_8), null),
+                ErrorCode.DEV_EVAL_INVALID_PHOTO);
+        assertCode(() -> service.uploadGuide(dev.getId(), id, "line", jpeg(1025), "image/jpeg"), ErrorCode.DEV_EVAL_PHOTO_TOO_LARGE);
+        assertThat(service.page(0, 50, null, null).items().get(0).guideImages()).isEmpty();
+
+        service.uploadGuide(dev.getId(), id, "line", jpeg(100), "image/jpeg");
+        service.uploadGuide(dev.getId(), id, "line", jpeg(120), "image/jpeg");
+        service.uploadGuide(dev.getId(), id, "photo", jpeg(80), "image/jpeg");
+
+        assertThat(guides.count()).as("kind 마다 하나").isEqualTo(2);
+        assertThat(service.guide(id, "line").getData()).hasSize(120);
+        assertThat(service.guide(id, "photo").getKind()).isEqualTo("photo");
+        assertThat(service.page(0, 50, null, null).items().get(0).guideImages()).containsExactly("photo", "line");
+        assertCode(() -> service.guide(id(), "photo"), ErrorCode.DEV_EVAL_GUIDE_NOT_FOUND);
+        assertCode(() -> service.guide(id, "x"), ErrorCode.DEV_EVAL_INVALID);
+        assertThat(evaluations.findById(id).orElseThrow().hasPhoto()).as("가이드는 사진이 아니다").isFalse();
+    }
+
+    @Test
+    @DisplayName("지우기: 기록과 사진·가이드 이미지를 함께, 없으면 404")
     void admin_delete() {
         String a = id();
         service.upsert(dev.getId(), a, record(20, true));
         service.uploadPhoto(dev.getId(), a, jpeg(50), "image/jpeg");
+        service.uploadGuide(dev.getId(), a, "photo", jpeg(40), "image/jpeg");
 
         service.delete(a);
         assertThat(evaluations.existsById(a)).isFalse();
         assertThat(photos.existsById(a)).isFalse();
+        assertThat(guides.count()).isZero();
         assertCode(() -> service.delete(a), ErrorCode.DEV_EVAL_NOT_FOUND);
     }
 }

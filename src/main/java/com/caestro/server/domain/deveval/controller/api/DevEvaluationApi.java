@@ -46,4 +46,20 @@ public interface DevEvaluationApi {
     })
     ResponseEntity<Void> uploadPhoto(String clientId, byte[] body, String contentType,
                                      @Parameter(hidden = true) CustomUserDetails userDetails);
+
+    @Operation(summary = "직접 올린 사진 가이드 이미지 올리기",
+            description = "평가한 사진을 '직접 올린 사진' 가이드(guideVersion=user)로 찍었을 때, 그 가이드의 이미지를 올립니다. "
+                    + "kind 는 photo(실사) 또는 line(라인). 사진과 같은 규칙(기록 먼저, JPEG·PNG·WebP, 최대 8MB)이고 같은 kind 는 바꿉니다.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "204", description = "저장됨"),
+            @ApiResponse(responseCode = "400", description = "kind 가 photo·line 이 아님(DEV_EVAL_INVALID), 이미지가 아님(DEV_EVAL_INVALID_PHOTO)"),
+            @ApiResponse(responseCode = "403", description = "토큰 없음, 또는 다른 사용자의 기록(DEV_EVAL_FORBIDDEN)"),
+            @ApiResponse(responseCode = "404", description = "기록 없음(DEV_EVAL_NOT_FOUND)"),
+            @ApiResponse(responseCode = "411", description = "Content-Length 없음"),
+            @ApiResponse(responseCode = "413", description = "8MB 초과(DEV_EVAL_PHOTO_TOO_LARGE)")
+    })
+    ResponseEntity<Void> uploadGuide(@Parameter(description = "앱이 만든 UUID") String clientId,
+                                     @Parameter(description = "photo | line") String kind,
+                                     byte[] body, String contentType,
+                                     @Parameter(hidden = true) CustomUserDetails userDetails);
 }

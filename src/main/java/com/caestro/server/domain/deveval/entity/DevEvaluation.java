@@ -6,6 +6,8 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Index;
 import jakarta.persistence.Table;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -90,6 +92,10 @@ public class DevEvaluation {
     // 사진이 있으면 그 크기와 종류(image/jpeg·png·webp). 없으면 null
     private Integer photoBytes;
 
+    // 직접 올린 사진 가이드의 이미지가 있으면 그 크기(#266, DevEvaluationGuide). 없으면 null
+    private Integer guidePhotoBytes;
+    private Integer guideLineBytes;
+
     @Column(length = 20)
     private String photoContentType;
 
@@ -141,6 +147,28 @@ public class DevEvaluation {
 
     public boolean hasPhoto() {
         return photoBytes != null;
+    }
+
+    /** kind 는 photo(실사) 또는 line(라인). */
+    public void attachGuide(String kind, int bytes, LocalDateTime now) {
+        if ("line".equals(kind)) {
+            this.guideLineBytes = bytes;
+        } else {
+            this.guidePhotoBytes = bytes;
+        }
+        this.updatedAt = now;
+    }
+
+    /** 올라온 가이드 이미지의 kind(photo, line 순). */
+    public List<String> guideImages() {
+        List<String> kinds = new ArrayList<>(2);
+        if (guidePhotoBytes != null) {
+            kinds.add("photo");
+        }
+        if (guideLineBytes != null) {
+            kinds.add("line");
+        }
+        return kinds;
     }
 
     public boolean isOwnedBy(Long userId) {

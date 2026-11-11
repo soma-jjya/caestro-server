@@ -2,6 +2,7 @@ package com.caestro.server.domain.deveval.dto.response;
 
 import com.caestro.server.domain.deveval.dto.PhotoScoreDto;
 import java.time.Instant;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -32,6 +33,8 @@ public record DevEvaluationRowResponse(
         Map<String, Object> extra,
         boolean hasPhoto,
         Integer photoBytes,
+        // 올라온 '직접 올린 사진' 가이드 이미지의 kind(photo·line). 없으면 빈 배열 (#266)
+        List<String> guideImages,
         Instant createdAt,
         Instant updatedAt
 ) {

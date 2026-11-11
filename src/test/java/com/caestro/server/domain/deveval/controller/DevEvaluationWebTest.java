@@ -18,6 +18,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.caestro.server.domain.deveval.dto.response.DevEvaluationPageResponse;
 import com.caestro.server.domain.deveval.dto.response.DevEvaluationSavedResponse;
 import com.caestro.server.domain.deveval.dto.response.DevEvaluationStatsResponse;
+import com.caestro.server.domain.deveval.entity.DevEvaluationGuide;
 import com.caestro.server.domain.deveval.entity.DevEvaluationPhoto;
 import com.caestro.server.domain.deveval.service.DevEvaluationService;
 import com.caestro.server.domain.user.entity.User;
@@ -169,6 +170,41 @@ class DevEvaluationWebTest {
                 .andExpect(content().bytes(jpeg));
         mockMvc.perform(get("/admin/dev/evaluations/no-photo-id/photo").header(KEY, STUDIO_KEY))
                 .andExpect(status().isNotFound());
+    }
+
+    @Test
+    @DisplayName("가이드 이미지(#266): 올리기는 앱 토큰만·사진 상한(기록 상한 아님), 열람은 스튜디오 키만이고 형식 그대로 private 캐시")
+    void guide_image() throws Exception {
+        String up = "/dev/evaluations/" + CLIENT_ID + "/guide/line";
+        mockMvc.perform(put(up).contentType(MediaType.IMAGE_PNG).content(new byte[600])).andExpect(status().isForbidden());
+        mockMvc.perform(put(up).header(KEY, STUDIO_KEY).contentType(MediaType.IMAGE_PNG).content(new byte[600]))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(put(up).with(user(APP_USER)).contentType(MediaType.IMAGE_PNG).content(new byte[1025]))
+                .andExpect(status().is(413))
+                .andExpect(jsonPath("$.message").value(ErrorCode.DEV_EVAL_PHOTO_TOO_LARGE.getMessage()));
+        mockMvc.perform(put(up).with(user(APP_USER)).contentType(MediaType.IMAGE_PNG)).andExpect(status().is(411));
+        verifyNoInteractions(evaluationService);
+
+        // 기록 상한(512B)보다 커도 사진 상한 안이면 통과
+        mockMvc.perform(put(up).with(user(APP_USER)).contentType(MediaType.IMAGE_PNG).content(new byte[600]))
+                .andExpect(status().isNoContent());
+        verify(evaluationService).uploadGuide(eq(7L), eq(CLIENT_ID), eq("line"), any(byte[].class),
+                org.mockito.ArgumentMatchers.startsWith("image/png"));
+
+        String read = "/admin/dev/evaluations/" + CLIENT_ID + "/guide/photo";
+        mockMvc.perform(get(read)).andExpect(status().isForbidden());
+        mockMvc.perform(get(read).with(user(APP_USER))).andExpect(status().isForbidden());
+        byte[] png = {(byte) 0x89, 'P', 'N', 'G', 1, 2};
+        given(evaluationService.guide(CLIENT_ID, "photo")).willReturn(new DevEvaluationGuide(CLIENT_ID + ":photo", CLIENT_ID, "photo", "image/png", png));
+        given(evaluationService.guide(CLIENT_ID, "line")).willThrow(new CustomException(ErrorCode.DEV_EVAL_GUIDE_NOT_FOUND));
+        mockMvc.perform(get(read).header(KEY, STUDIO_KEY))
+                .andExpect(status().isOk())
+                .andExpect(content().contentType(MediaType.IMAGE_PNG))
+                .andExpect(header().string("Cache-Control", "max-age=300, private"))
+                .andExpect(content().bytes(png));
+        mockMvc.perform(get("/admin/dev/evaluations/" + CLIENT_ID + "/guide/line").header(KEY, STUDIO_KEY))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.message").value(ErrorCode.DEV_EVAL_GUIDE_NOT_FOUND.getMessage()));
     }
 
     @Test
