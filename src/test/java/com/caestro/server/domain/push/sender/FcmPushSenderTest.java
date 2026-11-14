@@ -31,14 +31,16 @@ class FcmPushSenderTest {
 
     private MockRestServiceServer server;
     private FcmPushSender sender;
+    private CircuitBreakerRegistry registry;
 
     @BeforeEach
     void setUp() {
         RestClient.Builder builder = RestClient.builder().baseUrl(FcmPushSender.BASE_URL);
         server = MockRestServiceServer.bindTo(builder).build();
         GoogleCredentials credentials = GoogleCredentials.create(new AccessToken("test-access-token", null));
+        registry = CircuitBreakerRegistry.ofDefaults();
         sender = new FcmPushSender("peakpic-test", credentials, builder.build(), new ObjectMapper(),
-                new ExternalApiGuard(CircuitBreakerRegistry.ofDefaults()));
+                new ExternalApiGuard(registry));
     }
 
     @Test
@@ -69,6 +71,37 @@ class FcmPushSenderTest {
 
         assertThat(sender.send("tok-gone", PushMessage.test())).isEqualTo(PushResult.UNREGISTERED);
         assertThat(sender.send("garbage", PushMessage.test())).isEqualTo(PushResult.UNREGISTERED);
+        server.verify();
+    }
+
+    @Test
+    @DisplayName("[재현] 들여쓰기 있는 404 본문(원문 200자 넘고 공백 축약 뒤 192자)도 UNREGISTERED 이고 서킷 실패로 세지 않는다 (#269)")
+    void prettyPrintedDeadTokenBody_isStillUnregistered() {
+        // FCM 이 실제로 보내는 모양: 줄바꿈·들여쓰기 JSON. 로그용으로 공백을 줄이면 200자보다 짧아진다
+        String pretty = """
+                {
+                  "error": {
+                    "code": 404,
+                    "status": "NOT_FOUND",
+                    "details": [
+                      {
+                        "@type": "type.googleapis.com/google.firebase.fcm.v1.FcmError",
+                        "errorCode": "UNREGISTERED"
+                      }
+                    ]
+                  }
+                }""";
+        assertThat(pretty.length()).isGreaterThan(200);
+        assertThat(pretty.replaceAll("\\s+", " ").length()).isLessThan(200);
+        for (int i = 0; i < 5; i++) {
+            server.expect(requestTo(SEND)).andRespond(withStatus(HttpStatus.NOT_FOUND).contentType(MediaType.APPLICATION_JSON).body(pretty));
+        }
+
+        for (int i = 0; i < 5; i++) {
+            assertThat(sender.send("tok-gone-" + i, PushMessage.fillExpiring("K7X2MQ", "제주"))).isEqualTo(PushResult.UNREGISTERED);
+        }
+        // 4xx 는 서킷 표본에서 빠진다 — 죽은 토큰이 몰려도 서킷이 열리면 안 된다
+        assertThat(registry.circuitBreaker(FcmPushSender.CIRCUIT).getMetrics().getNumberOfFailedCalls()).isZero();
         server.verify();
     }
 
