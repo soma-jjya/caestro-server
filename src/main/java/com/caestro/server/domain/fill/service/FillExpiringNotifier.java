@@ -2,7 +2,8 @@ package com.caestro.server.domain.fill.service;
 
 import com.caestro.server.domain.fill.entity.FillSession;
 import com.caestro.server.domain.fill.repository.FillSessionRepository;
-import com.caestro.server.domain.notification.service.NotificationDispatcher;
+import com.caestro.server.domain.notification.service.EnqueueOptions;
+import com.caestro.server.domain.notification.service.NotificationOutboxService;
 import com.caestro.server.domain.push.sender.PushMessage;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -19,6 +20,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 /**
  * 만료 전날 안내 (#213): 앞으로 24시간 안에 만료하고 사진이 있는 세션의 주인에게 "내일 사라져요"를 세션당 한 번 보낸다.
  * 하루 한 번(기본 KST 09:00) 돌고 창이 주기와 같아 빠지지 않는다. 행마다 따로 처리해 하나가 실패해도 나머지는 간다(정리 배치와 같은 원칙).
+ * 배치는 아웃박스에 요청만 남기고(#272) 실제 발송은 릴레이가 재시도까지 맡는다 — 09:00 에 FCM 이 흔들려도 그날 안내가 통째로 버려지지 않는다.
  */
 @Slf4j
 @Component
@@ -31,23 +33,20 @@ public class FillExpiringNotifier {
     static final Duration WINDOW = Duration.ofHours(24);
 
     private final FillSessionRepository sessionRepository;
-    private final NotificationDispatcher dispatcher;
+    private final NotificationOutboxService outbox;
     private final TransactionTemplate transaction;
     private final Clock clock;
     private final Counter notified;
-    private final Counter requested;
     // 0이어야 정상. 찍히면 어떤 세션이 왜 실패했는지 warn 로그를 본다
     private final Counter failed;
 
-    public FillExpiringNotifier(FillSessionRepository sessionRepository, NotificationDispatcher dispatcher,
+    public FillExpiringNotifier(FillSessionRepository sessionRepository, NotificationOutboxService outbox,
                                 TransactionTemplate transaction, Clock clock, MeterRegistry registry) {
         this.sessionRepository = sessionRepository;
-        this.dispatcher = dispatcher;
+        this.outbox = outbox;
         this.transaction = transaction;
         this.clock = clock;
-        this.notified = Counter.builder("fill.expiring.notified").description("만료 전날 안내를 보낸 세션 수").register(registry);
-        this.requested = Counter.builder("notification.requested").tag("type", "fill_expiring")
-                .description("만료 안내 발송 요청 수(#271). push.sent 와 견줘 유실을 본다").register(registry);
+        this.notified = Counter.builder("fill.expiring.notified").description("만료 전날 안내를 아웃박스에 넣은 세션 수").register(registry);
         this.failed = Counter.builder("fill.expiring.failed").description("만료 전날 안내에 실패한 세션 수").register(registry);
     }
 
@@ -66,16 +65,20 @@ public class FillExpiringNotifier {
         int failures = 0;
         for (FillSession session : targets) {
             try {
-                // 2. 보냈음 표시를 먼저 짧은 트랜잭션으로 — 겹쳐 돈 배치는 여기서 진다
-                Integer claimed = transaction.execute(s -> sessionRepository.markExpiringNotified(session.getId(), now));
+                // 2. "보냈음" 표시와 아웃박스 행을 **한 트랜잭션**으로(#272) — 겹쳐 돈 배치는 표시에서 지고,
+                //    표시는 됐는데 요청이 없는 일이 생기지 않는다. 발송은 릴레이가 하고, 세션 만료 뒤엔 보내지 않는다(expiresAt)
+                Integer claimed = transaction.execute(s -> {
+                    int marked = sessionRepository.markExpiringNotified(session.getId(), now);
+                    if (marked == 1) {
+                        outbox.enqueue(session.getOwner().getId(), message(session),
+                                EnqueueOptions.dedup("fill_expiring:" + session.getId()).expiring(session.getExpiresAt()));
+                    }
+                    return marked;
+                });
                 if (claimed == null || claimed != 1) {
                     skipped++;
                     continue;
                 }
-                // 3. 알림함 저장 → 푸시 (트랜잭션 밖)
-                // 발송 요청 1건(#271). dispatcher 가 던지면 아래 failed 로 — requested 는 '시도' 기준이라 그 전에 센다
-                requested.increment();
-                dispatcher.notify(session.getOwner().getId(), message(session));
                 sent++;
                 notified.increment();
             } catch (RuntimeException e) {

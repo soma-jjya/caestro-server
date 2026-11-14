@@ -10,7 +10,8 @@ import static org.mockito.Mockito.verify;
 
 import com.caestro.server.domain.fill.entity.FillSession;
 import com.caestro.server.domain.fill.repository.FillSessionRepository;
-import com.caestro.server.domain.notification.service.NotificationDispatcher;
+import com.caestro.server.domain.notification.service.EnqueueOptions;
+import com.caestro.server.domain.notification.service.NotificationOutboxService;
 import com.caestro.server.domain.push.sender.PushMessage;
 import com.caestro.server.domain.user.entity.User;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
@@ -39,7 +40,7 @@ class FillExpiringNotifierTest {
     private static final LocalDateTime NOW_LOCAL = LocalDateTime.ofInstant(NOW, ZoneOffset.UTC);
 
     @Mock private FillSessionRepository sessionRepository;
-    @Mock private NotificationDispatcher dispatcher;
+    @Mock private NotificationOutboxService outbox;
 
     private SimpleMeterRegistry registry;
     private FillExpiringNotifier notifier;
@@ -47,7 +48,7 @@ class FillExpiringNotifierTest {
     @BeforeEach
     void setUp() {
         registry = new SimpleMeterRegistry();
-        notifier = new FillExpiringNotifier(sessionRepository, dispatcher,
+        notifier = new FillExpiringNotifier(sessionRepository, outbox,
                 new TransactionTemplate(mock(PlatformTransactionManager.class)), Clock.fixed(NOW, ZoneOffset.UTC), registry);
     }
 
@@ -73,15 +74,17 @@ class FillExpiringNotifierTest {
 
         assertThat(result).isEqualTo(new FillExpiringNotifier.Result(2, 1, 1, 0));
         ArgumentCaptor<PushMessage> message = ArgumentCaptor.forClass(PushMessage.class);
-        verify(dispatcher).notify(eq(101L), message.capture());
-        verify(dispatcher, never()).notify(eq(102L), any());
+        ArgumentCaptor<EnqueueOptions> options = ArgumentCaptor.forClass(EnqueueOptions.class);
+        verify(outbox).enqueue(eq(101L), message.capture(), options.capture());
+        verify(outbox, never()).enqueue(eq(102L), any(), any());
         assertThat(message.getValue().type()).isEqualTo(PushMessage.TYPE_FILL_EXPIRING);
         assertThat(message.getValue().data()).containsEntry("code", "AAAA11");
         assertThat(message.getValue().title()).isEqualTo("네컷 사진이 곧 만료돼요!");
         assertThat(message.getValue().body()).isEqualTo("'제주 여행' 사진이 내일 사라져요. 지금 저장해 두세요.");
+        // #272: 세션당 한 번(dedup), 세션이 만료되면 보내지 않는다(expiresAt)
+        assertThat(options.getValue().dedupKey()).isEqualTo("fill_expiring:1");
+        assertThat(options.getValue().expiresAt()).isEqualTo(NOW_LOCAL.plusHours(10));
         assertThat(registry.counter("fill.expiring.notified").count()).isEqualTo(1.0);
-        // 발송 요청 1건(#271) — push.sent 와 견줘 유실을 보는 분자
-        assertThat(registry.counter("notification.requested", "type", "fill_expiring").count()).isEqualTo(1.0);
     }
 
     @Test
@@ -91,8 +94,8 @@ class FillExpiringNotifierTest {
         FillSession second = session(2, "BBBB22", null, NOW_LOCAL.plusHours(2));
         given(sessionRepository.findExpiringTargets(any(), any())).willReturn(List.of(first, second));
         given(sessionRepository.markExpiringNotified(any(), any())).willReturn(1);
-        given(dispatcher.notify(eq(101L), any())).willThrow(new IllegalStateException("boom"));
-        given(dispatcher.notify(eq(102L), any())).willReturn(1);
+        given(outbox.enqueue(eq(101L), any(), any())).willThrow(new IllegalStateException("boom"));
+        given(outbox.enqueue(eq(102L), any(), any())).willReturn(true);
 
         FillExpiringNotifier.Result result = notifier.runOnce(NOW_LOCAL);
 
@@ -100,7 +103,7 @@ class FillExpiringNotifierTest {
         assertThat(registry.counter("fill.expiring.failed").count()).isEqualTo(1.0);
         // 제목이 없으면 코드로 부른다
         ArgumentCaptor<PushMessage> message = ArgumentCaptor.forClass(PushMessage.class);
-        verify(dispatcher).notify(eq(102L), message.capture());
+        verify(outbox).enqueue(eq(102L), message.capture(), any());
         assertThat(message.getValue().body()).startsWith("'BBBB22' 사진이");
     }
 }

@@ -29,14 +29,18 @@
 - 목록 항목 탭 → `PATCH /{id}/read` → `data` 로 이동. 푸시 탭 → 푸시 `data.notificationId` 로 같은 호출 → 이동.
 - "모두 읽음" 버튼은 `read-all`.
 
-## 서버 동작 (읽는 순서)
+## 서버 동작 (읽는 순서) — #272 아웃박스
 
-1. 보내는 쪽(네 칸 완성 리스너, 만료 안내 배치)은 `NotificationDispatcher.notify(userId, message)` 하나만 부른다.
-2. dispatcher 는 `NotificationService.record` 로 행을 만들고(그 트랜잭션은 거기서 끝난다), 돌아온 id 를 `PushMessage.withNotificationId` 로 data 에 싣고 `PushService.sendToUser` 를 부른다(트랜잭션 밖 — 외부 호출은 밖에서, #184 와 같은 원칙).
-3. 저장이 실패해도 푸시는 보낸다(id 없이). 알림함이 막혔다고 알림까지 잃지 않는다. warn 로그가 남는다.
-4. 토큰이 없는 사용자도 행은 남는다. 앱을 열면 목록에 있다.
+1. 보내는 쪽(네 칸 완성·만료 안내 배치·문의 답변)은 `NotificationOutboxService.enqueue(userId, PushMessage, options)` 하나만 부른다. 이 호출은 **사건과 같은 트랜잭션**에 `notification_outbox` 행을 넣는다 — 커밋되면 요청도 반드시 남고, 롤백되면 같이 사라진다. 네 칸 완성·문의 답변은 도메인 이벤트를 받는 동기 `@EventListener`(`OutboxEnqueuer`)가 넣고, 만료 안내는 배치가 "보냈음" 표시와 같은 짧은 트랜잭션에 넣는다.
+2. `OutboxRelay` 가 인스턴스마다 3초에 한 번 보낼 차례인 행(PENDING, not_before ≤ now)을 집는다. 집기는 행 단위 UPDATE(PENDING → PROCESSING + lease)라 두 릴레이가 같은 행을 보내지 않는다. 보내는 동안 DB 트랜잭션은 쥐지 않는다.
+3. 행마다: 유효 시한(`expires_at`)이 지났으면 EXPIRED → 알림함 행을 **한 번만** 만들고 id 를 행에 적는다(재시도에도 알림함은 한 줄) → `PushService.sendReport` 로 FCM. 기기가 있는데 전부 실패(FCM 5xx·서킷 열림)면 attempts+1, `not_before` 를 1·5·30분·2시간·6시간 뒤로 미루고 PENDING 으로. 5회째면 DEAD(로그 error, 사람이 본다). 기기가 없거나 하나라도 수락되면 SENT.
+4. 릴레이가 보내는 중에 죽으면 행은 PROCESSING 으로 남고, lease(60초)가 지나면 다음 주기에 PENDING 으로 되찾는다 → **최소 한 번** 전달. 두 번은 `dedup_key` 유니크와 SENT 상태가 막는다.
 5. 읽음은 `readAt` 시각. 처음 읽을 때만 `notification.opened` 를 센다.
-6. 보관: `cleanup.notification.retention-days`(기본 90) 지난 행을 `cleanup.notification.cron`(기본 05:20) 에 지운다. ShedLock `notificationCleanup`.
+6. 보관: 알림함 행은 `cleanup.notification`(기본 90일), 아웃박스는 `cleanup.outbox`(SENT·EXPIRED 7일, DEAD 30일).
+
+### 왜 아웃박스인가
+
+커밋 뒤 메모리 이벤트(#211 까지의 길)는 커밋과 발송 사이에 서버가 재시작되거나 FCM 이 거절하면 요청 자체가 사라졌다(#269: 서킷 열림으로 이틀간 18건). 큐에 바로 넣어도 "DB 커밋은 됐는데 큐에 넣기 전에 죽음"이 남는다(이중 쓰기). 요청을 DB 트랜잭션에 묶는 것이 유일하게 틈이 없는 자리다. 큐(Redis Streams, #273)는 이 위에 전달·소비자 분리 역할로 얹는다.
 
 ## 왜 이렇게
 
@@ -80,4 +84,4 @@ CREATE TABLE notifications (
 
 ## 다음
 
-종류가 늘면(친구가 칸 채움, 공지) 같은 `NotificationDispatcher.notify` 길을 탄다. 만료 전날 안내(`fill_expiring`)가 첫 번째 추가다(#213). 알림 설정(종류별 끄기)은 `record` 앞에서 거른다.
+종류가 늘면(친구가 칸 채움, 공지) 같은 `NotificationOutboxService.enqueue` 길을 탄다(#272). 만료 전날 안내(`fill_expiring`)가 첫 번째 추가다(#213). 알림 설정(종류별 끄기)은 `record` 앞에서 거른다.

@@ -204,7 +204,7 @@ public class FillService {
 
     /**
      * 네 칸이 모두 찬 첫 순간에 한 번만 주인과 칸을 채운 참여자들에게 알린다(#206). "보냈음" 표시는 같은 트랜잭션의 조건부 UPDATE 라
-     * 동시 요청 둘이 모두 "다 찼다"를 봐도 한쪽만 이긴다. 발송 자체는 커밋 뒤 비동기(FillCompletedPushListener).
+     * 동시 요청 둘이 모두 "다 찼다"를 봐도 한쪽만 이긴다. 발송 요청은 같은 트랜잭션의 아웃박스 행(OutboxEnqueuer, #272)이 되고 릴레이가 보낸다.
      */
     private void notifyIfCompleted(FillSession session, List<FillSlot> slots) {
         if (slots.size() < SLOTS || slots.stream().anyMatch(FillSlot::isEmpty)) {
