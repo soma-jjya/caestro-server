@@ -35,6 +35,7 @@ public class FillExpiringNotifier {
     private final TransactionTemplate transaction;
     private final Clock clock;
     private final Counter notified;
+    private final Counter requested;
     // 0이어야 정상. 찍히면 어떤 세션이 왜 실패했는지 warn 로그를 본다
     private final Counter failed;
 
@@ -45,6 +46,8 @@ public class FillExpiringNotifier {
         this.transaction = transaction;
         this.clock = clock;
         this.notified = Counter.builder("fill.expiring.notified").description("만료 전날 안내를 보낸 세션 수").register(registry);
+        this.requested = Counter.builder("notification.requested").tag("type", "fill_expiring")
+                .description("만료 안내 발송 요청 수(#271). push.sent 와 견줘 유실을 본다").register(registry);
         this.failed = Counter.builder("fill.expiring.failed").description("만료 전날 안내에 실패한 세션 수").register(registry);
     }
 
@@ -70,6 +73,8 @@ public class FillExpiringNotifier {
                     continue;
                 }
                 // 3. 알림함 저장 → 푸시 (트랜잭션 밖)
+                // 발송 요청 1건(#271). dispatcher 가 던지면 아래 failed 로 — requested 는 '시도' 기준이라 그 전에 센다
+                requested.increment();
                 dispatcher.notify(session.getOwner().getId(), message(session));
                 sent++;
                 notified.increment();

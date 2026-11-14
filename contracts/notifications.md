@@ -47,7 +47,7 @@
 
 ## 관측
 
-- `notification.recorded{type}` 저장 수, `notification.opened{type}` 처음 읽은 수. `push.sent{type,result}` 와 함께 보면 "저장 → FCM 수락 → 열람"이 한 줄.
+- `notification.recorded{type}` 저장 수, `notification.opened{type}` 처음 읽은 수. `notification.requested{type}` 요청 수와 `notification.record_failed{type}` 저장 실패 수는 #271(contracts/push.md 관측). `push.sent{type,result}` 와 함께 보면 "저장 → FCM 수락 → 열람"이 한 줄.
 - 로그 `Notification cleanup batch end (deleted, retentionDays)`.
 
 ## 설정

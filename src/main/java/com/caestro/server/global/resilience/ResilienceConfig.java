@@ -1,11 +1,13 @@
 package com.caestro.server.global.resilience;
 
 import io.github.resilience4j.circuitbreaker.CircuitBreakerConfig;
+import io.github.resilience4j.circuitbreaker.CircuitBreaker;
 import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
 import io.github.resilience4j.micrometer.tagged.TaggedCircuitBreakerMetrics;
 import io.micrometer.core.instrument.MeterRegistry;
 import java.time.Duration;
 import org.springframework.context.annotation.Bean;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
 
@@ -15,6 +17,7 @@ import org.springframework.web.reactive.function.client.WebClientResponseExcepti
  * 게스트 로그인·WS 핸드셰이크까지 전염된다 — 장애 감지 시 즉시 실패(fail-fast)로 스레드를 보호하고
  * half-open으로 자동 복구를 탐지한다. 상태 전이는 Micrometer로 노출되어 Grafana에서 관측된다.
  */
+@Slf4j
 @Configuration
 public class ResilienceConfig {
 
@@ -30,6 +33,17 @@ public class ResilienceConfig {
                 .build();
 
         CircuitBreakerRegistry registry = CircuitBreakerRegistry.of(config);
+        // 서킷이 열리고 닫히는 순간을 로그·지표로 남긴다(#271). 로그 한 줄이 CloudWatch 지표 필터 → 알람의 재료다.
+        registry.getEventPublisher().onEntryAdded(added -> added.getAddedEntry().getEventPublisher().onStateTransition(event -> {
+            String name = event.getCircuitBreakerName();
+            String to = event.getStateTransition().getToState().name();
+            meterRegistry.counter("circuit.transition", "name", name, "to", to).increment();
+            if (event.getStateTransition().getToState() == CircuitBreaker.State.OPEN) {
+                log.warn("Circuit opened: name={} from={} — 이 이름의 외부 호출을 잠시 차단한다", name, event.getStateTransition().getFromState());
+            } else if (event.getStateTransition().getToState() == CircuitBreaker.State.CLOSED) {
+                log.info("Circuit closed: name={}", name);
+            }
+        }));
         // 이름별 서킷 상태(closed/open/half_open)·실패율을 지표로 노출
         TaggedCircuitBreakerMetrics.ofCircuitBreakerRegistry(registry).bindTo(meterRegistry);
         return registry;

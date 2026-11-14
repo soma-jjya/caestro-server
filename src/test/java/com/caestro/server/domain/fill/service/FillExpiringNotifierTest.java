@@ -80,6 +80,8 @@ class FillExpiringNotifierTest {
         assertThat(message.getValue().title()).isEqualTo("네컷 사진이 곧 만료돼요!");
         assertThat(message.getValue().body()).isEqualTo("'제주 여행' 사진이 내일 사라져요. 지금 저장해 두세요.");
         assertThat(registry.counter("fill.expiring.notified").count()).isEqualTo(1.0);
+        // 발송 요청 1건(#271) — push.sent 와 견줘 유실을 보는 분자
+        assertThat(registry.counter("notification.requested", "type", "fill_expiring").count()).isEqualTo(1.0);
     }
 
     @Test
