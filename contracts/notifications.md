@@ -38,6 +38,26 @@
 5. 읽음은 `readAt` 시각. 처음 읽을 때만 `notification.opened` 를 센다.
 6. 보관: 알림함 행은 `cleanup.notification`(기본 90일), 아웃박스는 `cleanup.outbox`(SENT·EXPIRED 7일, DEAD 30일).
 
+### 전달 — Redis Streams (#273, `notification.stream.enabled`, 기본 켬)
+
+```
+릴레이(3초) ─ PENDING 집기 → XADD notifications {outboxId} → 행 RELAYED(lease 12시간)
+소비자 그룹 notifier (서버마다 1, 블로킹 XREADGROUP)
+   → 행 읽기 → 이미 끝났으면 XACK 만(중복 방지)
+   → 시한 지남 EXPIRED / 알림함 한 번 → FCM
+   ├ 성공·만료 → XACK
+   ├ 실패 → attempts+1, ack 하지 않음(PEL 에 남음)
+   └ 한도(5) → notifications.dead 에 XADD + 행 DEAD + XACK
+스윕(30초) ─ XPENDING → 행 attempts 만큼의 백오프(처음은 60초)를 넘긴 것 XCLAIM → 다시 처리
+```
+
+- 메시지에는 `outboxId` 만 싣는다. 내용·개인정보는 DB 에 있고 큐가 날아가도 DB 가 원본이다(RELAYED 가 12시간 끝나지 않으면 릴레이가 PENDING 으로 되찾아 다시 넣는다).
+- 소비자 이름은 기동마다 새로(`호스트-난수`). 배포로 사라진 소비자의 PEL 은 다른 서버의 스윕이 60초 뒤 넘겨받는다.
+- Redis 가 안 되면 XADD 가 실패해 행은 PROCESSING(lease 60초) → PENDING 으로 돌아와 다음 바퀴에 다시. 요청은 잃지 않는다.
+- 끄면(`false`) 릴레이가 직접 FCM 을 부르고 실패는 `not_before` 백오프로 다시(#272 방식). 롤백은 이 한 줄.
+- 지표: `notification.consumed{type,result=sent|expired|retried|dead|skipped}`, `notification.stream.pending`(꺼냈지만 못 끝낸 수), `notification.stream.dead`(보류함 길이).
+- 테스트 JVM 은 워커(릴레이 주기·소비자)를 끈다(build.gradle). 켜는 건 `NotificationStreamTest` 하나.
+
 ### 왜 아웃박스인가
 
 커밋 뒤 메모리 이벤트(#211 까지의 길)는 커밋과 발송 사이에 서버가 재시작되거나 FCM 이 거절하면 요청 자체가 사라졌다(#269: 서킷 열림으로 이틀간 18건). 큐에 바로 넣어도 "DB 커밋은 됐는데 큐에 넣기 전에 죽음"이 남는다(이중 쓰기). 요청을 DB 트랜잭션에 묶는 것이 유일하게 틈이 없는 자리다. 큐(Redis Streams, #273)는 이 위에 전달·소비자 분리 역할로 얹는다.

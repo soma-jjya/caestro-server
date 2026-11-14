@@ -76,11 +76,24 @@ cleanup:
 
 # 알림 아웃박스 릴레이 (#272, contracts/notifications.md): 사건과 같은 트랜잭션에 남은 요청을 집어 알림함 저장 → FCM. 인스턴스마다 돈다
 notification:
+  worker:
+    enabled: true             # 이 인스턴스가 릴레이 주기·스트림 소비자를 돌리는가. 테스트는 build.gradle 에서 끈다(#274 notifier 분리의 스위치)
   outbox:
-    poll-ms: 3000             # 집는 주기. 알림 도착이 이만큼 늦을 수 있다
+    poll-ms: 3000             # 집는 주기. 스트림 모드에선 큐에 넣는 데까지의 지연
     batch: 50                 # 한 번에 집는 행 수
-    max-attempts: 5           # 이만큼 실패하면 DEAD(사람이 본다). 간격은 1·5·30분·2시간·6시간
+    max-attempts: 5           # 이만큼 실패하면 DEAD(사람이 본다)
+    backoff: 60s,300s,1800s,7200s,21600s   # n 번째 실패 뒤 기다리는 시간(1·5·30분·2·6시간)
     lease-seconds: 60         # 집은 뒤 이 시간 안에 못 끝내면 다른 릴레이가 되찾는다
+  # 전달을 Redis Streams 로 (#273). false 면 #272 방식(릴레이가 직접 FCM) — 롤백은 이 한 줄
+  stream:
+    enabled: true
+    key: notifications        # 메시지는 {outboxId} 만. 내용은 DB
+    dead-key: notifications.dead
+    group: notifier           # 소비자 그룹. 서버 여러 대가 나눠 갖는다
+    maxlen: 10000             # 대략 길이 상한(XTRIM ~)
+    claim-idle-seconds: 60    # 꺼낸 뒤 이만큼 ack 가 없으면(소비자가 죽음) 다른 소비자가 가져간다
+    sweep-ms: 30000           # 재시도 스윕 주기
+    relayed-lease-hours: 12   # 큐에 넣고 이만큼 끝나지 않으면 큐에서 잃은 것으로 보고 다시 넣는다(재시도 합 8.6시간보다 길게)
 
 # 서버가 시각을 고르는 알림 배치
 notify:

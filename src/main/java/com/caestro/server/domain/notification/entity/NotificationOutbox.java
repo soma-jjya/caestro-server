@@ -143,6 +143,30 @@ public class NotificationOutbox {
         }
     }
 
+    /** 스트림에 넣었다(#273). 소비자가 끝낼 때까지 RELAYED, [leaseUntil] 이 지나면 큐에서 잃은 것으로 보고 릴레이가 다시 넣는다. */
+    public void relayed(LocalDateTime leaseUntil) {
+        this.status = OutboxStatus.RELAYED;
+        this.claimToken = null;
+        this.leaseUntil = leaseUntil;
+    }
+
+    /** 스트림 소비자의 발송 실패(#273): 한 번 더 세고, 한도면 DEAD. 다시 보내는 시점은 큐(PEL)가 정하므로 상태·not_before 는 그대로. @return DEAD 가 됐으면 true */
+    public boolean deliveryFailed(LocalDateTime now, int maxAttempts, String error) {
+        this.attempts++;
+        this.lastError = error == null ? null : error.substring(0, Math.min(error.length(), ERROR_MAX));
+        if (this.attempts >= maxAttempts) {
+            this.status = OutboxStatus.DEAD;
+            this.sentAt = now;
+            this.leaseUntil = null;
+            return true;
+        }
+        return false;
+    }
+
+    public boolean isFinished() {
+        return status == OutboxStatus.SENT || status == OutboxStatus.EXPIRED || status == OutboxStatus.DEAD;
+    }
+
     public boolean isExpired(LocalDateTime now) {
         return expiresAt != null && !expiresAt.isAfter(now);
     }

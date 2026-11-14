@@ -341,6 +341,79 @@
           "legendFormat": "{{type}} · {{result}}"
         }
       ]
+    },
+    {
+      "type": "timeseries",
+      "title": "스트림 소비 (종류·결과별, 하루) #273",
+      "description": "retried 가 있어도 결국 sent 로 끝나면 정상. dead 가 0 이어야 한다.",
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 0,
+        "y": 38
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "sum"
+          ]
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (type,result) (increase(notification_consumed_total{job!~\".*b2b.*\"}[1d]))",
+          "legendFormat": "{{type}} · {{result}}"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "스트림 적체 #273",
+      "description": "PEL 이 계속 늘면 소비자가 멈췄거나 FCM 장애로 재시도 중.",
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 12,
+        "y": 38
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "sum"
+          ]
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max(notification_stream_pending{job!~\".*b2b.*\"})",
+          "legendFormat": "못 끝낸 메시지(PEL)"
+        },
+        {
+          "refId": "B",
+          "expr": "max(notification_stream_dead{job!~\".*b2b.*\"})",
+          "legendFormat": "보류함 스트림"
+        }
+      ]
     }
   ]
 }

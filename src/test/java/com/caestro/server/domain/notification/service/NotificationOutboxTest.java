@@ -34,6 +34,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
@@ -104,7 +105,11 @@ class NotificationOutboxTest {
         ((SimpleMeterRegistry) meters).clear();
         me = users.save(User.builder().deviceId("me-" + System.nanoTime()).role(User.Role.USER).build()).getId();
         // 한도 2회로 짧게 — DEAD 를 빨리 본다
-        relay = new OutboxRelay(rows, notificationService, pushService, metrics, tx, objectMapper, meters, clock, 50, 2, 60);
+        OutboxSettings settings = new OutboxSettings(false, false, 50, 2, Duration.ofSeconds(60),
+                List.of(Duration.ofMinutes(1), Duration.ofMinutes(5)), "notifications", "notifications.dead", "notifier",
+                10000, Duration.ofSeconds(60), Duration.ofHours(12));
+        OutboxDelivery delivery = new OutboxDelivery(rows, notificationService, pushService, metrics, tx, objectMapper, meters);
+        relay = new OutboxRelay(rows, delivery, (NotificationStreamPublisher) null, tx, meters, clock, settings);
     }
 
     @Test

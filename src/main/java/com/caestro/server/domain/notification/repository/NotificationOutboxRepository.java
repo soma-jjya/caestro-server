@@ -38,12 +38,16 @@ public interface NotificationOutboxRepository extends JpaRepository<Notification
 
     List<NotificationOutbox> findAllByClaimTokenAndStatusOrderByIdAsc(String claimToken, OutboxStatus status);
 
-    /** 죽은 릴레이가 쥐고 있던 행 되찾기: lease 가 지난 PROCESSING 을 PENDING 으로. */
+    /**
+     * 되찾기: lease 가 지난 PROCESSING(죽은 릴레이가 쥔 것)과 RELAYED(큐에 넣었지만 소비자가 끝내지 못한 채 큐에서 사라진 것, #273)를 PENDING 으로.
+     */
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("""
             update NotificationOutbox o
                set o.status = com.caestro.server.domain.notification.entity.OutboxStatus.PENDING, o.claimToken = null, o.leaseUntil = null
-             where o.status = com.caestro.server.domain.notification.entity.OutboxStatus.PROCESSING and o.leaseUntil < :now
+             where o.status in (com.caestro.server.domain.notification.entity.OutboxStatus.PROCESSING,
+                                com.caestro.server.domain.notification.entity.OutboxStatus.RELAYED)
+               and o.leaseUntil < :now
             """)
     int releaseStale(@Param("now") LocalDateTime now);
 
