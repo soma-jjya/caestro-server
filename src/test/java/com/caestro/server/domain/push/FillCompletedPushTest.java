@@ -37,6 +37,7 @@ import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 /**
@@ -45,6 +46,8 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
  */
 // RANDOM_PORT: 모의 서블릿 환경에는 WS ServerContainer가 없어 WS 설정 빈이 초기화되지 못한다 (contextLoads와 동일)
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+// 발송 단언은 릴레이 직접 모드로(#273 스트림 경로는 NotificationStreamTest)
+@TestPropertySource(properties = "notification.stream.enabled=false")
 class FillCompletedPushTest {
 
     @Autowired private FillService fillService;

@@ -36,6 +36,7 @@ import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -44,6 +45,8 @@ import org.springframework.test.util.ReflectionTestUtils;
  * 실제 MySQL 필요 (docker-compose up -d / CI 서비스 컨테이너). FCM 은 목.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+// 발송 단언은 릴레이 직접 모드로(#273 스트림 경로는 NotificationStreamTest)
+@TestPropertySource(properties = "notification.stream.enabled=false")
 class FillExpiringNotifyTest {
 
     @Autowired private FillService fillService;
