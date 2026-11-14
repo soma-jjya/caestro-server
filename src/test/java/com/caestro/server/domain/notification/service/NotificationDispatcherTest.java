@@ -9,12 +9,14 @@ import static org.mockito.Mockito.verify;
 import com.caestro.server.domain.notification.entity.Notification;
 import com.caestro.server.domain.push.sender.PushMessage;
 import com.caestro.server.domain.push.service.PushService;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -24,6 +26,8 @@ class NotificationDispatcherTest {
 
     @Mock private NotificationService notificationService;
     @Mock private PushService pushService;
+    private final SimpleMeterRegistry registry = new SimpleMeterRegistry();
+    @Spy private NotificationRequestMetrics metrics = new NotificationRequestMetrics(registry);
     @InjectMocks private NotificationDispatcher dispatcher;
 
     @Test
@@ -41,6 +45,7 @@ class NotificationDispatcherTest {
         verify(pushService).sendToUser(eq(7L), sent.capture());
         assertThat(sent.getValue().data()).containsEntry("code", "K7X2MQ").containsEntry("notificationId", "42");
         assertThat(sent.getValue().title()).isEqualTo("네컷 사진이 곧 만료돼요!");
+        assertThat(registry.find("notification.record_failed").counter()).isNull();
     }
 
     @Test
@@ -52,5 +57,7 @@ class NotificationDispatcherTest {
 
         assertThat(dispatcher.notify(7L, message)).isEqualTo(2);
         verify(pushService).sendToUser(7L, message);
+        // 저장 실패는 조용히 지나가지 않고 record_failed{type} 로 남는다(#271)
+        assertThat(registry.counter("notification.record_failed", "type", "fill_completed").count()).isEqualTo(1.0);
     }
 }

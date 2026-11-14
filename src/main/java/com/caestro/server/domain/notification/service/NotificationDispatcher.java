@@ -17,6 +17,7 @@ public class NotificationDispatcher {
 
     private final NotificationService notificationService;
     private final PushService pushService;
+    private final NotificationRequestMetrics metrics;
 
     /**
      * @return FCM 이 받아 준 기기 수
@@ -30,6 +31,7 @@ public class NotificationDispatcher {
         try {
             return message.withNotificationId(notificationService.record(userId, message).getId());
         } catch (RuntimeException e) {
+            metrics.recordFailed(message.type());
             log.warn("Notification not recorded; push goes without notificationId (user={}, type={}, cause={}: {})",
                     userId, message.type(), e.getClass().getSimpleName(), e.getMessage());
             return message;

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# CloudWatch 알람 생성 (지표 알람 8종 + 복합 알람 1종). put-metric-alarm은 덮어쓰기라 여러 번 실행해도 안전하다.
+# CloudWatch 알람 생성 (지표 알람 8종 + 복합 알람 1종 + 로그 지표 알람 1종). put-metric-alarm은 덮어쓰기라 여러 번 실행해도 안전하다.
 # 임계값 근거는 README.md 참고. 대상 리소스는 자동 탐색하며 환경변수로 덮어쓸 수 있다.
 #
 #   ./create-alarms.sh
@@ -123,6 +123,25 @@ alarm "peakpic-redis-memory-high" "Redis 메모리 사용률이 높다. 한계�
   --statistic Maximum --period 300 --evaluation-periods 2 \
   --comparison-operator GreaterThanThreshold --threshold 75 \
   --dimensions "Name=CacheClusterId,Value=${CACHE_ID}" --treat-missing-data missing
+
+echo "▶ C그룹 — 앱 로그 기반 (LOG_GROUP 이 있을 때만)"
+
+# 외부 API 서킷이 열리면 앱이 "Circuit opened: name=…" 한 줄을 남긴다(#271, ResilienceConfig). 지표 필터로 세어 알람을 건다.
+# 열리는 동안 그 API(FCM 등)를 쓰는 알림이 버려지므로 1건이라도 알린다. 로그 그룹은 setup-analyze.sh 와 같은 LOG_GROUP 환경변수.
+LOG_GROUP="${LOG_GROUP:-}"
+if [ -n "$LOG_GROUP" ]; then
+  aws logs put-metric-filter --region "$REGION" --log-group-name "$LOG_GROUP" \
+    --filter-name "peakpic-circuit-opened" \
+    --filter-pattern '{ $.message = "Circuit opened:*" }' \
+    --metric-transformations metricName=CircuitOpened,metricNamespace=PeakPic/App,metricValue=1,defaultValue=0
+  alarm "peakpic-app-circuit-open" "외부 API 서킷이 열렸다(앱 로그 'Circuit opened'). 열려 있는 동안 그 API 로 가는 호출(FCM 푸시 등)은 버려진다. 어떤 서킷인지는 로그의 name= 을 본다." \
+    --namespace PeakPic/App --metric-name CircuitOpened \
+    --statistic Sum --period 300 --evaluation-periods 1 \
+    --comparison-operator GreaterThanOrEqualToThreshold --threshold 1 \
+    --treat-missing-data notBreaching
+else
+  echo "  - peakpic-app-circuit-open 건너뜀: LOG_GROUP 이 비어 있다 (예: LOG_GROUP=/peakpic/app ./create-alarms.sh)"
+fi
 
 echo
 # 크레딧 모드 확인(#231 전제). unlimited 면 잔고 0 에서 성능 강등 대신 과금이 난다. 어느 쪽이든 복합 알람은 "크레딧을 태우는 중" 신호로 유효하다.

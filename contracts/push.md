@@ -63,11 +63,14 @@ push:
 
 발송은 커밋 뒤 메모리 이벤트라, 커밋과 발송 사이에 서버가 재시작되면 그 알림은 사라진다. 1단계의 알림(네 칸 완성, 테스트)은 잃어도 사용자가 손해 보지 않는 종류라 큐를 두지 않았다.
 다음 단계로 가는 계기는 셋 중 하나다: 잃으면 안 되는 알림이 생김(결제 유예 안내) · 여러 건을 **묶어서** 보내야 함("친구가 칸을 채웠어요") · 재시작 중 유실이
-지표(`push.sent` 대비 발행 이벤트 수)에 보임. 그때는 Redis Streams(이미 있는 Redis, 소비자 그룹·ack·재전송)로 간다. SQS 는 워커를 분리할 때.
+지표(`notification.requested` 대비 `push.sent`, #271)에 보임. 그때는 Redis Streams(이미 있는 Redis, 소비자 그룹·ack·재전송)로 간다. SQS 는 워커를 분리할 때.
 
 ## 관측
 
 - `push_sent_total{type,result}` — result 가 failed 로 치우치면 FCM 설정·서킷(`resilience4j_circuitbreaker_state{name="fcm"}`)을 본다.
+- `notification_requested_total{type}` — 발송 **요청** 수(#271). 네 칸 완성은 주인+참여자 수, 만료 안내는 후보 세션 수, 문의 답변은 1. 커밋 뒤 비동기 구간보다 앞에서 세므로 `requested − sent − unregistered` 가 그 구간에서 잃은 수다. Grafana `peakpic-notifications`.
+- `notification_record_failed_total{type}` — 알림함 저장이 실패해 푸시만 간 수. 0 이어야 한다.
+- `circuit_transition_total{name,to}` 와 로그 `Circuit opened: name=…` — 서킷이 열린 순간. CloudWatch 알람 `peakpic-app-circuit-open` 이 이 로그를 센다.
 - 비동기 실행기 지표는 Spring Boot 기본(`executor_*{name="applicationTaskExecutor"}`).
 
 ## DDL (ddl-auto 가 update 가 아닌 환경용)
