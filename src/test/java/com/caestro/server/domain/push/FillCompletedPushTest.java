@@ -24,6 +24,7 @@ import com.caestro.server.domain.push.sender.PushSender;
 import com.caestro.server.domain.user.entity.User;
 import com.caestro.server.domain.user.repository.UserRepository;
 import com.caestro.server.global.exception.CustomException;
+import com.caestro.server.domain.notification.service.OutboxRelay;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -51,6 +52,8 @@ class FillCompletedPushTest {
     @Autowired private PushTokenRepository tokenRepository;
     @Autowired private UserRepository userRepository;
     @Autowired private NotificationRepository notificationRepository;
+    // #272: 발송은 아웃박스 릴레이가 한다. 주기(3초)를 기다리지 않고 한 바퀴 직접 돌린다
+    @Autowired private OutboxRelay relay;
 
     @MockitoBean private PushSender sender;
 
@@ -113,6 +116,7 @@ class FillCompletedPushTest {
         }
 
         ArgumentCaptor<PushMessage> message = ArgumentCaptor.forClass(PushMessage.class);
+        relay.runOnce(LocalDateTime.now());
         verify(sender, timeout(5000).times(1)).send(eq(token.getToken()), message.capture());
         assertThat(message.getValue().type()).isEqualTo(PushMessage.TYPE_FILL_COMPLETED);
         assertThat(message.getValue().data()).containsEntry("code", code);
@@ -129,6 +133,7 @@ class FillCompletedPushTest {
 
         // 다섯 번째 변경(칸 교체): 이미 보냈으니 조용하다
         fillService.fillSlot(code, 0, friend.getId(), "친구", jpeg((byte) 9), "image/jpeg");
+        relay.runOnce(LocalDateTime.now());
         verify(sender, after(1500).times(1)).send(anyString(), any());
     }
 
@@ -150,8 +155,11 @@ class FillCompletedPushTest {
 
         ArgumentCaptor<PushMessage> toOwner = ArgumentCaptor.forClass(PushMessage.class);
         ArgumentCaptor<PushMessage> toFriend = ArgumentCaptor.forClass(PushMessage.class);
+        relay.runOnce(LocalDateTime.now());
         verify(sender, timeout(5000).times(1)).send(eq(token.getToken()), toOwner.capture());
+        relay.runOnce(LocalDateTime.now());
         verify(sender, timeout(5000).times(1)).send(eq(friendToken.getToken()), toFriend.capture());
+        relay.runOnce(LocalDateTime.now());
         verify(sender, after(1000).times(2)).send(anyString(), any());
 
         assertThat(toOwner.getValue().body()).isEqualTo(PushMessage.fillCompleted(code).body());
@@ -170,6 +178,7 @@ class FillCompletedPushTest {
         for (int i = 0; i < 3; i++) {
             fillService.fillSlot(code, i, friend.getId(), "친구", jpeg((byte) i), "image/jpeg");
         }
+        relay.runOnce(LocalDateTime.now());
         verify(sender, after(1000).times(0)).send(anyString(), any());
         assertThat(sessionRepository.findByCode(code).orElseThrow().getCompletedNotifiedAt()).isNull();
         assertThat(notificationRepository.countByUserIdAndReadAtIsNull(owner.getId())).isZero();

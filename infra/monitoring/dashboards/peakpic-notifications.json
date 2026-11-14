@@ -9,7 +9,7 @@
     "from": "now-7d",
     "to": "now"
   },
-  "description": "앱 알림 유실 계측(#271). 요청(requested) → 알림함 저장(recorded) → FCM(sent/unregistered/failed). 잃은 수 = requested − sent − unregistered.",
+  "description": "앱 알림 유실 계측(#271). 요청(requested) → 알림함 저장(recorded) → FCM(sent/unregistered/failed). 잃은 수 = requested − sent − unregistered. #272 아웃박스 뒤 유실 = requested − sent − unregistered − expired − dead = 0.",
   "panels": [
     {
       "type": "timeseries",
@@ -261,6 +261,84 @@
           "refId": "A",
           "expr": "sum by (type) (increase(notification_opened_total{job!~\".*b2b.*\"}[1d]))",
           "legendFormat": "{{type}}"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "아웃박스 적체 (#272)",
+      "description": "dead 는 0, 오래 기다린 행은 평소 몇 초. 커지면 릴레이가 멈췄거나 FCM 장애로 백오프 중.",
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 12,
+        "y": 24
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "sum"
+          ]
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max(notification_outbox_pending{job!~\".*b2b.*\"})",
+          "legendFormat": "대기(pending)"
+        },
+        {
+          "refId": "B",
+          "expr": "max(notification_outbox_dead{job!~\".*b2b.*\"})",
+          "legendFormat": "보류(dead)"
+        },
+        {
+          "refId": "C",
+          "expr": "max(notification_outbox_oldest_age_seconds{job!~\".*b2b.*\"})",
+          "legendFormat": "가장 오래 기다린 행(초)"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "릴레이 처리 (종류·결과별, 하루)",
+      "description": "sent / expired / retried / dead. retried 가 있으면 FCM 이 흔들렸지만 잃지 않고 다시 보낸 것.",
+      "gridPos": {
+        "h": 7,
+        "w": 24,
+        "x": 0,
+        "y": 31
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "sum"
+          ]
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (type,result) (increase(notification_relay_processed_total{job!~\".*b2b.*\"}[1d]))",
+          "legendFormat": "{{type}} · {{result}}"
         }
       ]
     }
