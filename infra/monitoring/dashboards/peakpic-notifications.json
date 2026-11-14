@@ -1,0 +1,268 @@
+{
+  "title": "PeakPic Notifications",
+  "uid": "peakpic-notifications",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "1m",
+  "timezone": "browser",
+  "time": {
+    "from": "now-7d",
+    "to": "now"
+  },
+  "description": "앱 알림 유실 계측(#271). 요청(requested) → 알림함 저장(recorded) → FCM(sent/unregistered/failed). 잃은 수 = requested − sent − unregistered.",
+  "panels": [
+    {
+      "type": "timeseries",
+      "title": "하루 단위 · 요청 vs FCM 수락 (종류별)",
+      "description": "요청 선이 수락 선보다 위에 떠 있으면 그 차이가 유실 또는 죽은 토큰(unregistered)이다.",
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 0,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "sum"
+          ]
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (type) (increase(notification_requested_total{job!~\".*b2b.*\"}[1d]))",
+          "legendFormat": "요청 {{type}}"
+        },
+        {
+          "refId": "B",
+          "expr": "sum by (type) (increase(push_sent_total{job!~\".*b2b.*\",result=\"sent\"}[1d]))",
+          "legendFormat": "수락 {{type}}"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "잃은 수 (종류별, 하루) = 요청 − 수락 − 없는 기기",
+      "description": "0 이어야 정상. 토큰 없는 사용자(알림함만 받음)는 요청에는 세지만 FCM 에는 안 가므로 소량의 양수는 그 때문일 수 있다 — 지속되면 #272 아웃박스 지표와 대조.",
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 12,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "sum"
+          ]
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "clamp_min(sum by (type) (increase(notification_requested_total{job!~\".*b2b.*\"}[1d])) - sum by (type) (increase(push_sent_total{job!~\".*b2b.*\",result=\"sent\"}[1d])) - sum by (type) (increase(push_sent_total{job!~\".*b2b.*\",result=\"unregistered\"}[1d])), 0)",
+          "legendFormat": "{{type}}"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "FCM 결과 (종류·결과별, 하루)",
+      "description": "failed 가 보이면 서킷 또는 FCM 장애. #269 전에는 fill_expiring 이 통째로 failed 였다.",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 9
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "sum"
+          ]
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (type,result) (increase(push_sent_total{job!~\".*b2b.*\"}[1d]))",
+          "legendFormat": "{{type}} · {{result}}"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "알림함 저장 vs 저장 실패 (하루)",
+      "description": "저장 실패는 0 이어야 한다. 푸시는 그래도 가지만 앱 알림함에는 안 남는다.",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 9
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "sum"
+          ]
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (type) (increase(notification_recorded_total{job!~\".*b2b.*\"}[1d]))",
+          "legendFormat": "저장 {{type}}"
+        },
+        {
+          "refId": "B",
+          "expr": "sum by (type) (increase(notification_record_failed_total{job!~\".*b2b.*\"}[1d]))",
+          "legendFormat": "저장 실패 {{type}}"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "서킷 상태 (fcm)",
+      "description": "1 이면 그 인스턴스는 FCM 호출을 차단 중. 다음 호출이 올 때까지 open 으로 남는다(자동 반열림 전환 없음).",
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 0,
+        "y": 17
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "sum"
+          ]
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max by (instance_id) (resilience4j_circuitbreaker_state{name=\"fcm\",state=\"open\"})",
+          "legendFormat": "open {{instance_id}}"
+        },
+        {
+          "refId": "B",
+          "expr": "max by (instance_id) (resilience4j_circuitbreaker_state{name=\"fcm\",state=\"half_open\"})",
+          "legendFormat": "half-open {{instance_id}}"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "서킷 전이 횟수 (이름·상태별, 하루)",
+      "description": "OPEN 으로 간 횟수가 알람(peakpic-app-circuit-open)과 같은 신호다.",
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 12,
+        "y": 17
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "sum"
+          ]
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (name,to) (increase(circuit_transition_total[1d]))",
+          "legendFormat": "{{name}} → {{to}}"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "열람 (처음 읽은 알림, 하루)",
+      "description": "저장 → 수락 → 열람이 한 줄. 열람률이 낮으면 문구·시점을 본다.",
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 0,
+        "y": 24
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "sum"
+          ]
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (type) (increase(notification_opened_total{job!~\".*b2b.*\"}[1d]))",
+          "legendFormat": "{{type}}"
+        }
+      ]
+    }
+  ]
+}
