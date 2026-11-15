@@ -14,7 +14,8 @@ final class DevEvaluationCsv {
 
     static final List<String> HEADER = List.of(
             "id", "userId", "userNickname", "deviceKey", "rating", "ratingMax", "guide", "guideVersion", "guideShot", "guideStyle",
-            "shutterScore", "photoScoreTotal", "photoScorePose", "photoScorePlace", "photoScoreShape", "mediaType",
+            "shutterScore", "photoScoreTotal", "photoScorePose", "photoScorePlace", "photoScoreShape",
+            "autoScoreStatus", "autoScoreTotal", "autoScorePose", "autoScorePlace", "autoScoreShape", "mediaType",
             "takenAt", "ratedAt", "width", "height", "appVersion", "device", "note", "extra",
             "hasPhoto", "photoBytes", "createdAt", "updatedAt");
 
@@ -38,6 +39,11 @@ final class DevEvaluationCsv {
         cells.add(number(r.photoScore() == null ? null : r.photoScore().pose()));
         cells.add(number(r.photoScore() == null ? null : r.photoScore().place()));
         cells.add(number(r.photoScore() == null ? null : r.photoScore().shape()));
+        cells.add(text(r.autoScore() == null ? null : r.autoScore().status()));
+        cells.add(number(r.autoScore() == null ? null : r.autoScore().total()));
+        cells.add(number(r.autoScore() == null ? null : r.autoScore().pose()));
+        cells.add(number(r.autoScore() == null ? null : r.autoScore().place()));
+        cells.add(number(r.autoScore() == null ? null : r.autoScore().shape()));
         cells.add(text(r.mediaType()));
         cells.add(value(r.takenAt()));
         cells.add(value(r.ratedAt()));
