@@ -26,7 +26,7 @@ public class OutboxEnqueuer {
     private final Duration progressWindow;
 
     public OutboxEnqueuer(NotificationOutboxService outbox, PushTokenRepository tokenRepository,
-                          @Value("${notification.fill-progress.quiet-seconds:600}") long progressQuietSeconds,
+                          @Value("${notification.fill-progress.quiet-seconds:300}") long progressQuietSeconds,
                           @Value("${notification.fill-progress.window-seconds:3600}") long progressWindowSeconds) {
         this.outbox = outbox;
         this.tokenRepository = tokenRepository;

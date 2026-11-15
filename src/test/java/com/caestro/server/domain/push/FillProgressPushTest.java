@@ -11,6 +11,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 import com.caestro.server.domain.fill.dto.request.CreateFillRequest;
+import com.caestro.server.domain.fill.repository.FillQueueRepository;
 import com.caestro.server.domain.fill.repository.FillSessionRepository;
 import com.caestro.server.domain.fill.service.FillService;
 import com.caestro.server.domain.notification.entity.NotificationOutbox;
@@ -50,7 +51,7 @@ import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 /**
- * #274 — 친구가 칸을 채우면 주인에게 묶음 알림 "친구가 네컷을 채웠어요". 세션별 한 행에 합쳐 10분 조용하면 한 통, 한 시간에 한 통,
+ * #274 — 친구가 칸을 채우면 주인에게 묶음 알림 "친구가 네컷을 채웠어요". 세션별 한 행에 합쳐 5분 조용하면 한 통, 한 시간에 한 통,
  * 완성되면 취소. 합치기는 MySQL upsert 라 실제 MySQL 필요 (docker-compose up -d / CI 서비스 컨테이너). FCM 은 목, 릴레이는 직접 모드로 한 바퀴씩.
  */
 // RANDOM_PORT: 모의 서블릿 환경에는 WS ServerContainer가 없어 WS 설정 빈이 초기화되지 못한다 (contextLoads와 동일)
@@ -58,11 +59,12 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 @TestPropertySource(properties = "notification.stream.enabled=false")
 class FillProgressPushTest {
 
-    private static final Duration QUIET = Duration.ofMinutes(10);
+    private static final Duration QUIET = Duration.ofMinutes(5);
     private static final Duration WINDOW = Duration.ofHours(1);
 
     @Autowired private FillService fillService;
     @Autowired private FillSessionRepository sessionRepository;
+    @Autowired private FillQueueRepository queueRepository;
     @Autowired private PushTokenRepository tokenRepository;
     @Autowired private UserRepository userRepository;
     @Autowired private NotificationRepository notificationRepository;
@@ -129,7 +131,7 @@ class FillProgressPushTest {
     }
 
     @Test
-    @DisplayName("친구가 세 칸을 연달아 채우면 행은 하나(합친 수 3), 10분 조용해지기 전엔 안 가고, 그 뒤 주인에게 한 통 — 문구는 보내는 순간의 칸 수")
+    @DisplayName("친구가 세 칸을 연달아 채우면 행은 하나(합친 수 3), 5분 조용해지기 전엔 안 가고, 그 뒤 주인에게 한 통 — 문구는 보내는 순간의 칸 수")
     void threeFills_oneNotificationAfterQuiet() {
         LocalDateTime start = LocalDateTime.now();
         for (int i = 0; i < 3; i++) {
@@ -141,10 +143,10 @@ class FillProgressPushTest {
         assertThat(rows.get(0).getMergedCount()).isEqualTo(3);
         assertThat(rows.get(0).getStatus()).isEqualTo(OutboxStatus.PENDING);
 
-        relay.runOnce(start.plusMinutes(5));
+        relay.runOnce(start.plusMinutes(3));
         verify(sender, never()).send(eq(token.getToken()), any());
 
-        relay.runOnce(start.plusMinutes(11));
+        relay.runOnce(start.plusMinutes(6));
         PushMessage sent = onlyPushToOwner();
         assertThat(sent.type()).isEqualTo(PushMessage.TYPE_FILL_PROGRESS);
         assertThat(sent.title()).isEqualTo("민지님이 네컷을 채웠어요");
@@ -217,12 +219,12 @@ class FillProgressPushTest {
         fillService.fillSlot(code, 0, friend.getId(), "민지", jpeg((byte) 0), "image/jpeg");
         NotificationOutbox first = progressRows().get(0);
         LocalDateTime created = first.getCreatedAt();
-        // 9분마다 채움이 63분 동안 이어진다 — 매번 10분씩 늦추지만 처음 + 1시간에서 멈춘다
-        for (int minute = 9; minute <= 63; minute += 9) {
+        // 4분마다 채움이 64분 동안 이어진다 — 매번 5분씩 늦추지만 처음 + 1시간에서 멈춘다
+        for (int minute = 4; minute <= 64; minute += 4) {
             outbox.enqueueCollapsed(owner.getId(), PushMessage.fillProgressPlaceholder(code), progressKey, created.plusMinutes(minute), QUIET, WINDOW);
         }
         NotificationOutbox merged = progressRows().get(0);
-        assertThat(merged.getMergedCount()).isEqualTo(8);
+        assertThat(merged.getMergedCount()).isEqualTo(17);
         assertThat(merged.getNotBefore()).isEqualTo(created.plus(WINDOW));
 
         relay.runOnce(created.plus(WINDOW));
@@ -239,6 +241,33 @@ class FillProgressPushTest {
         verify(sender, never()).send(eq(token.getToken()), any());
         relay.runOnce(created.plus(WINDOW).plus(WINDOW));
         onlyPushToOwner();
+    }
+
+    @Test
+    @DisplayName("완성 알림이 나간 뒤 사진을 빼고 다시 넣어도(새로 채우기·대기열에서 되돌리기) 진행 알림도, 두 번째 완성 알림도 가지 않는다")
+    void afterCompleted_clearAndRefill_staysQuiet() {
+        LocalDateTime start = LocalDateTime.now();
+        for (int i = 0; i < 4; i++) {
+            fillService.fillSlot(code, i, friend.getId(), "민지", jpeg((byte) i), "image/jpeg");
+        }
+        relay.runOnce(start.plusMinutes(1));
+        assertThat(onlyPushToOwner().type()).isEqualTo(PushMessage.TYPE_FILL_COMPLETED);
+        clearInvocations(sender);
+
+        // 1. 칸을 비웠다가 다른 친구가 새로 채운다 — 다시 네 칸이 찬다
+        fillService.clearSlot(code, 3, friend.getId());
+        fillService.fillSlot(code, 3, friend2.getId(), "서준", jpeg((byte) 7), "image/jpeg");
+        // 2. 칸을 비웠다가 대기열의 사진을 되돌린다 — 또 네 칸이 찬다
+        fillService.clearSlot(code, 2, friend.getId());
+        Long sessionId = sessionRepository.findByCode(code).orElseThrow().getId();
+        long queuedId = queueRepository.findBySessionIdOrderByIdAsc(sessionId).get(0).getId();
+        fillService.restoreQueued(code, queuedId, 2, friend.getId());
+
+        // 묶음 행은 처음 세 칸 때의 것(완성으로 취소) 하나뿐이고, 한 시간 뒤까지 아무것도 더 가지 않는다
+        assertThat(progressRows()).singleElement().extracting(NotificationOutbox::getStatus).isEqualTo(OutboxStatus.CANCELLED);
+        relay.runOnce(start.plusMinutes(10));
+        relay.runOnce(start.plusHours(1));
+        verify(sender, never()).send(eq(token.getToken()), any());
     }
 
     private static void await(CountDownLatch latch) {

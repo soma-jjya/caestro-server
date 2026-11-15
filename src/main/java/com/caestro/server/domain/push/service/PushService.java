@@ -23,7 +23,7 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 public class PushService {
 
-    static final String METRIC = "push.sent";
+    public static final String METRIC = "push.sent";
 
     private final PushTokenRepository tokenRepository;
     private final PushSender sender;
