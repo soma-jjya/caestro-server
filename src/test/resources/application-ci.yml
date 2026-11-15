@@ -10,7 +10,8 @@ spring:
 
   jpa:
     hibernate:
-      ddl-auto: create-drop
+      # create-drop 이면 @DirtiesContext 로 닫히는 컨텍스트가 표를 지워, 캐시에 남은 다른 컨텍스트가 깨진다(#273). 일회용 DB 라 닫을 때 지울 필요 없음
+      ddl-auto: create
     properties:
       hibernate:
         dialect: org.hibernate.dialect.MySQLDialect

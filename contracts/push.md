@@ -24,6 +24,7 @@
 | type | 언제 | data | 앱 동작 |
 |---|---|---|---|
 | `fill_completed` | 함께 채우기 네 칸이 **처음** 모두 찬 순간, 세션 주인과 그 네 칸을 채운 참여자에게 **세션당 1회씩**. 참여자는 문구만 다르다("함께 채운 네컷이 완성됐어요. 지금 저장해 보세요.") | `{ "type": "fill_completed", "code": "K7X2MQ", "notificationId": "42" }` | 탭 → `PATCH /notifications/{notificationId}/read` 뒤 그 세션 화면(참여자도 거기서 완성해 저장). 포그라운드면 배너 대신 세션을 즉시 다시 조회 |
+| `fill_progress` | 주인이 아닌 사람이 칸을 채웠고 아직 네 칸이 다 차지 않았을 때, **세션 주인에게만**. 채울 때마다가 아니라 묶어서: 마지막 채움 뒤 10분 조용하면 한 통, 세션당 1시간에 최대 1통, 그사이 완성되면 보내지 않고 `fill_completed` 만(#274, contracts/notifications.md "묶음 알림"). 문구 예 "민지님 외 1명이 네컷을 채웠어요" / "'제주 여행' 4칸 중 3칸이 찼어요. 1칸만 더 채우면 완성이에요!" | `{ "type": "fill_progress", "code": "K7X2MQ", "notificationId": "44" }` | `fill_completed` 와 같다: 탭 → 읽음 뒤 그 세션 화면. 포그라운드면 세션 다시 조회. **이 type 을 모르는 앱 버전**은 시스템 알림은 뜨고 탭하면 앱만 열린다 |
 | `fill_expiring` | 함께 채우기 세션이 **24시간 안에 만료**하고 사진이 있을 때, 세션 주인에게 **세션당 1회**(매일 KST 09:00 배치, #213) | `{ "type": "fill_expiring", "code": "K7X2MQ", "notificationId": "43" }` | 탭 → 읽음 뒤 그 세션 화면(저장 유도) |
 | `support_reply` | 앱 문의(#263, contracts/support.md)에 운영자가 답한 순간, 문의한 사람에게 **답변마다** | `{ "type": "support_reply", "ticketId": "12", "notificationId": "88" }` | 문의 `ticketId` 상세로 |
 | `test` | `POST /users/me/push-token/test` | `{ "type": "test" }` | 아무 데도 안 감 |
@@ -39,8 +40,8 @@
 3. **`PushService.sendToUser`**: 활성 토큰 전부에 보내고 `push.sent{type,result}` 로 센다. FCM 을 부르는 동안 DB 트랜잭션을 쥐지 않는다.
 4. **네 칸 완성**: `FillService.fillSlot`/`restoreQueued` 가 칸을 바꾼 뒤 네 칸이 다 찼으면 `fill_sessions.completed_notified_at` 을
    **조건부 UPDATE**(`is null` 일 때만)로 표시하고 1건 바뀌었을 때만 `FillCompletedEvent` 를 발행한다 — 동시 요청 둘이 모두 "다 찼다"를 봐도 한쪽만.
-   `FillCompletedPushListener` 가 **커밋 뒤**(`@TransactionalEventListener AFTER_COMMIT`) **요청 스레드 밖**(`@Async`, Spring Boot 기본 실행기)에서 보낸다.
-   커밋 뒤라 "알림은 왔는데 칸이 비어 있음"이 없고, 비동기라 업로드 응답이 FCM 을 기다리지 않는다.
+   같은 트랜잭션의 동기 리스너(`OutboxEnqueuer`, #272)가 주인과 토큰 있는 참여자마다 아웃박스 행을 남기고, 릴레이가 **요청 스레드 밖**에서 보낸다.
+   같은 트랜잭션이라 "알림은 왔는데 칸이 비어 있음"도, "칸은 찼는데 요청이 없음"도 없고, 발송은 비동기라 업로드 응답이 FCM 을 기다리지 않는다.
 5. 칸을 비우고 다시 채워도 다시 보내지 않는다(표시가 남아 있다).
 6. **참여자**: 이벤트가 그 순간 네 칸의 `filled_by` 를 싣는다 — 주인은 빼고, 두 칸을 채운 사람도 한 번, 대기열로 밀려난 사진의 주인은
    완성된 네컷에 없으니 뺀다. 리스너는 꺼지지 않은 토큰이 있는 참여자에게만 보낸다 — 웹 참여자는 게스트 계정이라 토큰이 없고,
@@ -59,15 +60,17 @@ push:
 처음 한 번(콘솔): Firebase 프로젝트 → 프로젝트 설정 › 클라우드 메시징에서 iOS 는 **APNs 인증 키(.p8) 업로드** → 서비스 계정 키 JSON 발급(역할: Firebase Cloud Messaging API 관리자 또는 편집자)
 → Secrets Manager 에 base64 한 줄로. 운영 yml 에 `push.enabled: true`, `push.fcm.project-id`.
 
-## 잃어도 되는가 — 큐를 두지 않은 이유
+## 잃어도 되는가 — 1단계의 선택과 #272 이후
 
-발송은 커밋 뒤 메모리 이벤트라, 커밋과 발송 사이에 서버가 재시작되면 그 알림은 사라진다. 1단계의 알림(네 칸 완성, 테스트)은 잃어도 사용자가 손해 보지 않는 종류라 큐를 두지 않았다.
-다음 단계로 가는 계기는 셋 중 하나다: 잃으면 안 되는 알림이 생김(결제 유예 안내) · 여러 건을 **묶어서** 보내야 함("친구가 칸을 채웠어요") · 재시작 중 유실이
-지표(`push.sent` 대비 발행 이벤트 수)에 보임. 그때는 Redis Streams(이미 있는 Redis, 소비자 그룹·ack·재전송)로 간다. SQS 는 워커를 분리할 때.
+1단계(#206~#211)는 커밋 뒤 메모리 이벤트로 보냈다. 커밋과 발송 사이에 서버가 재시작되면 그 알림은 사라졌고, "잃어도 되는 알림만 두자"는 선택이었다. 큐로 가는 계기를 "잃으면 안 되는 알림이 생김 · 묶어서 보내야 함 · 유실이 지표에 보임" 셋으로 적어 뒀고, #269(서킷 열림으로 만료 안내 18건 유실)와 #271 계측으로 셋째가 충족됐다.
+**#272 부터 발송 요청은 아웃박스(contracts/notifications.md "서버 동작")에 남고 릴레이가 재시도한다.** 서킷이 열리면 버리지 않고 뒤에 다시 보낸다. 전달을 Redis Streams 로 옮기는 것은 #273.
 
 ## 관측
 
 - `push_sent_total{type,result}` — result 가 failed 로 치우치면 FCM 설정·서킷(`resilience4j_circuitbreaker_state{name="fcm"}`)을 본다.
+- `notification_requested_total{type}` — 발송 **요청** 수(#271). 네 칸 완성은 주인+참여자 수, 만료 안내는 후보 세션 수, 문의 답변은 1. 커밋 뒤 비동기 구간보다 앞에서 세므로 `requested − sent − unregistered` 가 그 구간에서 잃은 수다. Grafana `peakpic-notifications`.
+- `notification_record_failed_total{type}` — 알림함 저장이 실패해 푸시만 간 수. 0 이어야 한다.
+- `circuit_transition_total{name,to}` 와 로그 `Circuit opened: name=…` — 서킷이 열린 순간. CloudWatch 알람 `peakpic-app-circuit-open` 이 이 로그를 센다.
 - 비동기 실행기 지표는 Spring Boot 기본(`executor_*{name="applicationTaskExecutor"}`).
 
 ## DDL (ddl-auto 가 update 가 아닌 환경용)

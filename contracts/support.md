@@ -114,7 +114,7 @@ OPEN ──운영자 답변──▶ ANSWERED ──운영자 닫기──▶ CL
 
 1. 작성: 로그인 계정 확인 → 하루 한도(Redis 고정 창 `rl:support:create:{userId}`) → `support_tickets` + 첫 `support_messages` 한 트랜잭션 → 커밋 뒤 웹훅 한 줄(`[앱 문의 #12] BUG · 제목 · ANDROID 1.4.2` + 관리자 링크. 글 내용·닉네임은 싣지 않는다).
 2. 사진: `support_attachments`(메타) + 저장소(`support.attachment-store`: `rds` 는 `support_attachment_blobs`, `s3` 는 `{prefix}/{ticketId}/{storeId}`). 네컷 이미지(#152)와 같은 분리.
-3. 답변: 메시지 저장 + `answered(now)` → 커밋 뒤 `NotificationDispatcher.notify(userId, support_reply)`(알림함 행 → FCM). 첫 답변이면 `support.reply.first_hours` 에 작성부터 걸린 시간.
+3. 답변: 메시지 저장 + `answered(now)` → 같은 트랜잭션에 아웃박스 행(`support_reply`, #272) → 릴레이가 알림함 행 → FCM. 첫 답변이면 `support.reply.first_hours` 에 작성부터 걸린 시간.
 4. 이어 쓰기: `touchByUser` 로 OPEN, 커밋 뒤 웹훅 `[앱 문의 #12] 이어 쓰기 · 제목`.
 5. 보관: 마지막 메시지 뒤 `cleanup.support.retention-days`(기본 365) 지난 문의를 `cleanup.support.cron`(기본 05:40) 에 사진까지 지운다. ShedLock `supportCleanup`.
 6. 탈퇴: `User.withdraw` 가 닉네임·provider 를 지운다. 문의 행은 보관 기간까지 남고 관리자에게 `withdrawn=true` 로 보인다.

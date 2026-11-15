@@ -16,7 +16,7 @@ EventBridge(배포 결과)┘
 | 파일 | 역할 |
 |---|---|
 | `setup-pipeline.sh` | SNS 토픽·Lambda·구독·EventBridge 규칙 생성 (멱등) |
-| `create-alarms.sh` | CloudWatch 알람 9종 생성 (지표 8 + 복합 1, 멱등, 대상 리소스 자동 탐색) |
+| `create-alarms.sh` | CloudWatch 알람 10종 생성 (지표 8 + 복합 1 + 로그 지표 1, 멱등, 대상 리소스 자동 탐색. 로그 알람은 `LOG_GROUP` 환경변수가 있을 때만) |
 | `../../lambda/alert-notify/` | 메시지 변환 Lambda 코드 |
 
 ### 기존 배포 알림(`deploy.yml`)과의 관계 — 중복이 아니라 짝
@@ -64,6 +64,7 @@ CloudWatch는 AWS 관리형이라 우리 인프라와 장애 도메인이 분리
 |---|---|---|
 | `alb-5xx-spike` | 5XX > 5건 / 300s | 출시 전 트래픽이 0에 가까워 소량도 유의미. 실트래픽 확보 후 비율(5XX/전체) 기준 전환 검토. 무트래픽 구간은 `notBreaching` |
 | `redis-memory-high` | 메모리 사용률 > 75%, 2회 × 300s | 세션은 TTL로 정리되어 증가가 유계. 실사용 추세 확인 후 조정 |
+| `app-circuit-open` | 앱 로그 `Circuit opened:` ≥ 1건 / 300s (지표 필터 `PeakPic/App CircuitOpened`) | 외부 API 서킷이 열리면 그 사이 호출(FCM 푸시)이 버려진다(#269 에서 이틀간 18건). 1건도 알린다. 로그 그룹을 모르면 만들지 않는다(`LOG_GROUP=/… ./create-alarms.sh`) |
 
 ### CPU 크레딧은 복합 알람으로 (#231)
 

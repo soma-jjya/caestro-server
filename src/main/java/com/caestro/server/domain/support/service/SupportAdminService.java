@@ -96,7 +96,7 @@ public class SupportAdminService {
             DistributionSummary.builder(METRIC_FIRST_REPLY_HOURS).baseUnit("hours").register(meterRegistry)
                     .record(Duration.between(ticket.getCreatedAt(), now).toMinutes() / 60.0);
         }
-        eventPublisher.publishEvent(new SupportRepliedEvent(ticket.getId(), ticket.getUser().getId(), ticket.getTitle()));
+        eventPublisher.publishEvent(new SupportRepliedEvent(ticket.getId(), ticket.getUser().getId(), ticket.getTitle(), ticket.getMessages().size()));
         log.info("Support ticket replied: id={} first={}", ticket.getId(), first);
         return SupportAdminTicketResponse.from(ticket, ticketBaseUrl(ticketId));
     }

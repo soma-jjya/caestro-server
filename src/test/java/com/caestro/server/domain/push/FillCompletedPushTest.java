@@ -24,6 +24,9 @@ import com.caestro.server.domain.push.sender.PushSender;
 import com.caestro.server.domain.user.entity.User;
 import com.caestro.server.domain.user.repository.UserRepository;
 import com.caestro.server.global.exception.CustomException;
+import com.caestro.server.domain.notification.service.OutboxRelay;
+import com.caestro.server.domain.notification.repository.NotificationOutboxRepository;
+import com.caestro.server.domain.notification.service.OutboxEnqueuer;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -36,6 +39,7 @@ import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 /**
@@ -44,6 +48,8 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
  */
 // RANDOM_PORT: 모의 서블릿 환경에는 WS ServerContainer가 없어 WS 설정 빈이 초기화되지 못한다 (contextLoads와 동일)
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+// 발송 단언은 릴레이 직접 모드로(#273 스트림 경로는 NotificationStreamTest)
+@TestPropertySource(properties = "notification.stream.enabled=false")
 class FillCompletedPushTest {
 
     @Autowired private FillService fillService;
@@ -51,6 +57,9 @@ class FillCompletedPushTest {
     @Autowired private PushTokenRepository tokenRepository;
     @Autowired private UserRepository userRepository;
     @Autowired private NotificationRepository notificationRepository;
+    // #272: 발송은 아웃박스 릴레이가 한다. 주기(3초)를 기다리지 않고 한 바퀴 직접 돌린다
+    @Autowired private OutboxRelay relay;
+    @Autowired private NotificationOutboxRepository outboxRepository;
 
     @MockitoBean private PushSender sender;
 
@@ -89,6 +98,9 @@ class FillCompletedPushTest {
 
     @AfterEach
     void cleanup() {
+        // 세 칸까지 채운 테스트는 친구 칸 채움 묶음 행(#274)을 남긴다 — 다른 테스트의 릴레이가 집지 않게
+        sessionRepository.findByCode(code).ifPresent(session -> outboxRepository.deleteAll(
+                outboxRepository.findAllByCollapseKeyOrderByIdAsc(OutboxEnqueuer.progressKey(session.getId(), owner.getId()))));
         try {
             fillService.delete(code, owner.getId());
         } catch (CustomException ignored) {
@@ -113,6 +125,7 @@ class FillCompletedPushTest {
         }
 
         ArgumentCaptor<PushMessage> message = ArgumentCaptor.forClass(PushMessage.class);
+        relay.runOnce(LocalDateTime.now());
         verify(sender, timeout(5000).times(1)).send(eq(token.getToken()), message.capture());
         assertThat(message.getValue().type()).isEqualTo(PushMessage.TYPE_FILL_COMPLETED);
         assertThat(message.getValue().data()).containsEntry("code", code);
@@ -129,6 +142,7 @@ class FillCompletedPushTest {
 
         // 다섯 번째 변경(칸 교체): 이미 보냈으니 조용하다
         fillService.fillSlot(code, 0, friend.getId(), "친구", jpeg((byte) 9), "image/jpeg");
+        relay.runOnce(LocalDateTime.now());
         verify(sender, after(1500).times(1)).send(anyString(), any());
     }
 
@@ -150,8 +164,11 @@ class FillCompletedPushTest {
 
         ArgumentCaptor<PushMessage> toOwner = ArgumentCaptor.forClass(PushMessage.class);
         ArgumentCaptor<PushMessage> toFriend = ArgumentCaptor.forClass(PushMessage.class);
+        relay.runOnce(LocalDateTime.now());
         verify(sender, timeout(5000).times(1)).send(eq(token.getToken()), toOwner.capture());
+        relay.runOnce(LocalDateTime.now());
         verify(sender, timeout(5000).times(1)).send(eq(friendToken.getToken()), toFriend.capture());
+        relay.runOnce(LocalDateTime.now());
         verify(sender, after(1000).times(2)).send(anyString(), any());
 
         assertThat(toOwner.getValue().body()).isEqualTo(PushMessage.fillCompleted(code).body());
@@ -170,6 +187,7 @@ class FillCompletedPushTest {
         for (int i = 0; i < 3; i++) {
             fillService.fillSlot(code, i, friend.getId(), "친구", jpeg((byte) i), "image/jpeg");
         }
+        relay.runOnce(LocalDateTime.now());
         verify(sender, after(1000).times(0)).send(anyString(), any());
         assertThat(sessionRepository.findByCode(code).orElseThrow().getCompletedNotifiedAt()).isNull();
         assertThat(notificationRepository.countByUserIdAndReadAtIsNull(owner.getId())).isZero();

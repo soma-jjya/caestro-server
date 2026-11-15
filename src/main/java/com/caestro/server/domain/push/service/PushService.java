@@ -34,8 +34,22 @@ public class PushService {
      * @return FCM 이 받아 준 기기 수
      */
     public int sendToUser(Long userId, PushMessage message) {
+        return sendReport(userId, message).sent();
+    }
+
+    /** 기기별 결과를 모두 든 보고. 아웃박스 릴레이(#272)가 "다시 보낼지"를 정할 때 쓴다. */
+    public record SendReport(int tokens, int sent, int unregistered, int failed) {
+        /** 보낼 기기가 하나라도 있었는데 아무 데도 못 보냈고, 그 이유가 죽은 토큰이 아니라 실패였다 → 다시 시도할 가치가 있다. */
+        public boolean shouldRetry() {
+            return tokens > 0 && sent == 0 && failed > 0;
+        }
+    }
+
+    public SendReport sendReport(Long userId, PushMessage message) {
         List<PushToken> tokens = tokenRepository.findAllByUserIdAndDisabledAtIsNull(userId);
         int sent = 0;
+        int unregistered = 0;
+        int failed = 0;
         for (PushToken token : tokens) {
             PushResult result = sender.send(token.getToken(), message);
             meterRegistry.counter(METRIC, "type", message.type(), "result", result.name().toLowerCase()).increment();
@@ -45,9 +59,12 @@ public class PushService {
                 // 앱 삭제·재설치로 죽은 토큰: 끈다. 같은 기기가 다시 등록하면 되살아난다
                 token.disable(LocalDateTime.now(clock));
                 tokenRepository.save(token);
+                unregistered++;
+            } else if (result == PushResult.FAILED) {
+                failed++;
             }
         }
-        return sent;
+        return new SendReport(tokens.size(), sent, unregistered, failed);
     }
 
     /** 본인 기기로 테스트 알림. 앱 연동 확인용. */

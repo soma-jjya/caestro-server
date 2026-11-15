@@ -168,7 +168,10 @@ public class FcmPushSender implements PushSender {
         return RestClient.builder().baseUrl(baseUrl).requestFactory(factory).build();
     }
 
-    private static String shorten(String body) {
-        return body == null ? "" : body.replaceAll("\\s+", " ").substring(0, Math.min(body.length(), 200));
+    /** 로그 한 줄용. 공백을 줄인 뒤의 길이로 자른다 — 줄이기 전 길이로 자르면 들여쓰기 JSON 에서 범위를 넘는다(#269). */
+    static String shorten(String body) {
+        if (body == null) return "";
+        String compact = body.replaceAll("\\s+", " ");
+        return compact.length() <= 200 ? compact : compact.substring(0, 200);
     }
 }

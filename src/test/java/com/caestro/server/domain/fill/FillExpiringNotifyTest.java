@@ -24,6 +24,7 @@ import com.caestro.server.domain.push.sender.PushSender;
 import com.caestro.server.domain.user.entity.User;
 import com.caestro.server.domain.user.repository.UserRepository;
 import com.caestro.server.global.exception.CustomException;
+import com.caestro.server.domain.notification.service.OutboxRelay;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
@@ -35,6 +36,7 @@ import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -43,6 +45,8 @@ import org.springframework.test.util.ReflectionTestUtils;
  * 실제 MySQL 필요 (docker-compose up -d / CI 서비스 컨테이너). FCM 은 목.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+// 발송 단언은 릴레이 직접 모드로(#273 스트림 경로는 NotificationStreamTest)
+@TestPropertySource(properties = "notification.stream.enabled=false")
 class FillExpiringNotifyTest {
 
     @Autowired private FillService fillService;
@@ -50,6 +54,8 @@ class FillExpiringNotifyTest {
     @Autowired private FillExpiringNotifier notifier;
     @Autowired private PushTokenRepository tokenRepository;
     @Autowired private NotificationRepository notificationRepository;
+    // #272: 발송은 아웃박스 릴레이가 한다. 주기(3초)를 기다리지 않고 한 바퀴 직접 돌린다
+    @Autowired private OutboxRelay relay;
     @Autowired private UserRepository userRepository;
 
     @MockitoBean private PushSender sender;
@@ -115,6 +121,7 @@ class FillExpiringNotifyTest {
 
         assertThat(first.notified()).isEqualTo(1);
         ArgumentCaptor<PushMessage> message = ArgumentCaptor.forClass(PushMessage.class);
+        relay.runOnce(LocalDateTime.now());
         verify(sender, timeout(3000).times(1)).send(eq(token.getToken()), message.capture());
         assertThat(message.getValue().type()).isEqualTo(PushMessage.TYPE_FILL_EXPIRING);
         assertThat(message.getValue().data()).containsEntry("code", target.getCode()).containsKey(PushMessage.DATA_NOTIFICATION_ID);
@@ -124,6 +131,7 @@ class FillExpiringNotifyTest {
 
         FillExpiringNotifier.Result second = notifier.runOnce(LocalDateTime.now());
         assertThat(second.notified()).isZero();
+        relay.runOnce(LocalDateTime.now());
         verify(sender, times(1)).send(anyString(), any());
     }
 }
