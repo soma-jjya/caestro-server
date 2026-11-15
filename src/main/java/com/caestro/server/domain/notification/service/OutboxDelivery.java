@@ -12,6 +12,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
@@ -45,6 +46,7 @@ public class OutboxDelivery {
     private final List<OutboxMessageRenderer> renderers;
 
     public Outcome deliver(NotificationOutbox row, LocalDateTime now) {
+        long startedNanos = System.nanoTime();
         try {
             if (row.isExpired(now)) {
                 row.expired(now);
@@ -88,6 +90,8 @@ public class OutboxDelivery {
             row.sent(now);
             save(row);
             count(row, "sent");
+            // 도착 지연(#283): 보낼 시각부터 이 처리를 시작한 때 + 알림함·FCM 에 쓴 시간
+            metrics.deliveryLatency(row.getType(), Duration.between(row.getNotBefore(), now).plusNanos(System.nanoTime() - startedNanos));
             return Outcome.of(Result.SENT);
         } catch (RuntimeException e) {
             return new Outcome(Result.RETRY, e.getClass().getSimpleName() + ": " + e.getMessage());
