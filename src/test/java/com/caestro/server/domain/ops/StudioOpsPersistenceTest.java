@@ -239,6 +239,33 @@ class StudioOpsPersistenceTest {
         assertThat(service.user(kakao.getId()).deviceKey()).isNull();
     }
 
+    @Test
+    @DisplayName("게스트가 산 App Store 구독도 Pro 로 센다: iOS 는 로그인 없이 산다 (#285)")
+    void guestProCounts() {
+        subscriptions.save(sub(guest, SubscriptionStore.APP_STORE, "monthly", SubscriptionStatus.ACTIVE, NOW_LOCAL.plusDays(25), true));
+        service.evictStatsCache();
+
+        assertThat(ids(service.users(null, null, true, null, null))).containsExactly(guest.getId(), google.getId());
+        assertThat(ids(service.users(null, "guest", true, null, null))).containsExactly(guest.getId());
+        OpsStatsResponse stats = service.stats();
+        assertThat(stats.subscriptions().active()).isEqualTo(2);
+        assertThat(stats.subscriptions().appStore()).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("같은 폰의 게스트 찾기(#285): 기기 키가 같고 소셜 연동 전·탈퇴 전인 계정만")
+    void guestsByDeviceKey() {
+        String phone = "cc".repeat(32);
+        User otherGuest = users.save(User.builder().deviceId("device-other-456").build());
+        users.touchLastLogin(guest.getId(), NOW_LOCAL, "IOS", phone);
+        users.touchLastLogin(kakao.getId(), NOW_LOCAL, "IOS", phone);       // 같은 폰의 정식 계정
+        users.touchLastLogin(left.getId(), NOW_LOCAL, "IOS", phone);        // 같은 폰의 탈퇴 계정(게스트처럼 provider 가 비었다)
+        users.touchLastLogin(otherGuest.getId(), NOW_LOCAL, "IOS", "dd".repeat(32));
+
+        assertThat(users.findGuestsByDeviceKey(phone)).extracting(User::getId).containsExactly(guest.getId());
+        assertThat(users.findGuestsByDeviceKey("ee".repeat(32))).isEmpty();
+    }
+
     private static java.util.List<Long> ids(OpsUserPageResponse page) {
         return page.items().stream().map(OpsUserResponse::id).toList();
     }
