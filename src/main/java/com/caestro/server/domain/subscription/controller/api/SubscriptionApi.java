@@ -56,7 +56,8 @@ public interface SubscriptionApi {
             description = "앱(iOS)이 App Store 결제 직후(또는 앱 시작·구매 복원 때) StoreKit 2 의 서명된 거래(JWS)를 보냅니다. "
                     + "서버는 거래 번호만 꺼내 App Store Server API 로 구독 상태를 확인해 이 계정의 구독으로 기록하고 현재 상태를 돌려줍니다. "
                     + "같은 구독(originalTransactionId)을 다시 보내면 최신 상태로 고칩니다. "
-                    + "결제 때 넣은 appAccountToken(사용자 id 의 SHA-256 앞 16바이트 UUID)이 다른 계정이면 409 입니다."
+                    + "결제 때 넣은 appAccountToken(사용자 id 의 SHA-256 앞 16바이트 UUID)이 다른 계정이면 409 입니다. "
+                    + "게스트 계정도 기록합니다(iOS 는 로그인 없이 결제). 게스트가 산 구독을 같은 폰에서 로그인한 정식 계정이 보내면 그 계정으로 옮깁니다."
     )
     @SecurityRequirement(name = "BearerAuth")
     @ApiResponses({
@@ -64,7 +65,6 @@ public interface SubscriptionApi {
                     content = @Content(schema = @Schema(implementation = SubscriptionResponse.class))),
             @ApiResponse(responseCode = "400", description = "읽을 수 없는 거래 / Apple 이 모르는 거래 / 다른 앱·상품"),
             @ApiResponse(responseCode = "401", description = "토큰이 없음"),
-            @ApiResponse(responseCode = "403", description = "게스트 계정 (소셜 로그인 필요)"),
             @ApiResponse(responseCode = "409", description = "다른 계정에 연결된 구독"),
             @ApiResponse(responseCode = "503", description = "인앱 결제 키 미설정 또는 Apple 일시 장애 (재시도)")
     })

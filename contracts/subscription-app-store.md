@@ -10,8 +10,10 @@ Google Play 는 상품 하나에 기본 요금제 셋이지만 App Store 는 기
 
 ## 인증
 
-- `POST /subscriptions/app-store`: 앱의 Bearer JWT. 게스트(소셜 연동 전) 계정은 403 — Google Play 와 같다.
-  iOS 앱은 게스트도 결제할 수 있고(App Review 5.1.1) 그 기기에서는 App Store 가 Pro 를 지킨다. 로그인 뒤 앱이 다시 보내면 그때 계정에 묶인다.
+- `POST /subscriptions/app-store`: 앱의 Bearer JWT. 게스트(소셜 연동 전) 계정도 받는다 (#285).
+  iOS 앱은 로그인 없이 결제하고(App Review 5.1.1) 앱은 켜질 때 게스트로 들어가서, 구매자 대부분이 게스트다.
+  전에는 게스트를 403 으로 막아 로그인하지 않은 구매자가 끝내 기록되지 않았다(앱에서는 StoreKit 이 Pro 를 켜서 운영 화면에만 빠졌다).
+  Google Play 는 앱이 결제 전에 소셜 로그인을 받으므로 그대로 게스트 403 이다.
 - `POST /subscriptions/app-store/notifications`: JWT 없음(Apple 이 보낸다). URL 의 `?token=` 이 `apple.app-store.notification-token` 과
   같아야 한다(상수 시간 비교). 설정이 비면 항상 403. 알림 본문은 믿지 않고 거래 번호만 꺼내 Apple 에 다시 묻는다.
 
@@ -38,6 +40,13 @@ POST /subscriptions/app-store
 - 결제 때 앱이 넣는 `appAccountToken` = 사용자 id(JWT subject 문자열)의 SHA-256 앞 16바이트를 UUID 로(버전 4·변형 비트 표시).
   Google Play 의 `obfuscatedAccountId`(같은 해시의 hex)와 같은 계정 표시다. Apple 응답의 값이 호출한 계정과 다르면 409.
   값이 없는 거래(계정 표시 없이 산 것)는 호출한 계정에 묶는다.
+- 게스트가 산 구독을 정식 계정으로 옮기기 (#285). 게스트가 이미 있던 소셜 계정으로 로그인하면(제자리 승격이 아니라 다른 user id)
+  거래의 계정 토큰은 게스트 것으로 남는다. 그 뒤 정식 계정이 같은 거래를 보내면:
+  - 행이 게스트 계정 것이고(탈퇴 계정 아님) 거래의 토큰이 그 게스트 것이면 행을 정식 계정으로 옮긴다.
+  - 행이 아직 없으면 호출한 계정의 기기 키(`users.device_key`, 같은 폰)로 생긴 게스트 중 토큰이 맞는 게스트가 있을 때만 받는다.
+  - 옮긴 뒤에는 토큰이 게스트 것이어도 그 계정 행으로 계속 고친다.
+  - 정식 계정 행은 옮기지 않고, 게스트끼리도 옮기지 않는다(같은 Apple ID 의 두 폰이 서로 가져가며 오가지 않게). 이 경우는 409 이고,
+    그 폰에서는 StoreKit 이 Pro 를 지킨다.
 - 번들 id 가 `soma.project.caestro` 가 아니거나 상품이 `peakpic_pro_` 로 시작하지 않으면 400.
 
 ### Apple 상태 → status
@@ -55,8 +64,7 @@ Google Play 와 같은 ErrorCode 를 쓴다.
 | 상태 | ErrorCode | 언제 |
 |---|---|---|
 | 400 | SUBSCRIPTION_PURCHASE_INVALID | 읽을 수 없는 거래, Apple 이 모르는 거래(400/404), 다른 앱·상품 |
-| 403 | GUEST_ACCOUNT_NOT_ALLOWED | 게스트 계정 |
-| 409 | SUBSCRIPTION_PURCHASE_OWNED_BY_OTHER | 구독이 이미 다른 계정 것 / 결제의 계정 토큰이 다름 |
+| 409 | SUBSCRIPTION_PURCHASE_OWNED_BY_OTHER | 구독이 이미 다른 계정 것 / 결제의 계정 토큰이 다름 (위의 게스트 옮기기에 해당하지 않을 때) |
 | 503 | SUBSCRIPTION_VERIFICATION_UNAVAILABLE | 인앱 결제 키 미설정, Apple 401·429·5xx·네트워크 (앱은 나중에 다시 보냄) |
 
 ## 서버 알림 (App Store Server Notifications V2)
@@ -73,9 +81,10 @@ Google Play 와 같은 ErrorCode 를 쓴다.
 
 Google Play 와 같은 세 토막이다 — Apple 응답을 기다리는 동안 DB 커넥션을 쥐지 않는다.
 
-1. **읽기 트랜잭션**: 계정·게스트 검사. 이어서 JWS 에서 거래 번호를 꺼낸다(서명은 보지 않는다).
+1. **읽기 트랜잭션**: 계정을 읽는다. 이어서 JWS 에서 거래 번호를 꺼낸다(서명은 보지 않는다).
 2. **트랜잭션 없이 Apple 조회**. 서킷브레이커 `app-store`(`ExternalApiGuard.noRetry`, 재시도 없음). 번들·계정 토큰 검사는 응답을 받은 뒤.
-3. **짧은 쓰기 트랜잭션**: originalTransactionId 의 행을 찾거나 만들어 상태를 덮어쓴다. 다른 계정의 행이면 409.
+3. **짧은 쓰기 트랜잭션**: originalTransactionId 의 행을 찾거나 만들어 상태를 덮어쓴다. 다른 계정의 행이면 게스트 옮기기 조건을 보고, 아니면 409.
+   행이 없고 토큰이 다른 계정 것일 때만 같은 폰의 게스트를 읽는다(`UserRepository.findGuestsByDeviceKey`).
    동시 INSERT 로 유니크에 걸리면 새 트랜잭션에서 한 번 다시 읽어 그 행에 반영한다.
 
 알림은 "아는 구독인지 먼저(단건 조회) → Apple 조회(서킷) → 쓰기 트랜잭션" 순서라 모르는 구독으로는 Apple 을 부르지 않는다.
@@ -147,6 +156,6 @@ GitHub Secret → build-args → Dockerfile ENV 경로는 #188 에서 없앴다 
 ## 클라이언트 (iOS)
 
 - 결제 성공·앱 시작·구매 복원·App Store 의 거래 변경(Transaction.updates) 때, 현재 유효한 거래마다 `POST /subscriptions/app-store`. 2xx 면 응답을 계정 권한으로 쓴다.
-  403(게스트)·404(이 경로가 없는 서버)·503·네트워크 오류는 넘기고 다음 기회에 다시 보낸다.
+  409(다른 계정의 구독)·404(이 경로가 없는 서버)·503·네트워크 오류는 넘기고 다음 기회에 다시 보낸다. #285 전 서버는 게스트를 403 으로 막았다.
 - 앱 시작·결제 화면을 열 때 `GET /subscriptions/me`. `store` 가 있는(스토어 결제로 확인된) 활성 구독이면 이 기기에 App Store 구매가 없어도 Pro.
 - Pro = 이 Apple ID 의 App Store 구독 OR 서버의 계정 구독.

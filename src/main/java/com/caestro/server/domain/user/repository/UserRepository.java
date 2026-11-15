@@ -2,6 +2,7 @@ package com.caestro.server.domain.user.repository;
 
 import com.caestro.server.domain.user.entity.User;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
@@ -14,6 +15,13 @@ public interface UserRepository extends JpaRepository<User, Long> {
     Optional<User> findByOauthProviderAndOauthId(String oauthProvider, String oauthId);
 
     Optional<User> findByDeviceId(String deviceId);
+
+    /**
+     * 같은 폰(기기 키 해시)에서 생긴 게스트 계정들: 소셜 연동 전이고 탈퇴하지 않은 계정.
+     * 게스트로 산 App Store 구독을 그 폰에서 로그인한 정식 계정이 받을 때 거래의 계정 토큰과 맞춰 본다 (#285).
+     */
+    @Query("select u from User u where u.deviceKey = :deviceKey and u.oauthProvider is null and u.deletedAt is null order by u.id")
+    List<User> findGuestsByDeviceKey(@Param("deviceKey") String deviceKey);
 
     /**
      * 로그인·토큰 갱신 때 마지막 로그인 시각, 온 앱, 온 폰(기기 키 해시)을 찍는다. 엔티티를 다시 읽지 않는 한 줄 갱신.
