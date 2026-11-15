@@ -52,7 +52,7 @@
     },
     {
       "type": "timeseries",
-      "title": "잃은 수 (종류별, 하루) = 요청 − 수락 − 없는 기기",
+      "title": "잃은 수 (종류별, 하루) = 요청 − 수락 − 없는 기기 − 취소",
       "description": "0 이어야 정상. 토큰 없는 사용자(알림함만 받음)는 요청에는 세지만 FCM 에는 안 가므로 소량의 양수는 그 때문일 수 있다 — 지속되면 #272 아웃박스 지표와 대조.",
       "gridPos": {
         "h": 9,
@@ -79,7 +79,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "clamp_min(sum by (type) (increase(notification_requested_total{job!~\".*b2b.*\"}[1d])) - sum by (type) (increase(push_sent_total{job!~\".*b2b.*\",result=\"sent\"}[1d])) - sum by (type) (increase(push_sent_total{job!~\".*b2b.*\",result=\"unregistered\"}[1d])), 0)",
+          "expr": "clamp_min(sum by (type) (increase(notification_requested_total{job!~\".*b2b.*\"}[1d])) - sum by (type) (increase(push_sent_total{job!~\".*b2b.*\",result=\"sent\"}[1d])) - sum by (type) (increase(push_sent_total{job!~\".*b2b.*\",result=\"unregistered\"}[1d])) - (sum by (type) (increase(notification_cancelled_total{job!~\".*b2b.*\"}[1d])) or sum by (type) (increase(notification_requested_total{job!~\".*b2b.*\"}[1d])) * 0), 0)",
           "legendFormat": "{{type}}"
         }
       ]
@@ -412,6 +412,50 @@
           "refId": "B",
           "expr": "max(notification_stream_dead{job!~\".*b2b.*\"})",
           "legendFormat": "보류함 스트림"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "묶음 알림 · 친구 칸 채움 #274 (하루)",
+      "description": "채움 수(새 묶음 + 합친 수) 대비 실제로 나간 진행 알림. 취소는 묶이는 동안 완성돼 완성 알림이 대신 간 것.",
+      "gridPos": {
+        "h": 7,
+        "w": 24,
+        "x": 0,
+        "y": 45
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "sum"
+          ]
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(increase(notification_requested_total{job!~\".*b2b.*\",type=\"fill_progress\"}[1d])) + sum(increase(notification_collapsed_total{job!~\".*b2b.*\",type=\"fill_progress\"}[1d]))",
+          "legendFormat": "친구 칸 채움"
+        },
+        {
+          "refId": "B",
+          "expr": "sum(increase(notification_relay_processed_total{job!~\".*b2b.*\",type=\"fill_progress\",result=\"sent\"}[1d]))",
+          "legendFormat": "보낸 진행 알림"
+        },
+        {
+          "refId": "C",
+          "expr": "sum(increase(notification_cancelled_total{job!~\".*b2b.*\",type=\"fill_progress\"}[1d]))",
+          "legendFormat": "취소(완성 알림으로 대신)"
         }
       ]
     }
