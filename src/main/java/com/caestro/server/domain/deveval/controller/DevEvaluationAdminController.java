@@ -21,6 +21,7 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import com.caestro.server.domain.deveval.dto.request.AutoScoreRequest;
+import com.caestro.server.domain.deveval.dto.request.LikeRequest;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -96,6 +97,13 @@ public class DevEvaluationAdminController implements DevEvaluationAdminApi {
     @Override
     public ResponseEntity<Void> autoScore(@PathVariable String id, @RequestBody AutoScoreRequest request) {
         evaluationService.recordAutoScore(id, request);
+        return ResponseEntity.noContent().build();
+    }
+
+    @PutMapping("/evaluations/{id}/like")
+    @Override
+    public ResponseEntity<Void> like(@PathVariable String id, @RequestBody LikeRequest request) {
+        evaluationService.setLiked(id, request);
         return ResponseEntity.noContent().build();
     }
 

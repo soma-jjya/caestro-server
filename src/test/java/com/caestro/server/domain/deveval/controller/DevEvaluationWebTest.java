@@ -1,6 +1,7 @@
 package com.caestro.server.domain.deveval.controller;
 
 import com.caestro.server.domain.deveval.dto.request.AutoScoreRequest;
+import com.caestro.server.domain.deveval.dto.request.LikeRequest;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -174,6 +175,23 @@ class DevEvaluationWebTest {
                         .content("{\"status\":\"NOBODY\",\"algo\":1}"))
                 .andExpect(status().isNoContent());
         verify(evaluationService).recordAutoScore(CLIENT_ID, new AutoScoreRequest("NOBODY", null, null, null, null, 1));
+    }
+
+    @Test
+    @DisplayName("좋아요(#291): PUT /admin/dev/evaluations/{id}/like 는 스튜디오 키·ADMIN 만(앱 토큰·키 없음 403), 본문을 서비스로, 204")
+    void admin_like() throws Exception {
+        String path = "/admin/dev/evaluations/" + CLIENT_ID + "/like";
+        mockMvc.perform(put(path).contentType(MediaType.APPLICATION_JSON).content("{\"liked\":true}")).andExpect(status().isForbidden());
+        mockMvc.perform(put(path).with(user(APP_USER)).contentType(MediaType.APPLICATION_JSON).content("{\"liked\":true}"))
+                .andExpect(status().isForbidden());
+        verifyNoInteractions(evaluationService);
+
+        mockMvc.perform(put(path).header(KEY, STUDIO_KEY).contentType(MediaType.APPLICATION_JSON).content("{\"liked\":true}"))
+                .andExpect(status().isNoContent());
+        verify(evaluationService).setLiked(CLIENT_ID, new LikeRequest(true));
+        mockMvc.perform(put(path).with(user(ADMIN)).contentType(MediaType.APPLICATION_JSON).content("{\"liked\":false}"))
+                .andExpect(status().isNoContent());
+        verify(evaluationService).setLiked(CLIENT_ID, new LikeRequest(false));
     }
 
     @Test

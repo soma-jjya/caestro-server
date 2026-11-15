@@ -15,7 +15,7 @@ final class DevEvaluationCsv {
     static final List<String> HEADER = List.of(
             "id", "userId", "userNickname", "deviceKey", "rating", "ratingMax", "guide", "guideVersion", "guideShot", "guideStyle",
             "shutterScore", "photoScoreTotal", "photoScorePose", "photoScorePlace", "photoScoreShape",
-            "autoScoreStatus", "autoScoreTotal", "autoScorePose", "autoScorePlace", "autoScoreShape", "mediaType",
+            "autoScoreStatus", "autoScoreTotal", "autoScorePose", "autoScorePlace", "autoScoreShape", "liked", "mediaType",
             "takenAt", "ratedAt", "width", "height", "appVersion", "device", "note", "extra",
             "hasPhoto", "photoBytes", "createdAt", "updatedAt");
 
@@ -44,6 +44,7 @@ final class DevEvaluationCsv {
         cells.add(number(r.autoScore() == null ? null : r.autoScore().pose()));
         cells.add(number(r.autoScore() == null ? null : r.autoScore().place()));
         cells.add(number(r.autoScore() == null ? null : r.autoScore().shape()));
+        cells.add(value(r.liked()));
         cells.add(text(r.mediaType()));
         cells.add(value(r.takenAt()));
         cells.add(value(r.ratedAt()));

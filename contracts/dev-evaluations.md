@@ -92,6 +92,7 @@
   "rating": 23, "ratingMax": 30, "guide": true, "guideVersion": "v012", "guideShot": "shot_0003", "guideStyle": "photo",
   "shutterScore": 81.0, "photoScore": { "total": 78.0, "pose": 84.0, "place": 0.97, "shape": null } | null,
   "autoScore": { "status": "SCORED", "total": 92.0, "pose": 93.0, "place": 1.0, "shape": 0.98, "algo": 1, "scoredAt": "…Z" } | null,
+  "liked": false,
   "mediaType": "photo", "takenAt": "2026-11-10T07:12:00Z" | null, "ratedAt": "2026-11-10T07:30:00Z",
   "width": 3000, "height": 4000, "appVersion": "…", "device": "SM-S938N", "note": "…", "extra": { … } | null,
   "hasPhoto": true, "photoBytes": 412345 | null, "guideImages": ["photo", "line"], "createdAt": "…Z", "updatedAt": "…Z" }
@@ -100,6 +101,7 @@
 - `deviceKey` 는 운영 화면(contracts/studio-ops.md)과 같은 기기 키 해시의 앞 16자 — 같은 값이면 같은 폰. 기록 전이면 null.
 - `shutterScore`·`photoScore` 의 숫자는 실수로 내려간다(81 → `81.0`). `photoScore` 는 네 칸이 모두 비면 null.
 - `autoScore`(#289): 관리자 화면이 사진에서 다시 매긴 사진 점수(아래 `PUT …/auto-score`). 매긴 적 없거나 지워졌으면 null.
+- `liked`(#291): 관리자가 손으로 체크한 좋아요(아래 `PUT …/like`). 체크한 적 없으면 false.
 - 시각은 모두 ISO-8601 UTC(`Z`). `takenAt`·`ratedAt` 은 앱이 보낸 시각을 UTC 로 맞춘 것, `createdAt`·`updatedAt` 은 서버가 받은 시각.
 
 ### `GET /admin/dev/evaluations/{id}/photo`
@@ -135,7 +137,7 @@
 ```
 id,userId,userNickname,deviceKey,rating,ratingMax,guide,guideVersion,guideShot,guideStyle,
 shutterScore,photoScoreTotal,photoScorePose,photoScorePlace,photoScoreShape,
-autoScoreStatus,autoScoreTotal,autoScorePose,autoScorePlace,autoScoreShape,mediaType,
+autoScoreStatus,autoScoreTotal,autoScorePose,autoScorePlace,autoScoreShape,liked,mediaType,
 takenAt,ratedAt,width,height,appVersion,device,note,extra,hasPhoto,photoBytes,createdAt,updatedAt
 ```
 
@@ -156,6 +158,17 @@ takenAt,ratedAt,width,height,appVersion,device,note,extra,hasPhoto,photoBytes,cr
 - 앱이 보낸 `photoScore` 와 따로 둔다(앱 재전송이 덮어쓰지 않고, 둘을 견줄 수 있다). `updatedAt` 은 바꾸지 않는다(관리자 화면의 사진 캐시 키).
 - 앱이 사진이나 가이드 이미지를 다시 올리거나, 기록을 다시 보낼 때 가이드 여부·버전·샷·`extra` 가 바뀌면 지운다. 만족도만 바뀌면 남는다.
 - 응답 204. 값 오류 400 `DEV_EVAL_INVALID`, 없는 기록 404 `DEV_EVAL_NOT_FOUND`.
+
+### `PUT /admin/dev/evaluations/{id}/like` — 좋아요 체크 (#291)
+
+갤러리 하트(즐겨찾기)는 폰 안에만 있어 서버로 오지 않는다. 그 대신 관리자가 사진마다 손으로 체크한다.
+
+```json
+{ "liked": true }
+```
+
+- `true` 체크, `false` 해제 → 204. `liked` 가 없으면 400 `DEV_EVAL_INVALID`, 없는 기록 404 `DEV_EVAL_NOT_FOUND`.
+- `updatedAt` 은 바꾸지 않는다. 앱이 기록·사진을 다시 보내도 남는다(관리자 표시).
 
 ### `DELETE /admin/dev/evaluations/{id}`
 
@@ -246,6 +259,8 @@ ALTER TABLE dev_evaluations ADD COLUMN guide_photo_bytes INT NULL, ADD COLUMN gu
 ALTER TABLE dev_evaluations ADD COLUMN auto_score_status VARCHAR(20) NULL, ADD COLUMN auto_score_total DOUBLE NULL,
   ADD COLUMN auto_score_pose DOUBLE NULL, ADD COLUMN auto_score_place DOUBLE NULL, ADD COLUMN auto_score_shape DOUBLE NULL,
   ADD COLUMN auto_score_algo INT NULL, ADD COLUMN auto_scored_at DATETIME(6) NULL;
+-- 관리자 좋아요(#291)
+ALTER TABLE dev_evaluations ADD COLUMN liked BIT NULL;
 ```
 
 ## 클라이언트

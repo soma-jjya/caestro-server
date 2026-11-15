@@ -1,6 +1,7 @@
 package com.caestro.server.domain.deveval.controller.api;
 
 import com.caestro.server.domain.deveval.dto.request.AutoScoreRequest;
+import com.caestro.server.domain.deveval.dto.request.LikeRequest;
 
 import com.caestro.server.domain.deveval.dto.response.DevEvaluationPageResponse;
 import com.caestro.server.domain.deveval.dto.response.DevEvaluationStatsResponse;
@@ -64,6 +65,16 @@ public interface DevEvaluationAdminApi {
             @ApiResponse(responseCode = "404", description = "기록 없음(DEV_EVAL_NOT_FOUND)")
     })
     ResponseEntity<Void> autoScore(String id, AutoScoreRequest request);
+
+    @Operation(summary = "좋아요 체크",
+            description = "관리자가 사진마다 손으로 체크하는 '좋아요'를 남기거나 풉니다(#291). 갤러리 하트는 폰 밖으로 나오지 않아 대신 씁니다. "
+                    + "updatedAt 은 바꾸지 않고, 앱이 기록·사진을 다시 보내도 남습니다.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "204", description = "남김"),
+            @ApiResponse(responseCode = "400", description = "liked 없음(DEV_EVAL_INVALID)"),
+            @ApiResponse(responseCode = "404", description = "기록 없음(DEV_EVAL_NOT_FOUND)")
+    })
+    ResponseEntity<Void> like(String id, LikeRequest request);
 
     @Operation(summary = "평가 지우기", description = "기록과 사진을 함께 지웁니다.")
     @ApiResponses({
