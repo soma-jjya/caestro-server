@@ -35,6 +35,7 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -50,6 +51,9 @@ class AppStoreSubscriptionServiceTest {
 
     private static final Long USER_ID = 7L;
     private static final Long OTHER_ID = 8L;
+    private static final Long THIRD_ID = 9L;
+    /** 로그인·토큰 갱신 때 찍히는 폰의 기기 키 해시(users.device_key). */
+    private static final String DEVICE_KEY = "a1b2c3";
     private static final String ORIGINAL = "2000000111";
     private static final String LATEST = "2000000999";
     private static final String BUNDLE = "soma.project.caestro";
@@ -96,6 +100,15 @@ class AppStoreSubscriptionServiceTest {
 
     private static AppStoreSubscription active(String account) {
         return purchase(AppStoreSubscription.STATUS_ACTIVE, NOW.plusSeconds(86_400 * 30), account, null);
+    }
+
+    private static User onDevice(User user) {
+        ReflectionTestUtils.setField(user, "deviceKey", DEVICE_KEY);
+        return user;
+    }
+
+    private static String tokenOf(Long id) {
+        return AppStoreSubscriptionService.appAccountToken(id);
     }
 
     private Subscription row(User owner, SubscriptionStatus status, Instant expires) {
@@ -163,14 +176,103 @@ class AppStoreSubscriptionServiceTest {
     }
 
     @Test
-    @DisplayName("확인: 게스트 계정은 403, Apple 에 묻지 않는다")
-    void verify_guest() {
+    @DisplayName("확인: 게스트 계정도 기록한다 - iOS 는 로그인 없이 사고(App Review 5.1.1) 앱이 열릴 때마다 다시 보낸다 (#285)")
+    void verify_guest_recorded() {
         given(userRepository.findById(USER_ID)).willReturn(Optional.of(user(USER_ID, true)));
+        given(appStore.configured()).willReturn(true);
+        given(appStore.getSubscription(LATEST)).willReturn(Optional.of(active(tokenOf(USER_ID))));
+        given(subscriptionRepository.findByPurchaseToken(ORIGINAL)).willReturn(Optional.empty());
 
+        SubscriptionResponse response = service.verify(USER_ID, request());
+
+        ArgumentCaptor<Subscription> saved = ArgumentCaptor.forClass(Subscription.class);
+        verify(subscriptionRepository).save(saved.capture());
+        assertThat(saved.getValue().getUser().getId()).isEqualTo(USER_ID);
+        assertThat(saved.getValue().getStatus()).isEqualTo(SubscriptionStatus.ACTIVE);
+        assertThat(response.active()).isTrue();
+    }
+
+    @Test
+    @DisplayName("확인: 게스트 계정에 묶인 구독을 그 뒤 로그인한 정식 계정이 보내면 그 계정으로 옮긴다 (#285)")
+    void verify_takesOverFromGuest() {
+        signedIn();
+        given(appStore.getSubscription(LATEST)).willReturn(Optional.of(active(tokenOf(OTHER_ID))));
+        Subscription guestRow = row(user(OTHER_ID, true), SubscriptionStatus.ACTIVE, NOW.plusSeconds(60));
+        given(subscriptionRepository.findByPurchaseToken(ORIGINAL)).willReturn(Optional.of(guestRow));
+
+        assertThat(service.verify(USER_ID, request()).active()).isTrue();
+
+        verify(subscriptionRepository).save(guestRow);
+        assertThat(guestRow.getUser().getId()).isEqualTo(USER_ID);
+        assertThat(guestRow.getExpiresAt()).isEqualTo(LocalDateTime.ofInstant(NOW.plusSeconds(86_400 * 30), ZONE));
+    }
+
+    @Test
+    @DisplayName("확인: 옮겨 받은 구독은 거래의 계정 토큰이 게스트 것이어도 이 계정 행으로 계속 고친다 (#285)")
+    void verify_takenOverRowStaysMine() {
+        signedIn();
+        given(appStore.getSubscription(LATEST)).willReturn(Optional.of(active(tokenOf(OTHER_ID))));
+        Subscription mine = row(user(USER_ID, false), SubscriptionStatus.ACTIVE, NOW.plusSeconds(60));
+        given(subscriptionRepository.findByPurchaseToken(ORIGINAL)).willReturn(Optional.of(mine));
+
+        assertThat(service.verify(USER_ID, request()).active()).isTrue();
+        verify(subscriptionRepository).save(mine);
+    }
+
+    @Test
+    @DisplayName("확인: 아직 기록 안 된 구독도 같은 폰(기기 키)의 게스트가 산 것이면 정식 계정이 받는다 (#285)")
+    void verify_guestOnSamePhone() {
+        given(userRepository.findById(USER_ID)).willReturn(Optional.of(onDevice(user(USER_ID, false))));
+        given(appStore.configured()).willReturn(true);
+        given(appStore.getSubscription(LATEST)).willReturn(Optional.of(active(tokenOf(OTHER_ID))));
+        given(subscriptionRepository.findByPurchaseToken(ORIGINAL)).willReturn(Optional.empty());
+        given(userRepository.findGuestsByDeviceKey(DEVICE_KEY))
+                .willReturn(List.of(user(THIRD_ID, true), user(OTHER_ID, true)));
+
+        assertThat(service.verify(USER_ID, request()).active()).isTrue();
+
+        ArgumentCaptor<Subscription> saved = ArgumentCaptor.forClass(Subscription.class);
+        verify(subscriptionRepository).save(saved.capture());
+        assertThat(saved.getValue().getUser().getId()).isEqualTo(USER_ID);
+    }
+
+    @Test
+    @DisplayName("확인: 다른 폰 게스트의 토큰, 게스트끼리, 탈퇴 계정 행, 다른 사람 토큰의 게스트 행은 옮기지 않고 409 (#285)")
+    void verify_noTakeOver() {
+        given(appStore.configured()).willReturn(true);
+
+        // 같은 폰에 그 토큰의 게스트가 없다
+        given(userRepository.findById(USER_ID)).willReturn(Optional.of(onDevice(user(USER_ID, false))));
+        given(appStore.getSubscription(LATEST)).willReturn(Optional.of(active(tokenOf(OTHER_ID))));
+        given(subscriptionRepository.findByPurchaseToken(ORIGINAL)).willReturn(Optional.empty());
+        given(userRepository.findGuestsByDeviceKey(DEVICE_KEY)).willReturn(List.of(user(THIRD_ID, true)));
         assertThatThrownBy(() -> service.verify(USER_ID, request()))
-                .isInstanceOf(CustomException.class)
-                .extracting("errorCode").isEqualTo(ErrorCode.GUEST_ACCOUNT_NOT_ALLOWED);
-        verify(appStore, never()).getSubscription(anyString());
+                .extracting("errorCode").isEqualTo(ErrorCode.SUBSCRIPTION_PURCHASE_OWNED_BY_OTHER);
+
+        // 게스트가 다른 게스트의 행을 가져가지 않는다(두 폰 사이를 오가지 않게)
+        given(userRepository.findById(USER_ID)).willReturn(Optional.of(user(USER_ID, true)));
+        given(subscriptionRepository.findByPurchaseToken(ORIGINAL))
+                .willReturn(Optional.of(row(user(OTHER_ID, true), SubscriptionStatus.ACTIVE, NOW.plusSeconds(60))));
+        assertThatThrownBy(() -> service.verify(USER_ID, request()))
+                .extracting("errorCode").isEqualTo(ErrorCode.SUBSCRIPTION_PURCHASE_OWNED_BY_OTHER);
+
+        // 탈퇴한 계정의 행은 옮기지 않는다(탈퇴하면 소셜 정보가 지워져 게스트처럼 보인다)
+        given(userRepository.findById(USER_ID)).willReturn(Optional.of(user(USER_ID, false)));
+        User left = user(OTHER_ID, false);
+        left.withdraw(LocalDateTime.ofInstant(NOW, ZONE));
+        given(subscriptionRepository.findByPurchaseToken(ORIGINAL))
+                .willReturn(Optional.of(row(left, SubscriptionStatus.ACTIVE, NOW.plusSeconds(60))));
+        assertThatThrownBy(() -> service.verify(USER_ID, request()))
+                .extracting("errorCode").isEqualTo(ErrorCode.SUBSCRIPTION_PURCHASE_OWNED_BY_OTHER);
+
+        // 게스트 행이어도 거래의 토큰이 그 게스트 것이 아니면 옮기지 않는다
+        given(appStore.getSubscription(LATEST)).willReturn(Optional.of(active(tokenOf(THIRD_ID))));
+        given(subscriptionRepository.findByPurchaseToken(ORIGINAL))
+                .willReturn(Optional.of(row(user(OTHER_ID, true), SubscriptionStatus.ACTIVE, NOW.plusSeconds(60))));
+        assertThatThrownBy(() -> service.verify(USER_ID, request()))
+                .extracting("errorCode").isEqualTo(ErrorCode.SUBSCRIPTION_PURCHASE_OWNED_BY_OTHER);
+
+        verify(subscriptionRepository, never()).save(any());
     }
 
     @Test

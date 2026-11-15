@@ -139,6 +139,14 @@ public class Subscription {
     }
 
     /**
+     * 게스트 계정이 산 구독을 같은 스토어 계정(같은 폰)으로 로그인한 정식 계정에 넘긴다 (#285).
+     * 게스트는 기기에 묶여 있어, 로그인한 계정으로 옮겨야 다른 기기에서도 Pro 가 이어진다.
+     */
+    public void transferTo(User owner) {
+        this.user = owner;
+    }
+
+    /**
      * 환불·취소(voided)로 결제가 무효가 됐다. 남은 기간과 관계없이 바로 끝낸다.
      */
     public void revoke(LocalDateTime now) {
