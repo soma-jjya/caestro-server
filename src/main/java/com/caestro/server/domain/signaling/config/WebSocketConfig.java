@@ -2,6 +2,7 @@ package com.caestro.server.domain.signaling.config;
 
 import com.caestro.server.domain.signaling.controller.SignalingWebSocketHandler;
 import lombok.RequiredArgsConstructor;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.socket.config.annotation.EnableWebSocket;
@@ -10,6 +11,8 @@ import org.springframework.web.socket.config.annotation.WebSocketHandlerRegistry
 import org.springframework.web.socket.server.standard.ServletServerContainerFactoryBean;
 
 @Configuration
+// 발송 전용 프로세스(notifier 프로파일, #274)는 웹 서버가 없어 WS 컨테이너를 만들 수 없다
+@ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
 @EnableWebSocket
 @RequiredArgsConstructor
 public class WebSocketConfig implements WebSocketConfigurer {

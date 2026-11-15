@@ -1,0 +1,10 @@
+# 발송 전용 프로세스 (#274). 같은 jar 를 --spring.profiles.active=prod,notifier 로 띄우면 HTTP·WebSocket 없이
+# 아웃박스 릴레이·스트림 소비자·배치만 돈다. 웹 인스턴스 쪽은 notification.worker.enabled=false 로 넣기(enqueue)만 하게 한다.
+# 분리 기준과 절차: contracts/notifications.md "발송 전용 프로세스"
+spring:
+  main:
+    web-application-type: none
+
+notification:
+  worker:
+    enabled: true
