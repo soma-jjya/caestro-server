@@ -4,8 +4,10 @@ import com.caestro.server.domain.push.sender.PushMessage;
 import com.caestro.server.domain.push.sender.PushResult;
 import com.caestro.server.domain.push.service.PushService;
 import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
 import org.springframework.stereotype.Component;
 
+import java.time.Duration;
 import java.util.List;
 
 /**
@@ -24,6 +26,16 @@ public class NotificationRequestMetrics {
     static final String METRIC_RECORD_FAILED = "notification.record_failed";
     static final String METRIC_COLLAPSED = "notification.collapsed";
     static final String METRIC_CANCELLED = "notification.cancelled";
+    static final String METRIC_DELIVERY_LATENCY = "notification.delivery.latency";
+
+    /**
+     * 도착 지연 버킷(#283). 정상은 1초 안, 재시도 백오프(1·5·30분·2시간)까지 한 줄에 보이게. 기본 백분위 히스토그램의 수십 개 버킷 대신
+     * 13개로 정해 둔다 — 종류 4 × 13 × 인스턴스 수만큼만 시계열이 생긴다.
+     */
+    static final Duration[] LATENCY_BUCKETS = {
+            Duration.ofMillis(100), Duration.ofMillis(250), Duration.ofMillis(500), Duration.ofSeconds(1), Duration.ofSeconds(2),
+            Duration.ofSeconds(3), Duration.ofSeconds(5), Duration.ofSeconds(10), Duration.ofSeconds(30), Duration.ofMinutes(1),
+            Duration.ofMinutes(5), Duration.ofMinutes(30), Duration.ofHours(2)};
 
     private final MeterRegistry meterRegistry;
 
@@ -50,7 +62,24 @@ public class NotificationRequestMetrics {
                 meterRegistry.counter(NotificationStreamConsumer.METRIC_CONSUMED, "type", type, "result", result);
             }
             meterRegistry.counter(NotificationStreamConsumer.METRIC_CONSUMED, "type", type, "result", "skipped");
+            latencyTimer(type);
         }
+    }
+
+    /**
+     * 보낼 시각부터 보냄까지 걸린 시간(#283). 일부러 미룬 시간(묶음 대기·예약)은 들지 않고, 릴레이 대기·큐·재시도·FCM 호출은 든다.
+     * 음수(시계 어긋남)는 0 으로.
+     */
+    public void deliveryLatency(String type, Duration latency) {
+        latencyTimer(type).record(latency.isNegative() ? Duration.ZERO : latency);
+    }
+
+    private Timer latencyTimer(String type) {
+        return Timer.builder(METRIC_DELIVERY_LATENCY)
+                .description("알림 도착 지연: 아웃박스 행의 보낼 시각(not_before)부터 보냄(SENT)까지")
+                .tag("type", type)
+                .serviceLevelObjectives(LATENCY_BUCKETS)
+                .register(meterRegistry);
     }
 
     /** 종류별 요청 수. [recipients] 는 받을 사람 수(한 사건이 여러 명에게 가면 그만큼). */

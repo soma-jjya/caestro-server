@@ -1,8 +1,12 @@
 package com.caestro.server.domain.notification.service;
 
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import io.micrometer.prometheusmetrics.PrometheusConfig;
+import io.micrometer.prometheusmetrics.PrometheusMeterRegistry;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+
+import java.time.Duration;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -46,5 +50,22 @@ class NotificationRequestMetricsTest {
             }
         }
         assertThat(registry.find("notification.requested").tag("type", "fill_progress").counter().count()).isZero();
+    }
+
+    @Test
+    @DisplayName("도착 지연(#283)은 종류별로 기동 때부터 있고, 프로메테우스에 정해 둔 13개 버킷(+Inf)으로 나간다 — 2초는 2초 버킷부터 센다")
+    void deliveryLatency_bucketsInPrometheus() {
+        PrometheusMeterRegistry prometheus = new PrometheusMeterRegistry(PrometheusConfig.DEFAULT);
+        NotificationRequestMetrics withPrometheus = new NotificationRequestMetrics(prometheus);
+        withPrometheus.deliveryLatency("fill_completed", Duration.ofSeconds(2));
+
+        String scrape = prometheus.scrape();
+        long buckets = scrape.lines()
+                .filter(line -> line.startsWith("notification_delivery_latency_seconds_bucket") && line.contains("type=\"fill_completed\""))
+                .count();
+        assertThat(buckets).isEqualTo(14);
+        assertThat(scrape).contains("notification_delivery_latency_seconds_bucket{type=\"fill_completed\",le=\"1.0\"} 0")
+                .contains("notification_delivery_latency_seconds_bucket{type=\"fill_completed\",le=\"2.0\"} 1")
+                .contains("notification_delivery_latency_seconds_count{type=\"fill_progress\"} 0");
     }
 }

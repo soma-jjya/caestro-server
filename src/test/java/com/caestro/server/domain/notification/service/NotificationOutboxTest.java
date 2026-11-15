@@ -13,6 +13,7 @@ import com.caestro.server.domain.user.entity.User;
 import com.caestro.server.domain.user.repository.UserRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -110,6 +111,34 @@ class NotificationOutboxTest {
                 10000, Duration.ofSeconds(60), Duration.ofHours(12));
         OutboxDelivery delivery = new OutboxDelivery(rows, notificationService, pushService, metrics, tx, objectMapper, meters, List.of());
         relay = new OutboxRelay(rows, delivery, (NotificationStreamPublisher) null, tx, meters, clock, settings);
+    }
+
+    @Test
+    @DisplayName("도착 지연(#283): 보낼 시각 3초 뒤에 보내면 3초, 일부러 5분 미룬 행은 미룬 시간이 들지 않고, 실패(다시 시도)는 기록하지 않는다")
+    void deliveryLatency_fromDueTimeToSent() {
+        given(pushService.sendReport(eq(me), any())).willReturn(OK);
+        tx.executeWithoutResult(s -> outbox.enqueue(me, PushMessage.fillCompleted("K7X2MQ"),
+                new EnqueueOptions("late:1", NOW_LDT.minusSeconds(3), null, null)));
+        relay.runOnce(NOW_LDT);
+        Timer completed = meters.get("notification.delivery.latency").tag("type", "fill_completed").timer();
+        assertThat(completed.count()).isEqualTo(1);
+        assertThat(completed.totalTime(TimeUnit.MILLISECONDS)).isBetween(3000.0, 3900.0);
+
+        // 묶음 대기처럼 5분 뒤로 미룬 행: 5분 뒤 바로 보내면 지연은 0 에 가깝다
+        tx.executeWithoutResult(s -> outbox.enqueue(me, PushMessage.supportReply(9L, "제목"),
+                new EnqueueOptions("deferred:latency", NOW_LDT.plusMinutes(5), null, null)));
+        relay.runOnce(NOW_LDT.plusMinutes(5));
+        Timer reply = meters.get("notification.delivery.latency").tag("type", "support_reply").timer();
+        assertThat(reply.count()).isEqualTo(1);
+        assertThat(reply.totalTime(TimeUnit.MILLISECONDS)).isLessThan(900.0);
+
+        // 실패하면 기록하지 않는다 — 다시 보내 성공할 때 그때까지의 시간이 한 번 기록된다
+        given(pushService.sendReport(eq(me), any())).willReturn(FAIL);
+        tx.executeWithoutResult(s -> outbox.enqueue(me, PushMessage.fillExpiring("K7X2MQ", "제주"),
+                new EnqueueOptions("fail:latency", NOW_LDT, null, null)));
+        relay.runOnce(NOW_LDT.plusMinutes(6));
+        assertThat(meters.find("notification.delivery.latency").tag("type", "fill_expiring").timer()).satisfiesAnyOf(
+                t -> assertThat(t).isNull(), t -> assertThat(t.count()).isZero());
     }
 
     @Test

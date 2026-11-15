@@ -458,6 +458,46 @@
           "legendFormat": "취소(완성 알림으로 대신)"
         }
       ]
+    },
+    {
+      "type": "timeseries",
+      "title": "도착 지연 · 보낼 시각 → 보냄 (종류별, 1시간 창) #283",
+      "description": "아웃박스 행의 보낼 시각(not_before)부터 보냄까지. 일부러 미룬 시간(묶음 대기 5분)은 빠지고 릴레이 대기·큐·재시도·FCM 호출은 든다. 버킷이 0.1·0.25·0.5·1·2·3·5·10·30초·1·5·30분·2시간이라 값은 그 칸 안에서 보간된 근사. 평소 p95 1초 안, 분 단위로 오르면 재시도 중(FCM 장애)",
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 52
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.5, sum by (le, type) (rate(notification_delivery_latency_seconds_bucket{job!~\".*b2b.*\"}[1h])))",
+          "legendFormat": "p50 {{type}}"
+        },
+        {
+          "refId": "B",
+          "expr": "histogram_quantile(0.95, sum by (le, type) (rate(notification_delivery_latency_seconds_bucket{job!~\".*b2b.*\"}[1h])))",
+          "legendFormat": "p95 {{type}}"
+        }
+      ]
     }
   ]
 }

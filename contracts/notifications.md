@@ -107,6 +107,7 @@ java -jar build/libs/server-0.0.1-SNAPSHOT.jar --spring.profiles.active=dev,noti
 
 ## 관측
 
+- **도착 지연** `notification.delivery.latency{type}`(#283): 아웃박스 행의 보낼 시각(`not_before`)부터 보냄(SENT)까지 — 일부러 미룬 시간(묶음 대기·예약)은 빠지고, 릴레이 대기(최대 3초)·큐·재시도·알림함 저장·FCM 호출은 든다. 버킷 13개(0.1초~2시간)로 정해 둔 히스토그램, 종류별로 기동 때 0 으로 등록. 대시보드는 1시간 창 p50·p95. 스트림 모드는 재시도해도 `not_before` 가 그대로라 재시도 지연까지 들고, 직접 모드(롤백용)는 재시도 때 `not_before` 를 옮겨 마지막 시도 뒤만 든다. 만료·취소·DEAD 는 기록하지 않는다(보내지 않았으니).
 - `notification.recorded{type}` 저장 수, `notification.opened{type}` 처음 읽은 수. `notification.requested{type}` 요청 수와 `notification.record_failed{type}` 저장 실패 수는 #271(contracts/push.md 관측). `push.sent{type,result}` 와 함께 보면 "저장 → FCM 수락 → 열람"이 한 줄.
 - 로그 `Notification cleanup batch end (deleted, retentionDays)`.
 
