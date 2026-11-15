@@ -1,5 +1,8 @@
 package com.caestro.server.domain.deveval.controller.api;
 
+import com.caestro.server.domain.deveval.dto.request.AutoScoreRequest;
+import com.caestro.server.domain.deveval.dto.request.LikeRequest;
+
 import com.caestro.server.domain.deveval.dto.response.DevEvaluationPageResponse;
 import com.caestro.server.domain.deveval.dto.response.DevEvaluationStatsResponse;
 import io.swagger.v3.oas.annotations.Operation;
@@ -51,6 +54,27 @@ public interface DevEvaluationAdminApi {
     @Operation(summary = "CSV 내려받기", description = "기록마다 한 줄(사진 없음). UTF-8 BOM, CRLF. 목록과 같은 guide·userId 거르기를 받습니다.")
     @ApiResponse(responseCode = "200", description = "text/csv")
     ResponseEntity<byte[]> csv(Boolean guide, Long userId);
+
+    @Operation(summary = "자동 사진 점수 저장",
+            description = "관리자 화면이 평가 사진에서 다시 매긴 사진 점수(폰의 점수 매기기와 같은 계산)를 남깁니다(#289). "
+                    + "앱이 보낸 photoScore 와 따로 두고 updatedAt 은 바꾸지 않습니다. 사진·가이드 이미지를 다시 올리거나 가이드 기록이 바뀌면 지워집니다. "
+                    + "status 는 SCORED(total·pose 0..100 필수, place·shape 0..1 또는 null) · NOBODY · NO_GUIDE_POSE, algo 는 1 이상.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "204", description = "남김"),
+            @ApiResponse(responseCode = "400", description = "값 오류(DEV_EVAL_INVALID)"),
+            @ApiResponse(responseCode = "404", description = "기록 없음(DEV_EVAL_NOT_FOUND)")
+    })
+    ResponseEntity<Void> autoScore(String id, AutoScoreRequest request);
+
+    @Operation(summary = "좋아요 체크",
+            description = "관리자가 사진마다 손으로 체크하는 '좋아요'를 남기거나 풉니다(#291). 갤러리 하트는 폰 밖으로 나오지 않아 대신 씁니다. "
+                    + "updatedAt 은 바꾸지 않고, 앱이 기록·사진을 다시 보내도 남습니다.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "204", description = "남김"),
+            @ApiResponse(responseCode = "400", description = "liked 없음(DEV_EVAL_INVALID)"),
+            @ApiResponse(responseCode = "404", description = "기록 없음(DEV_EVAL_NOT_FOUND)")
+    })
+    ResponseEntity<Void> like(String id, LikeRequest request);
 
     @Operation(summary = "평가 지우기", description = "기록과 사진을 함께 지웁니다.")
     @ApiResponses({

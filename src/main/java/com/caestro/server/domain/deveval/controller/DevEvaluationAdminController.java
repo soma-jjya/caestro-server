@@ -20,6 +20,10 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import com.caestro.server.domain.deveval.dto.request.AutoScoreRequest;
+import com.caestro.server.domain.deveval.dto.request.LikeRequest;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -87,6 +91,20 @@ public class DevEvaluationAdminController implements DevEvaluationAdminApi {
                 .header(HttpHeaders.CONTENT_DISPOSITION,
                         ContentDisposition.attachment().filename("peakpic-dev-evaluations-" + date + ".csv").build().toString())
                 .body(evaluationService.csv(guide, userId));
+    }
+
+    @PutMapping("/evaluations/{id}/auto-score")
+    @Override
+    public ResponseEntity<Void> autoScore(@PathVariable String id, @RequestBody AutoScoreRequest request) {
+        evaluationService.recordAutoScore(id, request);
+        return ResponseEntity.noContent().build();
+    }
+
+    @PutMapping("/evaluations/{id}/like")
+    @Override
+    public ResponseEntity<Void> like(@PathVariable String id, @RequestBody LikeRequest request) {
+        evaluationService.setLiked(id, request);
+        return ResponseEntity.noContent().build();
     }
 
     @DeleteMapping("/evaluations/{id}")

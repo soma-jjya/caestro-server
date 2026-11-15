@@ -1,5 +1,8 @@
 package com.caestro.server.domain.deveval.controller;
 
+import com.caestro.server.domain.deveval.dto.request.AutoScoreRequest;
+import com.caestro.server.domain.deveval.dto.request.LikeRequest;
+
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
@@ -154,6 +157,41 @@ class DevEvaluationWebTest {
                 .andExpect(jsonPath("$.guide.count").value(0));
         mockMvc.perform(delete("/admin/dev/evaluations/" + CLIENT_ID).header(KEY, STUDIO_KEY)).andExpect(status().isNoContent());
         verify(evaluationService).delete(CLIENT_ID);
+    }
+
+    @Test
+    @DisplayName("자동 점수 저장(#289): PUT /admin/dev/evaluations/{id}/auto-score 는 스튜디오 키·ADMIN 만(앱 토큰·키 없음 403), 본문을 서비스로, 204")
+    void admin_autoScore() throws Exception {
+        String path = "/admin/dev/evaluations/" + CLIENT_ID + "/auto-score";
+        String body = "{\"status\":\"SCORED\",\"total\":92,\"pose\":93,\"place\":1,\"shape\":0.98,\"algo\":1}";
+        mockMvc.perform(put(path).contentType(MediaType.APPLICATION_JSON).content(body)).andExpect(status().isForbidden());
+        mockMvc.perform(put(path).with(user(APP_USER)).contentType(MediaType.APPLICATION_JSON).content(body)).andExpect(status().isForbidden());
+        verifyNoInteractions(evaluationService);
+
+        mockMvc.perform(put(path).header(KEY, STUDIO_KEY).contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isNoContent());
+        verify(evaluationService).recordAutoScore(CLIENT_ID, new AutoScoreRequest("SCORED", 92.0, 93.0, 1.0, 0.98, 1));
+        mockMvc.perform(put(path).with(user(ADMIN)).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"status\":\"NOBODY\",\"algo\":1}"))
+                .andExpect(status().isNoContent());
+        verify(evaluationService).recordAutoScore(CLIENT_ID, new AutoScoreRequest("NOBODY", null, null, null, null, 1));
+    }
+
+    @Test
+    @DisplayName("좋아요(#291): PUT /admin/dev/evaluations/{id}/like 는 스튜디오 키·ADMIN 만(앱 토큰·키 없음 403), 본문을 서비스로, 204")
+    void admin_like() throws Exception {
+        String path = "/admin/dev/evaluations/" + CLIENT_ID + "/like";
+        mockMvc.perform(put(path).contentType(MediaType.APPLICATION_JSON).content("{\"liked\":true}")).andExpect(status().isForbidden());
+        mockMvc.perform(put(path).with(user(APP_USER)).contentType(MediaType.APPLICATION_JSON).content("{\"liked\":true}"))
+                .andExpect(status().isForbidden());
+        verifyNoInteractions(evaluationService);
+
+        mockMvc.perform(put(path).header(KEY, STUDIO_KEY).contentType(MediaType.APPLICATION_JSON).content("{\"liked\":true}"))
+                .andExpect(status().isNoContent());
+        verify(evaluationService).setLiked(CLIENT_ID, new LikeRequest(true));
+        mockMvc.perform(put(path).with(user(ADMIN)).contentType(MediaType.APPLICATION_JSON).content("{\"liked\":false}"))
+                .andExpect(status().isNoContent());
+        verify(evaluationService).setLiked(CLIENT_ID, new LikeRequest(false));
     }
 
     @Test

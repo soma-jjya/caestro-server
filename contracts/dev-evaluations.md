@@ -91,6 +91,8 @@
 { "id": "<clientId>", "userId": 1201, "userNickname": "이상협" | null, "deviceKey": "3f9a0c1d2e4b5a69" | null,
   "rating": 23, "ratingMax": 30, "guide": true, "guideVersion": "v012", "guideShot": "shot_0003", "guideStyle": "photo",
   "shutterScore": 81.0, "photoScore": { "total": 78.0, "pose": 84.0, "place": 0.97, "shape": null } | null,
+  "autoScore": { "status": "SCORED", "total": 92.0, "pose": 93.0, "place": 1.0, "shape": 0.98, "algo": 1, "scoredAt": "…Z" } | null,
+  "liked": false,
   "mediaType": "photo", "takenAt": "2026-11-10T07:12:00Z" | null, "ratedAt": "2026-11-10T07:30:00Z",
   "width": 3000, "height": 4000, "appVersion": "…", "device": "SM-S938N", "note": "…", "extra": { … } | null,
   "hasPhoto": true, "photoBytes": 412345 | null, "guideImages": ["photo", "line"], "createdAt": "…Z", "updatedAt": "…Z" }
@@ -98,6 +100,8 @@
 
 - `deviceKey` 는 운영 화면(contracts/studio-ops.md)과 같은 기기 키 해시의 앞 16자 — 같은 값이면 같은 폰. 기록 전이면 null.
 - `shutterScore`·`photoScore` 의 숫자는 실수로 내려간다(81 → `81.0`). `photoScore` 는 네 칸이 모두 비면 null.
+- `autoScore`(#289): 관리자 화면이 사진에서 다시 매긴 사진 점수(아래 `PUT …/auto-score`). 매긴 적 없거나 지워졌으면 null.
+- `liked`(#291): 관리자가 손으로 체크한 좋아요(아래 `PUT …/like`). 체크한 적 없으면 false.
 - 시각은 모두 ISO-8601 UTC(`Z`). `takenAt`·`ratedAt` 은 앱이 보낸 시각을 UTC 로 맞춘 것, `createdAt`·`updatedAt` 은 서버가 받은 시각.
 
 ### `GET /admin/dev/evaluations/{id}/photo`
@@ -132,12 +136,39 @@
 
 ```
 id,userId,userNickname,deviceKey,rating,ratingMax,guide,guideVersion,guideShot,guideStyle,
-shutterScore,photoScoreTotal,photoScorePose,photoScorePlace,photoScoreShape,mediaType,
+shutterScore,photoScoreTotal,photoScorePose,photoScorePlace,photoScoreShape,
+autoScoreStatus,autoScoreTotal,autoScorePose,autoScorePlace,autoScoreShape,liked,mediaType,
 takenAt,ratedAt,width,height,appVersion,device,note,extra,hasPhoto,photoBytes,createdAt,updatedAt
 ```
 
 - 빈 값은 빈 칸. 숫자는 정수로 떨어지면 정수(`81`), `guide`·`hasPhoto` 는 `true`/`false`, 시각은 ISO-8601 UTC, `extra` 는 JSON 글.
 - 쉼표·따옴표·줄바꿈이 있는 칸은 `"…"` 로 감싸고 `"` 는 `""`. 글자 칸이 `=` `+` `-` `@` 로 시작하면 앞에 `'` 를 붙인다(엑셀 수식 실행 방지).
+
+### `PUT /admin/dev/evaluations/{id}/auto-score` — 자동 사진 점수 (#289)
+
+관리자 화면(peakpic-b2b-admin `lib/dev-evals/photo-score.ts`)이 폰의 점수 매기기(안드로이드 `PhotoScorer`)를 브라우저에서 그대로 돌려,
+폰이 `photoScore` 를 보내지 않은 평가(가이드가 있었고 사진·`extra.guideRect` 가 올라온 것)의 사진 점수를 매겨 남긴다.
+
+```json
+{ "status": "SCORED" | "NOBODY" | "NO_GUIDE_POSE", "total": 92, "pose": 93, "place": 1.0, "shape": 0.98, "algo": 1 }
+```
+
+- `SCORED`: `total`·`pose` 0..100 필수, `place`(자리·크기 몫)·`shape`(형태 몫) 0..1 또는 null. `NOBODY`(사진에서 사람을 못 찾음)·
+  `NO_GUIDE_POSE`(가이드 관절을 못 찾음)는 값을 버리고 상태만 남긴다. `algo` 는 관리자 쪽 계산식 버전(1 이상), 바뀌면 관리자가 다시 매긴다.
+- 앱이 보낸 `photoScore` 와 따로 둔다(앱 재전송이 덮어쓰지 않고, 둘을 견줄 수 있다). `updatedAt` 은 바꾸지 않는다(관리자 화면의 사진 캐시 키).
+- 앱이 사진이나 가이드 이미지를 다시 올리거나, 기록을 다시 보낼 때 가이드 여부·버전·샷·`extra` 가 바뀌면 지운다. 만족도만 바뀌면 남는다.
+- 응답 204. 값 오류 400 `DEV_EVAL_INVALID`, 없는 기록 404 `DEV_EVAL_NOT_FOUND`.
+
+### `PUT /admin/dev/evaluations/{id}/like` — 좋아요 체크 (#291)
+
+갤러리 하트(즐겨찾기)는 폰 안에만 있어 서버로 오지 않는다. 그 대신 관리자가 사진마다 손으로 체크한다.
+
+```json
+{ "liked": true }
+```
+
+- `true` 체크, `false` 해제 → 204. `liked` 가 없으면 400 `DEV_EVAL_INVALID`, 없는 기록 404 `DEV_EVAL_NOT_FOUND`.
+- `updatedAt` 은 바꾸지 않는다. 앱이 기록·사진을 다시 보내도 남는다(관리자 표시).
 
 ### `DELETE /admin/dev/evaluations/{id}`
 
@@ -224,6 +255,12 @@ CREATE TABLE dev_evaluation_guides (
 );
 -- 이미 있는 dev_evaluations 에는
 ALTER TABLE dev_evaluations ADD COLUMN guide_photo_bytes INT NULL, ADD COLUMN guide_line_bytes INT NULL;
+-- 자동 사진 점수(#289)
+ALTER TABLE dev_evaluations ADD COLUMN auto_score_status VARCHAR(20) NULL, ADD COLUMN auto_score_total DOUBLE NULL,
+  ADD COLUMN auto_score_pose DOUBLE NULL, ADD COLUMN auto_score_place DOUBLE NULL, ADD COLUMN auto_score_shape DOUBLE NULL,
+  ADD COLUMN auto_score_algo INT NULL, ADD COLUMN auto_scored_at DATETIME(6) NULL;
+-- 관리자 좋아요(#291)
+ALTER TABLE dev_evaluations ADD COLUMN liked BIT NULL;
 ```
 
 ## 클라이언트

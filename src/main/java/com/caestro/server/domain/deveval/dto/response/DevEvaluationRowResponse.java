@@ -22,6 +22,10 @@ public record DevEvaluationRowResponse(
         String guideStyle,
         Double shutterScore,
         PhotoScoreDto photoScore,
+        // 관리자 화면이 사진에서 다시 매긴 점수(#289). 없으면 null
+        AutoScoreResponse autoScore,
+        // 관리자가 손으로 체크한 '좋아요'(#291)
+        boolean liked,
         String mediaType,
         Instant takenAt,
         Instant ratedAt,
