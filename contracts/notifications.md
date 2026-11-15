@@ -61,7 +61,7 @@
 ### 묶음 알림 — 친구가 칸을 채웠어요 (#274, `fill_progress`)
 
 ```
-친구가 칸 채움 (칸을 채운 트랜잭션) ─ upsert: 이 세션 대기 행이 없으면 새로(10분 뒤), 있으면 합침(merged_count+1, 10분 더 미룸)
+친구가 칸 채움 (칸을 채운 트랜잭션) ─ upsert: 이 세션 대기 행이 없으면 새로(5분 뒤), 있으면 합침(merged_count+1, 5분 더 미룸)
                                       단 처음 넣은 때 + 1시간을 넘겨 미루지 않음 / 직전에 보냈으면 보낸 때 + 1시간까지 기다림
 네 칸 완성 (같은 트랜잭션)          ─ 대기 중인 진행 행 CANCELLED → 주인은 "완성됐어요" 한 통만
 릴레이가 집는 순간                   ─ 행의 키를 닫는다(:open → :open#id). 이 뒤의 채움은 다음 묶음
@@ -70,11 +70,12 @@
 
 - **누구에게**: 주인에게만. 주인이 직접 채운 칸은 알림을 만들지 않고 친구 몫에서도 빠진다(칸 수에는 든다). 완성 뒤의 칸 교체는 조용하다. 대기열에서 되돌리기(`restoreQueued`)는 새 사진이 아니라 알리지 않는다.
 - **문구** (보내는 순간의 세션):
-  - 제목: `민지님이 네컷을 채웠어요` / 친구가 여럿이면 `민지님 외 1명이 네컷을 채웠어요` (가장 최근에 채운 친구, 이름 8자 넘으면 말줄임)
+  - 제목: `민지님이 네컷을 채웠어요` / 친구가 여럿이면 `민지님 외 1명이 네컷을 채웠어요` (가장 최근에 채운 친구, 이름 8자 넘으면 말줄임). 이름이 없거나 "친구"면 `친구가 네컷을 채웠어요` / `친구 2명이 네컷을 채웠어요`(#280)
   - 본문: `'제주 여행' 4칸 중 3칸이 찼어요. 1칸만 더 채우면 완성이에요!` (제목 없는 세션은 앞의 `'…' ` 를 뺀다)
 - **한 행으로 모으기**: 대기 행의 `dedup_key` 를 `fill_progress:{세션}:{주인}:open` 으로 고정하고 `INSERT … ON DUPLICATE KEY UPDATE` 한 문장으로 넣는다. 친구 둘이 같은 순간 채워도 유니크 키가 한 행으로 모은다(롤백·데드락 없이). MySQL 전용 문장이라 이 경로의 테스트는 실제 MySQL(`FillProgressPushTest`).
-- **지표**: 새 행은 `notification.requested{type=fill_progress}` 1, 합침은 `notification.collapsed{type}`(채움 n번 → 알림 1통의 n), 취소는 `notification.cancelled{type}`. 잃은 수 = 요청 − 수락 − 없는 기기 − 취소.
-- 설정: `notification.fill-progress.quiet-seconds`(600), `window-seconds`(3600).
+- **지표**: 새 행은 `notification.requested{type=fill_progress}` 1, 합침은 `notification.collapsed{type}`(채움 n번 → 알림 1통의 n), 취소는 `notification.cancelled{type}`. 잃은 수 = 요청 − 보냄 − 만료 − 취소(아웃박스 행의 최종 결과, `notification.relay.processed` 기준, #280). 알려진 종류·결과의 카운터는 기동 때 0 으로 미리 만든다 — 처음 생긴 카운터의 첫 증가는 `increase()` 가 못 본다(#280).
+- 설정: `notification.fill-progress.quiet-seconds`(300 — 처음 10분에서 실기기 테스트 뒤 5분으로, #280), `window-seconds`(3600).
+- 진행 알림이 이미 나간 뒤 친구가 마지막 칸을 채우면 진행·완성 두 통이 된다(보내는 순간엔 곧 완성될지 알 수 없다). 대기 중에 완성되면 완성 한 통.
 
 ### 발송 전용 프로세스 — notifier 프로파일 (#274)
 
