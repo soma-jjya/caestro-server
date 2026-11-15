@@ -2,6 +2,7 @@ package com.caestro.server.domain.deveval.service;
 
 import com.caestro.server.domain.deveval.dto.PhotoScoreDto;
 import com.caestro.server.domain.deveval.dto.request.AutoScoreRequest;
+import com.caestro.server.domain.deveval.dto.request.LikeRequest;
 import com.caestro.server.domain.deveval.dto.request.UpsertDevEvaluationRequest;
 import com.caestro.server.domain.deveval.dto.response.AutoScoreResponse;
 import com.caestro.server.domain.deveval.dto.response.DevEvaluationPageResponse;
@@ -264,6 +265,17 @@ public class DevEvaluationService {
                 scored ? r.place() : null, scored ? r.shape() : null, r.algo(), LocalDateTime.now(clock));
     }
 
+    /** 관리자 '좋아요' 체크·해제(#291). liked 가 없으면 400, 없는 기록 404. updatedAt 은 그대로. */
+    @Transactional
+    public void setLiked(String id, LikeRequest r) {
+        if (r == null || r.liked() == null) {
+            throw invalid("liked 는 true 또는 false 여야 합니다");
+        }
+        DevEvaluation evaluation = evaluationRepository.findById(id)
+                .orElseThrow(() -> new CustomException(ErrorCode.DEV_EVAL_NOT_FOUND));
+        evaluation.markLiked(r.liked());
+    }
+
     private static boolean inRange(Double v, double max) {
         return v != null && !v.isNaN() && !v.isInfinite() && v >= 0 && v <= max;
     }
@@ -311,7 +323,7 @@ public class DevEvaluationService {
                 : user.getDeviceKey().substring(0, Math.min(DEVICE_KEY_SHORT, user.getDeviceKey().length()));
         return new DevEvaluationRowResponse(e.getId(), e.getUserId(), user == null ? null : user.getNickname(), deviceKey,
                 e.getRating(), e.getRatingMax(), e.isGuide(), e.getGuideVersion(), e.getGuideShot(), e.getGuideStyle(),
-                e.getShutterScore(), score, auto, e.getMediaType(), toInstant(e.getTakenAt()), toInstant(e.getRatedAt()),
+                e.getShutterScore(), score, auto, e.isLiked(), e.getMediaType(), toInstant(e.getTakenAt()), toInstant(e.getRatedAt()),
                 e.getWidth(), e.getHeight(), e.getAppVersion(), e.getDevice(), e.getNote(), extra(e.getExtraJson()),
                 e.hasPhoto(), e.getPhotoBytes(), e.guideImages(), toInstant(e.getCreatedAt()), toInstant(e.getUpdatedAt()));
     }

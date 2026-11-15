@@ -110,6 +110,9 @@ public class DevEvaluation {
     private Integer autoScoreAlgo;
     private LocalDateTime autoScoredAt;
 
+    // 관리자가 손으로 체크한 '좋아요'(#291). null 은 체크한 적 없음(false 로 본다). 앱이 기록·사진을 다시 보내도 남는다
+    private Boolean liked;
+
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
@@ -203,6 +206,15 @@ public class DevEvaluation {
         this.autoScoreShape = shape;
         this.autoScoreAlgo = algo;
         this.autoScoredAt = now;
+    }
+
+    /** 관리자 '좋아요' 체크·해제(#291). updatedAt 은 건드리지 않는다. */
+    public void markLiked(boolean liked) {
+        this.liked = liked;
+    }
+
+    public boolean isLiked() {
+        return Boolean.TRUE.equals(liked);
     }
 
     /** 사진·가이드가 바뀌어 예전 자동 점수가 맞지 않는다. */
