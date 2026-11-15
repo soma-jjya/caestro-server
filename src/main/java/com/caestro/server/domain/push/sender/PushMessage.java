@@ -10,6 +10,7 @@ public record PushMessage(String type, String title, String body, Map<String, St
 
     public static final String TYPE_FILL_COMPLETED = "fill_completed";
     public static final String TYPE_FILL_EXPIRING = "fill_expiring";
+    public static final String TYPE_FILL_PROGRESS = "fill_progress";
     public static final String TYPE_TEST = "test";
     public static final String TYPE_SUPPORT_REPLY = "support_reply";
     /** 알림함 행의 id (#211). 앱이 탭할 때 이 id 로 읽음을 표시한다. */
@@ -34,6 +35,39 @@ public record PushMessage(String type, String title, String body, Map<String, St
     public static PushMessage fillCompletedForParticipant(String code) {
         return new PushMessage(TYPE_FILL_COMPLETED, "네컷이 완성됐어요",
                 "함께 채운 네컷이 완성됐어요. 지금 저장해 보세요.", Map.of("code", code));
+    }
+
+    /** 이름이 길면 알림 한 줄이 넘친다. 이만큼에서 자르고 말줄임표. */
+    static final int PROGRESS_NAME_MAX = 8;
+
+    /**
+     * 친구가 칸을 채웠다는 묶음 알림(#274)의 기본 문구. 넣을 때 행에 적어 두고, 실제로는 보내는 순간 {@link #fillProgress} 로 다시 만든다.
+     */
+    public static PushMessage fillProgressPlaceholder(String code) {
+        return new PushMessage(TYPE_FILL_PROGRESS, "친구가 네컷을 채웠어요",
+                "함께 채우는 네컷을 확인해 보세요.", Map.of("code", code));
+    }
+
+    /**
+     * 친구가 칸을 채웠다는 묶음 알림(#274). 주인에게만. 탭하면 세션 {@code code} 로 간다(fill_completed 와 같은 규칙).
+     * 제목은 누가, 본문은 얼마나 — "민지님 외 1명이 네컷을 채웠어요" / "'제주 여행' 4칸 중 3칸이 찼어요. 1칸만 더 채우면 완성이에요!"
+     *
+     * @param label       세션 제목, 없으면 null(본문에서 뺀다)
+     * @param latestName  가장 최근에 채운 친구의 이름
+     * @param friends     칸에 사진이 있는 친구 수(주인 제외)
+     * @param filled      사진이 있는 칸 수(주인 것 포함)
+     * @param total       전체 칸 수
+     */
+    public static PushMessage fillProgress(String code, String label, String latestName, int friends, int filled, int total) {
+        String who = shorten(latestName == null || latestName.isBlank() ? "친구" : latestName.strip(), PROGRESS_NAME_MAX) + "님";
+        String title = friends > 1 ? who + " 외 " + (friends - 1) + "명이 네컷을 채웠어요" : who + "이 네컷을 채웠어요";
+        String where = label == null || label.isBlank() ? "" : "'" + shorten(label.strip(), 20) + "' ";
+        String body = where + total + "칸 중 " + filled + "칸이 찼어요. " + (total - filled) + "칸만 더 채우면 완성이에요!";
+        return new PushMessage(TYPE_FILL_PROGRESS, title, body, Map.of("code", code));
+    }
+
+    private static String shorten(String text, int max) {
+        return text.codePointCount(0, text.length()) <= max ? text : text.substring(0, text.offsetByCodePoints(0, max)) + "…";
     }
 
     /**

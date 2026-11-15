@@ -25,6 +25,8 @@ import com.caestro.server.domain.user.entity.User;
 import com.caestro.server.domain.user.repository.UserRepository;
 import com.caestro.server.global.exception.CustomException;
 import com.caestro.server.domain.notification.service.OutboxRelay;
+import com.caestro.server.domain.notification.repository.NotificationOutboxRepository;
+import com.caestro.server.domain.notification.service.OutboxEnqueuer;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -57,6 +59,7 @@ class FillCompletedPushTest {
     @Autowired private NotificationRepository notificationRepository;
     // #272: 발송은 아웃박스 릴레이가 한다. 주기(3초)를 기다리지 않고 한 바퀴 직접 돌린다
     @Autowired private OutboxRelay relay;
+    @Autowired private NotificationOutboxRepository outboxRepository;
 
     @MockitoBean private PushSender sender;
 
@@ -95,6 +98,9 @@ class FillCompletedPushTest {
 
     @AfterEach
     void cleanup() {
+        // 세 칸까지 채운 테스트는 친구 칸 채움 묶음 행(#274)을 남긴다 — 다른 테스트의 릴레이가 집지 않게
+        sessionRepository.findByCode(code).ifPresent(session -> outboxRepository.deleteAll(
+                outboxRepository.findAllByCollapseKeyOrderByIdAsc(OutboxEnqueuer.progressKey(session.getId(), owner.getId()))));
         try {
             fillService.delete(code, owner.getId());
         } catch (CustomException ignored) {

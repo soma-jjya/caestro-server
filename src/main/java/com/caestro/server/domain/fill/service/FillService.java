@@ -11,6 +11,7 @@ import com.caestro.server.domain.fill.entity.FillQueueItem;
 import com.caestro.server.domain.fill.entity.FillSession;
 import com.caestro.server.domain.fill.entity.FillSlot;
 import com.caestro.server.domain.fill.event.FillCompletedEvent;
+import com.caestro.server.domain.fill.event.FillProgressEvent;
 import com.caestro.server.domain.fill.repository.FillQueueRepository;
 import com.caestro.server.domain.fill.repository.FillSessionRepository;
 import com.caestro.server.domain.fill.repository.FillSlotRepository;
@@ -151,8 +152,21 @@ public class FillService {
         slot.fill(user, shownName, imageId, now);
         dropGif(session);
         List<FillSlot> slots = slotRepository.findBySessionIdOrderBySlotIndex(session.getId());
-        notifyIfCompleted(session, slots);
+        if (!notifyIfCompleted(session, slots)) {
+            notifyProgress(session, userId, now);
+        }
         return toResponse(session, slots, userId);
+    }
+
+    /**
+     * 친구가 칸을 채웠다(#274) — 주인이 아니고, 완성 알림이 아직 안 나갔을 때만. 알림은 아웃박스가 세션별로 묶어 보낸다.
+     * 주인 자신의 채움은 알릴 일이 아니고, 완성 뒤의 칸 교체는 이미 "완성됐어요"를 받았으니 조용하다.
+     */
+    private void notifyProgress(FillSession session, Long userId, LocalDateTime now) {
+        if (session.isOwnedBy(userId) || session.getCompletedNotifiedAt() != null) {
+            return;
+        }
+        eventPublisher.publishEvent(new FillProgressEvent(session.getId(), session.getOwner().getId(), session.getCode(), now));
     }
 
     /** 칸의 사진(과 클립)을 대기열 맨 아래로 내린다. 빈 칸이면 아무것도 하지 않는다. 상한을 넘치면 가장 오래된 것이 사라진다. */
@@ -205,10 +219,12 @@ public class FillService {
     /**
      * 네 칸이 모두 찬 첫 순간에 한 번만 주인과 칸을 채운 참여자들에게 알린다(#206). "보냈음" 표시는 같은 트랜잭션의 조건부 UPDATE 라
      * 동시 요청 둘이 모두 "다 찼다"를 봐도 한쪽만 이긴다. 발송 요청은 같은 트랜잭션의 아웃박스 행(OutboxEnqueuer, #272)이 되고 릴레이가 보낸다.
+     *
+     * @return 네 칸이 모두 찼으면 true(이번에 알렸든 이미 알렸든)
      */
-    private void notifyIfCompleted(FillSession session, List<FillSlot> slots) {
+    private boolean notifyIfCompleted(FillSession session, List<FillSlot> slots) {
         if (slots.size() < SLOTS || slots.stream().anyMatch(FillSlot::isEmpty)) {
-            return;
+            return false;
         }
         if (sessionRepository.markCompletedNotified(session.getId(), LocalDateTime.now(clock)) == 1) {
             Long ownerId = session.getOwner().getId();
@@ -221,6 +237,7 @@ public class FillService {
                     .toList();
             eventPublisher.publishEvent(new FillCompletedEvent(session.getId(), ownerId, session.getCode(), participantIds));
         }
+        return true;
     }
 
     private FillQueueItem queuedItem(FillSession session, long itemId) {

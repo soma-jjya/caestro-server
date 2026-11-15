@@ -169,7 +169,7 @@ public class NotificationStreamConsumer {
             NotificationOutbox row = found.get();
             OutboxDelivery.Outcome outcome = delivery.deliver(row, now);
             switch (outcome.result()) {
-                case SENT, EXPIRED -> {
+                case SENT, EXPIRED, CANCELLED -> {
                     ack(recordId);
                     meterRegistry.counter(METRIC_CONSUMED, "type", row.getType(), "result", outcome.result().name().toLowerCase()).increment();
                 }
