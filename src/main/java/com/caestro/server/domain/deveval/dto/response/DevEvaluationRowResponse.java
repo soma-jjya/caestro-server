@@ -22,6 +22,8 @@ public record DevEvaluationRowResponse(
         String guideStyle,
         Double shutterScore,
         PhotoScoreDto photoScore,
+        // 관리자 화면이 사진에서 다시 매긴 점수(#289). 없으면 null
+        AutoScoreResponse autoScore,
         String mediaType,
         Instant takenAt,
         Instant ratedAt,

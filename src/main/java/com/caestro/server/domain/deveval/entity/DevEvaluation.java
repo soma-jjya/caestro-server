@@ -6,6 +6,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Index;
 import jakarta.persistence.Table;
 import java.time.LocalDateTime;
+import java.util.Objects;
 import java.util.ArrayList;
 import java.util.List;
 import lombok.AccessLevel;
@@ -99,6 +100,16 @@ public class DevEvaluation {
     @Column(length = 20)
     private String photoContentType;
 
+    // 관리자 화면이 사진에서 다시 매긴 사진 점수(#289). 앱 점수(score*)와 따로 두고, 사진·가이드가 바뀌면 지운다
+    @Column(length = 20)
+    private String autoScoreStatus;
+    private Double autoScoreTotal;
+    private Double autoScorePose;
+    private Double autoScorePlace;
+    private Double autoScoreShape;
+    private Integer autoScoreAlgo;
+    private LocalDateTime autoScoredAt;
+
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
@@ -114,8 +125,12 @@ public class DevEvaluation {
         return e;
     }
 
-    /** 기록을 통째로 덮어쓴다. 사진은 그대로 둔다. */
+    /** 기록을 통째로 덮어쓴다. 사진은 그대로 둔다. 가이드 기록(여부·버전·샷·extra)이 바뀌면 자동 점수를 지운다. */
     public void apply(DevEvaluationValues v, LocalDateTime now) {
+        if (guide != v.guide() || !Objects.equals(guideVersion, v.guideVersion()) || !Objects.equals(guideShot, v.guideShot())
+                || !Objects.equals(extraJson, v.extraJson())) {
+            clearAutoScore();
+        }
         this.rating = v.rating();
         this.ratingMax = v.ratingMax();
         this.guide = v.guide();
@@ -140,6 +155,7 @@ public class DevEvaluation {
     }
 
     public void attachPhoto(int bytes, String contentType, LocalDateTime now) {
+        clearAutoScore();
         this.photoBytes = bytes;
         this.photoContentType = contentType;
         this.updatedAt = now;
@@ -151,6 +167,7 @@ public class DevEvaluation {
 
     /** kind 는 photo(실사) 또는 line(라인). */
     public void attachGuide(String kind, int bytes, LocalDateTime now) {
+        clearAutoScore();
         if ("line".equals(kind)) {
             this.guideLineBytes = bytes;
         } else {
@@ -173,5 +190,29 @@ public class DevEvaluation {
 
     public boolean isOwnedBy(Long userId) {
         return this.userId.equals(userId);
+    }
+
+    /**
+     * 관리자 화면이 매긴 자동 사진 점수를 남긴다(#289). updatedAt 은 건드리지 않는다: 관리자 화면이 사진 주소의 캐시 키로 쓴다.
+     */
+    public void recordAutoScore(String status, Double total, Double pose, Double place, Double shape, int algo, LocalDateTime now) {
+        this.autoScoreStatus = status;
+        this.autoScoreTotal = total;
+        this.autoScorePose = pose;
+        this.autoScorePlace = place;
+        this.autoScoreShape = shape;
+        this.autoScoreAlgo = algo;
+        this.autoScoredAt = now;
+    }
+
+    /** 사진·가이드가 바뀌어 예전 자동 점수가 맞지 않는다. */
+    public void clearAutoScore() {
+        this.autoScoreStatus = null;
+        this.autoScoreTotal = null;
+        this.autoScorePose = null;
+        this.autoScorePlace = null;
+        this.autoScoreShape = null;
+        this.autoScoreAlgo = null;
+        this.autoScoredAt = null;
     }
 }

@@ -295,7 +295,8 @@ class DevEvaluationPersistenceTest {
         assertThat(lines[0]).startsWith("id,userId,userNickname,deviceKey,rating,ratingMax,guide,")
                 .endsWith(",hasPhoto,photoBytes,createdAt,updatedAt");
         String devLine = lines[1].startsWith(a) ? lines[1] : lines[2];
-        assertThat(devLine).contains(",이상협,3f9a0c1d2e4b5a69,20,30,true,v012,shot_0003,photo,81,78,84,0.97,,photo,")
+        // 자동 점수 다섯 열(#289)은 매긴 적 없어 빈 칸
+        assertThat(devLine).contains(",이상협,3f9a0c1d2e4b5a69,20,30,true,v012,shot_0003,photo,81,78,84,0.97,,,,,,,photo,")
                 .contains("\"역광, \"\"그래도\"\" 좋음\"")
                 .contains("\"{\"\"lens\"\":\"\"0.6x\"\",\"\"iso\"\":100}\"");
         String guestLine = lines[1].startsWith(a) ? lines[2] : lines[1];

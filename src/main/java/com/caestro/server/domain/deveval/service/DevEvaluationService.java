@@ -1,7 +1,9 @@
 package com.caestro.server.domain.deveval.service;
 
 import com.caestro.server.domain.deveval.dto.PhotoScoreDto;
+import com.caestro.server.domain.deveval.dto.request.AutoScoreRequest;
 import com.caestro.server.domain.deveval.dto.request.UpsertDevEvaluationRequest;
+import com.caestro.server.domain.deveval.dto.response.AutoScoreResponse;
 import com.caestro.server.domain.deveval.dto.response.DevEvaluationPageResponse;
 import com.caestro.server.domain.deveval.dto.response.DevEvaluationRowResponse;
 import com.caestro.server.domain.deveval.dto.response.DevEvaluationSavedResponse;
@@ -232,6 +234,40 @@ public class DevEvaluationService {
         return Math.round(ratio * ratingMax * 100.0) / 100.0;
     }
 
+    /** 자동 사진 점수 상태(#289) */
+    static final Set<String> AUTO_SCORE_STATUSES = Set.of("SCORED", "NOBODY", "NO_GUIDE_POSE");
+
+    /**
+     * 관리자 화면이 사진에서 다시 매긴 사진 점수를 남긴다(#289). 앱이 보낸 점수와 따로 두고, updatedAt 은 그대로다.
+     * SCORED 는 total·pose(0..100)가 있어야 하고 place·shape 는 0..1 또는 null. 다른 상태는 값을 버린다. 없는 기록 404.
+     */
+    @Transactional
+    public void recordAutoScore(String id, AutoScoreRequest r) {
+        if (r == null || r.status() == null || !AUTO_SCORE_STATUSES.contains(r.status())) {
+            throw invalid("status 는 SCORED·NOBODY·NO_GUIDE_POSE 중 하나여야 합니다");
+        }
+        if (r.algo() == null || r.algo() < 1) {
+            throw invalid("algo 는 1 이상이어야 합니다");
+        }
+        boolean scored = "SCORED".equals(r.status());
+        if (scored) {
+            if (!inRange(r.total(), 100) || !inRange(r.pose(), 100)) {
+                throw invalid("SCORED 는 total·pose 가 0..100 이어야 합니다");
+            }
+            if ((r.place() != null && !inRange(r.place(), 1)) || (r.shape() != null && !inRange(r.shape(), 1))) {
+                throw invalid("place·shape 는 0..1 이어야 합니다");
+            }
+        }
+        DevEvaluation evaluation = evaluationRepository.findById(id)
+                .orElseThrow(() -> new CustomException(ErrorCode.DEV_EVAL_NOT_FOUND));
+        evaluation.recordAutoScore(r.status(), scored ? r.total() : null, scored ? r.pose() : null,
+                scored ? r.place() : null, scored ? r.shape() : null, r.algo(), LocalDateTime.now(clock));
+    }
+
+    private static boolean inRange(Double v, double max) {
+        return v != null && !v.isNaN() && !v.isInfinite() && v >= 0 && v <= max;
+    }
+
     /** 지운다(사진·가이드 이미지도). 없으면 404. */
     @Transactional
     public void delete(String id) {
@@ -268,11 +304,14 @@ public class DevEvaluationService {
     private DevEvaluationRowResponse toRow(DevEvaluation e, User user) {
         PhotoScoreDto score = e.getScoreTotal() == null && e.getScorePose() == null && e.getScorePlace() == null && e.getScoreShape() == null
                 ? null : new PhotoScoreDto(e.getScoreTotal(), e.getScorePose(), e.getScorePlace(), e.getScoreShape());
+        AutoScoreResponse auto = e.getAutoScoreStatus() == null ? null
+                : new AutoScoreResponse(e.getAutoScoreStatus(), e.getAutoScoreTotal(), e.getAutoScorePose(), e.getAutoScorePlace(),
+                        e.getAutoScoreShape(), e.getAutoScoreAlgo(), toInstant(e.getAutoScoredAt()));
         String deviceKey = user == null || user.getDeviceKey() == null ? null
                 : user.getDeviceKey().substring(0, Math.min(DEVICE_KEY_SHORT, user.getDeviceKey().length()));
         return new DevEvaluationRowResponse(e.getId(), e.getUserId(), user == null ? null : user.getNickname(), deviceKey,
                 e.getRating(), e.getRatingMax(), e.isGuide(), e.getGuideVersion(), e.getGuideShot(), e.getGuideStyle(),
-                e.getShutterScore(), score, e.getMediaType(), toInstant(e.getTakenAt()), toInstant(e.getRatedAt()),
+                e.getShutterScore(), score, auto, e.getMediaType(), toInstant(e.getTakenAt()), toInstant(e.getRatedAt()),
                 e.getWidth(), e.getHeight(), e.getAppVersion(), e.getDevice(), e.getNote(), extra(e.getExtraJson()),
                 e.hasPhoto(), e.getPhotoBytes(), e.guideImages(), toInstant(e.getCreatedAt()), toInstant(e.getUpdatedAt()));
     }
