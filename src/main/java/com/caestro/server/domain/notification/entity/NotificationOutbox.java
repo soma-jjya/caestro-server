@@ -68,7 +68,7 @@ public class NotificationOutbox {
     @Column(name = "dedup_key", nullable = false, length = 120)
     private String dedupKey;
 
-    /** 묶어 보낼 때의 키(#274). 지금은 비어 있다. */
+    /** 묶음 알림의 키(#274, 예 {@code fill_progress:12:7}). 대기 중인 행은 dedup_key 가 이 키 + {@code :open} 이라 한 묶음에 한 행만 있다. */
     @Column(name = "collapse_key", length = 120)
     private String collapseKey;
 
@@ -86,6 +86,10 @@ public class NotificationOutbox {
 
     @Column(nullable = false)
     private int attempts;
+
+    /** 이 행에 합쳐진 사건 수(#274). 보통 1, 묶음 알림은 채움마다 +1. */
+    @Column(name = "merged_count", nullable = false)
+    private int mergedCount;
 
     /** PROCESSING 인 동안 이 시각까지는 다른 릴레이가 건드리지 않는다. 지나면 죽은 릴레이의 것으로 보고 되찾는다. */
     @Column(name = "lease_until")
@@ -108,6 +112,20 @@ public class NotificationOutbox {
 
     @Column(name = "sent_at")
     private LocalDateTime sentAt;
+
+    /** 보내는 순간 다시 만든 문구(#274 묶음 알림). 행에도 남겨 무엇이 나갔는지 보이게 한다. */
+    public void rendered(String title, String body) {
+        this.title = title;
+        this.body = body;
+    }
+
+    /** 보내기 전에 쓸모없어졌다(#274). */
+    public void cancelled(LocalDateTime now) {
+        this.status = OutboxStatus.CANCELLED;
+        this.sentAt = now;
+        this.claimToken = null;
+        this.leaseUntil = null;
+    }
 
     public void inboxRecorded(Long notificationId) {
         this.notificationId = notificationId;
@@ -164,7 +182,7 @@ public class NotificationOutbox {
     }
 
     public boolean isFinished() {
-        return status == OutboxStatus.SENT || status == OutboxStatus.EXPIRED || status == OutboxStatus.DEAD;
+        return status == OutboxStatus.SENT || status == OutboxStatus.EXPIRED || status == OutboxStatus.DEAD || status == OutboxStatus.CANCELLED;
     }
 
     public boolean isExpired(LocalDateTime now) {

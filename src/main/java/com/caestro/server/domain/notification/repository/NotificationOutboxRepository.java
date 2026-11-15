@@ -51,6 +51,48 @@ public interface NotificationOutboxRepository extends JpaRepository<Notification
             """)
     int releaseStale(@Param("now") LocalDateTime now);
 
+    /**
+     * 집은 행 중 대기 중인 묶음 행(dedup_key 가 {@code …:open})의 키를 {@code …:open#id} 로 바꿔 자리를 비운다(#274).
+     * 그 뒤의 사건은 이 행에 합쳐지지 않고 다음 묶음의 새 행이 된다.
+     */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("update NotificationOutbox o set o.dedupKey = concat(o.dedupKey, '#', cast(o.id as string)) where o.claimToken = :token and o.dedupKey like '%:open'")
+    int releaseOpenKeys(@Param("token") String token);
+
+    /**
+     * 묶음 알림 넣기(#274, MySQL). 대기 중인 행이 없으면 새로 넣고, 있으면 합친다: 보낼 시각을 [notBefore](마지막 사건 + 조용한 시간)로 늦추되
+     * 처음 넣은 시각 + [windowSeconds] 를 넘기지 않고, 앞당기지도 않는다. 동시에 두 사건이 와도 dedup_key 유니크가 한 행으로 모은다.
+     * merged_count 를 늘리므로 합치면 항상 행이 바뀐다 — 돌려받는 수가 1 이면 새 행, 2 면 합침.
+     */
+    @Modifying(flushAutomatically = true)
+    @Query(nativeQuery = true, value = """
+            insert into notification_outbox
+                   (user_id, type, title, body, data, dedup_key, collapse_key, not_before, status, attempts, merged_count, created_at)
+            values (:userId, :type, :title, :body, :data, :dedupKey, :collapseKey, :notBefore, 'PENDING', 0, 1, :now)
+            on duplicate key update
+                   merged_count = merged_count + 1,
+                   not_before = greatest(not_before, least(:notBefore, created_at + interval :windowSeconds second))
+            """)
+    int upsertCollapsed(@Param("userId") Long userId, @Param("type") String type, @Param("title") String title, @Param("body") String body,
+                        @Param("data") String data, @Param("dedupKey") String dedupKey, @Param("collapseKey") String collapseKey,
+                        @Param("notBefore") LocalDateTime notBefore, @Param("now") LocalDateTime now, @Param("windowSeconds") long windowSeconds);
+
+    /** 이 묶음에서 마지막으로 보낸 시각(#274). 보낸 뒤 [window] 안에는 다음 묶음을 보내지 않는다. */
+    @Query("select max(o.sentAt) from NotificationOutbox o where o.collapseKey = :collapseKey and o.status = com.caestro.server.domain.notification.entity.OutboxStatus.SENT")
+    LocalDateTime lastSentAt(@Param("collapseKey") String collapseKey);
+
+    /** 대기 중인 묶음 행을 취소(#274). 키도 비워 다음 묶음이 새로 생길 수 있게. @return 취소한 행 수 */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("""
+            update NotificationOutbox o
+               set o.status = com.caestro.server.domain.notification.entity.OutboxStatus.CANCELLED, o.sentAt = :now,
+                   o.dedupKey = concat(o.dedupKey, '#', cast(o.id as string))
+             where o.collapseKey = :collapseKey and o.status = com.caestro.server.domain.notification.entity.OutboxStatus.PENDING
+            """)
+    int cancelPending(@Param("collapseKey") String collapseKey, @Param("now") LocalDateTime now);
+
+    List<NotificationOutbox> findAllByCollapseKeyOrderByIdAsc(String collapseKey);
+
     long countByStatus(OutboxStatus status);
 
     /** 가장 오래 기다리는 PENDING 행의 생성 시각(지표: 적체 나이). 없으면 null. */

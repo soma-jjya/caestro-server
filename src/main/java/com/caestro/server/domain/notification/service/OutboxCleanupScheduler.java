@@ -40,7 +40,7 @@ public class OutboxCleanupScheduler {
 
     @Transactional
     public int runOnce(LocalDateTime now) {
-        int finished = repository.deleteFinishedBefore(List.of(OutboxStatus.SENT, OutboxStatus.EXPIRED), now.minusDays(finishedDays));
+        int finished = repository.deleteFinishedBefore(List.of(OutboxStatus.SENT, OutboxStatus.EXPIRED, OutboxStatus.CANCELLED), now.minusDays(finishedDays));
         int dead = repository.deleteFinishedBefore(List.of(OutboxStatus.DEAD), now.minusDays(deadDays));
         log.info("Outbox cleanup batch end (finished={}, dead={}, finishedDays={}, deadDays={})", finished, dead, finishedDays, deadDays);
         return finished + dead;

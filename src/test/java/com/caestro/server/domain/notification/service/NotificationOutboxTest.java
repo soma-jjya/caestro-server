@@ -108,7 +108,7 @@ class NotificationOutboxTest {
         OutboxSettings settings = new OutboxSettings(false, false, 50, 2, Duration.ofSeconds(60),
                 List.of(Duration.ofMinutes(1), Duration.ofMinutes(5)), "notifications", "notifications.dead", "notifier",
                 10000, Duration.ofSeconds(60), Duration.ofHours(12));
-        OutboxDelivery delivery = new OutboxDelivery(rows, notificationService, pushService, metrics, tx, objectMapper, meters);
+        OutboxDelivery delivery = new OutboxDelivery(rows, notificationService, pushService, metrics, tx, objectMapper, meters, List.of());
         relay = new OutboxRelay(rows, delivery, (NotificationStreamPublisher) null, tx, meters, clock, settings);
     }
 

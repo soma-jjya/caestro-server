@@ -83,6 +83,8 @@ public class OutboxRelay {
                     .map(NotificationOutbox::getId).toList();
             if (ids.isEmpty()) return List.<NotificationOutbox>of();
             repository.claim(ids, token, now.plus(settings.lease()));
+            // 집은 묶음 행은 닫는다 — 이제부터의 사건은 다음 묶음으로(#274)
+            repository.releaseOpenKeys(token);
             return repository.findAllByClaimTokenAndStatusOrderByIdAsc(token, OutboxStatus.PROCESSING);
         });
         if (claimed == null || claimed.isEmpty()) return 0;
