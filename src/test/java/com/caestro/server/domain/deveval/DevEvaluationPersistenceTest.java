@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.caestro.server.domain.deveval.dto.PhotoScoreDto;
 import com.caestro.server.domain.deveval.dto.request.AutoScoreRequest;
+import com.caestro.server.domain.deveval.dto.request.LikeRequest;
 import com.caestro.server.domain.deveval.dto.request.UpsertDevEvaluationRequest;
 import com.caestro.server.domain.deveval.dto.response.DevEvaluationPageResponse;
 import com.caestro.server.domain.deveval.dto.response.DevEvaluationRowResponse;
@@ -296,7 +297,7 @@ class DevEvaluationPersistenceTest {
                 .endsWith(",hasPhoto,photoBytes,createdAt,updatedAt");
         String devLine = lines[1].startsWith(a) ? lines[1] : lines[2];
         // 자동 점수 다섯 열(#289)은 매긴 적 없어 빈 칸
-        assertThat(devLine).contains(",이상협,3f9a0c1d2e4b5a69,20,30,true,v012,shot_0003,photo,81,78,84,0.97,,,,,,,photo,")
+        assertThat(devLine).contains(",이상협,3f9a0c1d2e4b5a69,20,30,true,v012,shot_0003,photo,81,78,84,0.97,,,,,,,false,photo,")
                 .contains("\"역광, \"\"그래도\"\" 좋음\"")
                 .contains("\"{\"\"lens\"\":\"\"0.6x\"\",\"\"iso\"\":100}\"");
         String guestLine = lines[1].startsWith(a) ? lines[2] : lines[1];
@@ -380,8 +381,8 @@ class DevEvaluationPersistenceTest {
         assertThat(r.updatedAt()).as("사진 주소 캐시 키").isEqualTo(before);
 
         String[] lines = new String(service.csv(null, null), StandardCharsets.UTF_8).substring(1).split("\r\n");
-        assertThat(lines[0]).contains(",photoScoreShape,autoScoreStatus,autoScoreTotal,autoScorePose,autoScorePlace,autoScoreShape,mediaType,");
-        assertThat(lines[1]).contains(",78,84,0.97,,SCORED,92,93,1,0.98,photo,");
+        assertThat(lines[0]).contains(",photoScoreShape,autoScoreStatus,autoScoreTotal,autoScorePose,autoScorePlace,autoScoreShape,liked,mediaType,");
+        assertThat(lines[1]).contains(",78,84,0.97,,SCORED,92,93,1,0.98,false,photo,");
 
         // 사람을 못 찾은 결과는 상태만
         service.recordAutoScore(a, new AutoScoreRequest("NOBODY", 50.0, 50.0, null, null, 1));
@@ -437,5 +438,33 @@ class DevEvaluationPersistenceTest {
                 ErrorCode.DEV_EVAL_NOT_FOUND);
         service.recordAutoScore(a, new AutoScoreRequest("NO_GUIDE_POSE", null, null, null, null, 1));
         assertThat(row(a).autoScore().status()).isEqualTo("NO_GUIDE_POSE");
+    }
+
+    @Test
+    @DisplayName("좋아요(#291): 관리자가 체크·해제, 처음엔 false, updatedAt 그대로, 앱 재전송·사진 재업로드에도 남고 CSV liked 열, 값 없으면 400, 없는 기록 404")
+    void like_manual() {
+        String a = id();
+        service.upsert(dev.getId(), a, record(20, true));
+        Instant before = row(a).updatedAt();
+        assertThat(row(a).liked()).isFalse();
+
+        service.setLiked(a, new LikeRequest(true));
+        assertThat(row(a).liked()).isTrue();
+        assertThat(row(a).updatedAt()).isEqualTo(before);
+
+        service.upsert(dev.getId(), a, record(27, false));
+        service.uploadPhoto(dev.getId(), a, jpeg(100), "image/jpeg");
+        assertThat(row(a).liked()).as("관리자 표시는 앱이 다시 보내도 남는다").isTrue();
+
+        String[] lines = new String(service.csv(null, null), StandardCharsets.UTF_8).substring(1).split("\r\n");
+        assertThat(lines[0]).contains(",autoScoreShape,liked,mediaType,");
+        assertThat(lines[1]).contains(",true,photo,");
+
+        service.setLiked(a, new LikeRequest(false));
+        assertThat(row(a).liked()).isFalse();
+
+        assertCode(() -> service.setLiked(a, new LikeRequest(null)), ErrorCode.DEV_EVAL_INVALID);
+        assertCode(() -> service.setLiked(a, null), ErrorCode.DEV_EVAL_INVALID);
+        assertCode(() -> service.setLiked(id(), new LikeRequest(true)), ErrorCode.DEV_EVAL_NOT_FOUND);
     }
 }
