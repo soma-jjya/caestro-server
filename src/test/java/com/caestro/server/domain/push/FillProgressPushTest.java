@@ -11,6 +11,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 import com.caestro.server.domain.fill.dto.request.CreateFillRequest;
+import com.caestro.server.domain.fill.repository.FillQueueRepository;
 import com.caestro.server.domain.fill.repository.FillSessionRepository;
 import com.caestro.server.domain.fill.service.FillService;
 import com.caestro.server.domain.notification.entity.NotificationOutbox;
@@ -63,6 +64,7 @@ class FillProgressPushTest {
 
     @Autowired private FillService fillService;
     @Autowired private FillSessionRepository sessionRepository;
+    @Autowired private FillQueueRepository queueRepository;
     @Autowired private PushTokenRepository tokenRepository;
     @Autowired private UserRepository userRepository;
     @Autowired private NotificationRepository notificationRepository;
@@ -239,6 +241,33 @@ class FillProgressPushTest {
         verify(sender, never()).send(eq(token.getToken()), any());
         relay.runOnce(created.plus(WINDOW).plus(WINDOW));
         onlyPushToOwner();
+    }
+
+    @Test
+    @DisplayName("완성 알림이 나간 뒤 사진을 빼고 다시 넣어도(새로 채우기·대기열에서 되돌리기) 진행 알림도, 두 번째 완성 알림도 가지 않는다")
+    void afterCompleted_clearAndRefill_staysQuiet() {
+        LocalDateTime start = LocalDateTime.now();
+        for (int i = 0; i < 4; i++) {
+            fillService.fillSlot(code, i, friend.getId(), "민지", jpeg((byte) i), "image/jpeg");
+        }
+        relay.runOnce(start.plusMinutes(1));
+        assertThat(onlyPushToOwner().type()).isEqualTo(PushMessage.TYPE_FILL_COMPLETED);
+        clearInvocations(sender);
+
+        // 1. 칸을 비웠다가 다른 친구가 새로 채운다 — 다시 네 칸이 찬다
+        fillService.clearSlot(code, 3, friend.getId());
+        fillService.fillSlot(code, 3, friend2.getId(), "서준", jpeg((byte) 7), "image/jpeg");
+        // 2. 칸을 비웠다가 대기열의 사진을 되돌린다 — 또 네 칸이 찬다
+        fillService.clearSlot(code, 2, friend.getId());
+        Long sessionId = sessionRepository.findByCode(code).orElseThrow().getId();
+        long queuedId = queueRepository.findBySessionIdOrderByIdAsc(sessionId).get(0).getId();
+        fillService.restoreQueued(code, queuedId, 2, friend.getId());
+
+        // 묶음 행은 처음 세 칸 때의 것(완성으로 취소) 하나뿐이고, 한 시간 뒤까지 아무것도 더 가지 않는다
+        assertThat(progressRows()).singleElement().extracting(NotificationOutbox::getStatus).isEqualTo(OutboxStatus.CANCELLED);
+        relay.runOnce(start.plusMinutes(10));
+        relay.runOnce(start.plusHours(1));
+        verify(sender, never()).send(eq(token.getToken()), any());
     }
 
     private static void await(CountDownLatch latch) {
