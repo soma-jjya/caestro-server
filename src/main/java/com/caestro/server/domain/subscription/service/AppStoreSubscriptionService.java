@@ -94,9 +94,11 @@ public class AppStoreSubscriptionService {
 
     /**
      * 앱이 보낸 거래를 확인해 이 계정의 구독으로 기록한다. 같은 구독을 다시 보내면 최신 상태로 고칠 뿐이다(앱 시작·구매 복원).
+     * 게스트 계정도 기록한다: iOS 는 로그인 없이 살 수 있다(App Review 5.1.1, #285).
+     * 게스트가 산 구독을 그 뒤 같은 폰에서 로그인한 정식 계정이 보내면 그 계정으로 옮긴다({@link #takesOver}).
      *
-     * @throws CustomException GUEST_ACCOUNT_NOT_ALLOWED(403) · SUBSCRIPTION_PURCHASE_INVALID(400)
-     *                         · SUBSCRIPTION_PURCHASE_OWNED_BY_OTHER(409) · SUBSCRIPTION_VERIFICATION_UNAVAILABLE(503)
+     * @throws CustomException SUBSCRIPTION_PURCHASE_INVALID(400) · SUBSCRIPTION_PURCHASE_OWNED_BY_OTHER(409)
+     *                         · SUBSCRIPTION_VERIFICATION_UNAVAILABLE(503)
      */
     public SubscriptionResponse verify(Long userId, AppStorePurchaseRequest request) {
         try {
@@ -114,17 +116,9 @@ public class AppStoreSubscriptionService {
             throw new CustomException(ErrorCode.SUBSCRIPTION_PURCHASE_INVALID);
         }
 
-        // 1. 읽기 트랜잭션: 계정 검사. Apple 을 부르기 전에 끝낼 수 있는 거절은 여기서 끝낸다
-        User user = readOnly.execute(status -> {
-            User found = userRepository.findById(userId)
-                    .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
-            // 게스트 계정은 기기에 묶여 있어 결제를 다른 기기로 옮길 수 없다: 소셜 로그인이 먼저다.
-            // (iOS 는 게스트도 살 수 있고 이 기기에서는 App Store 가 Pro 를 지킨다. 로그인 뒤 앱이 다시 보내면 그때 묶인다)
-            if (found.isGuest()) {
-                throw new CustomException(ErrorCode.GUEST_ACCOUNT_NOT_ALLOWED);
-            }
-            return found;
-        });
+        // 1. 읽기 트랜잭션: 계정을 읽는다. 게스트도 받는다 — iOS 는 로그인 없이 사고, 앱이 열릴 때마다 다시 보낸다 (#285)
+        User user = readOnly.execute(status -> userRepository.findById(userId)
+                .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND)));
         // 앱이 보낸 JWS 는 서명을 확인하지 않는다: 거래 번호만 꺼내고, 상태는 Apple 에 직접 묻는다
         String transactionId = transactionIdOf(request.signedTransaction())
                 .orElseThrow(() -> new CustomException(ErrorCode.SUBSCRIPTION_PURCHASE_INVALID));
@@ -137,16 +131,23 @@ public class AppStoreSubscriptionService {
         }
         // 앱은 결제할 때 계정 id 해시로 만든 UUID 를 넣는다. 다른 계정으로 산 구독을 이 계정에 붙이지 못하게 한다
         String owner = purchase.appAccountToken();
-        if (owner != null && !owner.equalsIgnoreCase(appAccountToken(userId))) {
-            throw new CustomException(ErrorCode.SUBSCRIPTION_PURCHASE_OWNED_BY_OTHER);
-        }
         String key = purchase.originalTransactionId();
 
         // 3. 짧은 쓰기 트랜잭션: 행을 찾거나 만들어 Apple 상태를 덮어쓴다. 다른 계정에 묶인 구독이면 409
         Subscription subscription = writeRetryingOnConflict(() -> {
-            Subscription row = subscriptionRepository.findByPurchaseToken(key).orElseGet(() -> newRow(user, key));
-            if (!row.getUser().getId().equals(userId)) {
-                throw new CustomException(ErrorCode.SUBSCRIPTION_PURCHASE_OWNED_BY_OTHER);
+            Subscription row = subscriptionRepository.findByPurchaseToken(key).orElse(null);
+            if (row == null) {
+                if (!boughtBy(owner, userId) && !boughtByGuestOnThisPhone(owner, user)) {
+                    throw new CustomException(ErrorCode.SUBSCRIPTION_PURCHASE_OWNED_BY_OTHER);
+                }
+                row = newRow(user, key);
+            } else if (!row.getUser().getId().equals(userId)) {
+                // 이미 이 계정 행이면(게스트에게서 넘겨받은 구독) 계정 토큰이 게스트 것이어도 그대로 고친다
+                if (!takesOver(user, row.getUser(), owner)) {
+                    throw new CustomException(ErrorCode.SUBSCRIPTION_PURCHASE_OWNED_BY_OTHER);
+                }
+                log.info("App Store subscription moved from guest {} to user {}", row.getUser().getId(), userId);
+                row.transferTo(user);
             }
             apply(row, purchase);
             subscriptionRepository.save(row);
@@ -229,6 +230,34 @@ public class AppStoreSubscriptionService {
                             ? SubscriptionRefresh.UNCHANGED : SubscriptionRefresh.CHANGED;
                 })
                 .orElse(SubscriptionRefresh.SKIPPED));
+    }
+
+    /** 거래의 계정 토큰이 이 계정 것인가. 토큰 없이 산 구독(예전 앱·다른 경로)은 확인한 계정 것으로 본다. */
+    private static boolean boughtBy(String owner, Long userId) {
+        return owner == null || owner.equalsIgnoreCase(appAccountToken(userId));
+    }
+
+    /**
+     * 게스트 계정 행을 정식 계정이 가져가도 되는가 (#285). 같은 Apple ID 의 거래를 보낸 정식 계정이고,
+     * 지금 주인이 탈퇴하지 않은 게스트이며, 그 거래가 그 게스트의 것일 때만. 정식 계정 행은 옮기지 않고,
+     * 게스트끼리도 옮기지 않는다(같은 Apple ID 의 두 폰이 서로 가져가며 오가지 않게).
+     */
+    static boolean takesOver(User requester, User holder, String owner) {
+        return !requester.isGuest()
+                && holder.isGuest() && !holder.isDeleted()
+                && boughtBy(owner, holder.getId());
+    }
+
+    /**
+     * 아직 기록 안 된 구독을 다른 계정의 토큰으로 샀을 때: 이 폰(기기 키)에서 생긴 게스트가 산 것이면 정식 계정이 받는다 (#285).
+     * 게스트로 사고 앱을 다시 열기 전에 기존 소셜 계정으로 로그인한 경우다. 다른 폰의 게스트 토큰이면 받지 않는다.
+     */
+    private boolean boughtByGuestOnThisPhone(String owner, User requester) {
+        if (owner == null || requester.isGuest() || requester.getDeviceKey() == null) {
+            return false;
+        }
+        return userRepository.findGuestsByDeviceKey(requester.getDeviceKey()).stream()
+                .anyMatch(guest -> owner.equalsIgnoreCase(appAccountToken(guest.getId())));
     }
 
     /** 인앱 결제 키가 있어 Apple 에 물을 수 있는가. 대사 배치가 묻기 전에 본다. */
