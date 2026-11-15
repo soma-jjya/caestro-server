@@ -22,7 +22,29 @@ class NotificationRequestMetricsTest {
         metrics.recordFailed("fill_expiring");
 
         assertThat(registry.counter("notification.requested", "type", "fill_completed").count()).isEqualTo(4.0);
-        assertThat(registry.find("notification.requested").tag("type", "fill_expiring").counter()).isNull();
+        // 0 명이면 늘지 않는다(카운터는 기동 때 0 으로 이미 있다, #280)
+        assertThat(registry.counter("notification.requested", "type", "fill_expiring").count()).isZero();
         assertThat(registry.counter("notification.record_failed", "type", "fill_expiring").count()).isEqualTo(2.0);
+    }
+
+    @Test
+    @DisplayName("[재현 #280] 기동 직후 알려진 종류·결과의 카운터가 0 으로 이미 있다 — 처음 생긴 카운터는 프로메테우스가 0 → 1 을 못 봐 increase 가 0 이 된다")
+    void knownCountersExistAtZeroFromStart() {
+        for (String type : new String[]{"fill_completed", "fill_expiring", "fill_progress", "support_reply"}) {
+            for (String name : new String[]{"notification.requested", "notification.recorded", "notification.opened",
+                    "notification.record_failed", "notification.collapsed", "notification.cancelled"}) {
+                assertThat(registry.find(name).tag("type", type).counter()).as(name + " " + type).isNotNull();
+            }
+            for (String result : new String[]{"sent", "unregistered", "failed"}) {
+                assertThat(registry.find("push.sent").tag("type", type).tag("result", result).counter()).as("push.sent " + type + " " + result).isNotNull();
+            }
+            for (String result : new String[]{"sent", "expired", "cancelled", "retried", "dead"}) {
+                assertThat(registry.find("notification.relay.processed").tag("type", type).tag("result", result).counter())
+                        .as("relay.processed " + type + " " + result).isNotNull();
+                assertThat(registry.find("notification.consumed").tag("type", type).tag("result", result).counter())
+                        .as("consumed " + type + " " + result).isNotNull();
+            }
+        }
+        assertThat(registry.find("notification.requested").tag("type", "fill_progress").counter().count()).isZero();
     }
 }

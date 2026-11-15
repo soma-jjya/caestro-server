@@ -113,6 +113,20 @@ class NotificationOutboxTest {
     }
 
     @Test
+    @DisplayName("[재현 #280] 적체 나이는 보낼 시각이 지났는데 아직 대기 중인 행만 센다 — 묶음 대기·백오프로 일부러 미룬 행은 밀린 것이 아니다")
+    void oldestAge_countsOnlyOverdueRows() {
+        // 10분 뒤에 보내기로 미룬 행(묶음 알림 대기와 같은 모양)
+        tx.executeWithoutResult(s -> outbox.enqueue(me, PushMessage.fillCompleted("K7X2MQ"),
+                new EnqueueOptions("deferred:1", NOW_LDT.plusMinutes(10), null, null)));
+        assertThat(meters.get("notification.outbox.oldest_age_seconds").gauge().value()).isZero();
+
+        // 30초 전에 보냈어야 할 행
+        tx.executeWithoutResult(s -> outbox.enqueue(me, PushMessage.fillCompleted("K7X2MQ"),
+                new EnqueueOptions("overdue:1", NOW_LDT.minusSeconds(30), null, null)));
+        assertThat(meters.get("notification.outbox.oldest_age_seconds").gauge().value()).isEqualTo(30.0);
+    }
+
+    @Test
     @DisplayName("같은 트랜잭션: 사건이 롤백되면 아웃박스 행도 없고, 커밋되면 PENDING 으로 남으며 requested 가 1 오른다")
     void enqueueJoinsTheCallersTransaction() {
         tx.executeWithoutResult(s -> {
@@ -262,9 +276,10 @@ class NotificationOutboxTest {
     @Test
     @DisplayName("사건 → 행: 네 칸 완성은 주인 + 토큰 있는 참여자, 문의 답변은 1건, 같은 사건이 두 번 와도 행은 그대로")
     void domainEventsBecomeRows() {
-        given(tokens.existsByUserIdAndDisabledAtIsNull(11L)).willReturn(true);
-        given(tokens.existsByUserIdAndDisabledAtIsNull(12L)).willReturn(false);
-        FillCompletedEvent completed = new FillCompletedEvent(1L, me, "K7X2MQ", List.of(11L, 12L));
+        // 참여자 id 는 자동 증가하는 주인 id(me)와 겹치지 않게 크게 — 겹치면 주인과 같은 dedup_key 가 된다
+        given(tokens.existsByUserIdAndDisabledAtIsNull(900_011L)).willReturn(true);
+        given(tokens.existsByUserIdAndDisabledAtIsNull(900_012L)).willReturn(false);
+        FillCompletedEvent completed = new FillCompletedEvent(1L, me, "K7X2MQ", List.of(900_011L, 900_012L));
 
         enqueuer.onFillCompleted(completed);
         enqueuer.onFillCompleted(completed);
@@ -272,8 +287,8 @@ class NotificationOutboxTest {
 
         assertThat(rows.count()).isEqualTo(3);
         assertThat(rows.findByDedupKey("fill_completed:1:" + me)).isPresent();
-        assertThat(rows.findByDedupKey("fill_completed:1:11")).isPresent();
-        assertThat(rows.findByDedupKey("fill_completed:1:12")).isEmpty();
+        assertThat(rows.findByDedupKey("fill_completed:1:900011")).isPresent();
+        assertThat(rows.findByDedupKey("fill_completed:1:900012")).isEmpty();
         assertThat(rows.findByDedupKey("support_reply:5:2").orElseThrow().getType()).isEqualTo("support_reply");
     }
 
