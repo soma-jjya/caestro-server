@@ -57,8 +57,8 @@ public class OutboxRelay {
                 .description("보낼 차례를 기다리는 행").register(meterRegistry);
         Gauge.builder("notification.outbox.dead", () -> repository.countByStatus(OutboxStatus.DEAD))
                 .description("재시도 한도를 넘어 사람이 봐야 하는 행. 0 이어야 한다").register(meterRegistry);
-        Gauge.builder("notification.outbox.oldest_age_seconds", this::oldestPendingAgeSeconds)
-                .description("가장 오래 기다린 PENDING 행의 나이. 평소 몇 초, 커지면 릴레이가 멈췄거나 Redis 장애").register(meterRegistry);
+        Gauge.builder("notification.outbox.oldest_age_seconds", this::oldestOverdueAgeSeconds)
+                .description("보낼 시각이 지났는데 아직 대기 중인 행이 밀린 시간(일부러 미룬 행 제외, #280). 평소 0~몇 초, 커지면 릴레이가 멈췄거나 Redis 장애").register(meterRegistry);
     }
 
     @Scheduled(fixedDelayString = "${notification.outbox.poll-ms:3000}", initialDelayString = "${notification.outbox.poll-ms:3000}")
@@ -130,8 +130,9 @@ public class OutboxRelay {
         }
     }
 
-    private double oldestPendingAgeSeconds() {
-        LocalDateTime oldest = repository.oldestPendingCreatedAt();
-        return oldest == null ? 0 : Math.max(0, ChronoUnit.SECONDS.between(oldest, LocalDateTime.now(clock)));
+    private double oldestOverdueAgeSeconds() {
+        LocalDateTime now = LocalDateTime.now(clock);
+        LocalDateTime oldest = repository.oldestOverdueNotBefore(now);
+        return oldest == null ? 0 : Math.max(0, ChronoUnit.SECONDS.between(oldest, now));
     }
 }

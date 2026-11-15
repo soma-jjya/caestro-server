@@ -39,6 +39,8 @@ public record PushMessage(String type, String title, String body, Map<String, St
 
     /** 이름이 길면 알림 한 줄이 넘친다. 이만큼에서 자르고 말줄임표. */
     static final int PROGRESS_NAME_MAX = 8;
+    /** 이름 없는 참여자를 부르는 말. 웹 참여 화면의 기본 이름이기도 하다. */
+    static final String UNNAMED_FRIEND = "친구";
 
     /**
      * 친구가 칸을 채웠다는 묶음 알림(#274)의 기본 문구. 넣을 때 행에 적어 두고, 실제로는 보내는 순간 {@link #fillProgress} 로 다시 만든다.
@@ -51,6 +53,7 @@ public record PushMessage(String type, String title, String body, Map<String, St
     /**
      * 친구가 칸을 채웠다는 묶음 알림(#274). 주인에게만. 탭하면 세션 {@code code} 로 간다(fill_completed 와 같은 규칙).
      * 제목은 누가, 본문은 얼마나 — "민지님 외 1명이 네컷을 채웠어요" / "'제주 여행' 4칸 중 3칸이 찼어요. 1칸만 더 채우면 완성이에요!"
+     * 이름이 없거나 "친구"(웹 참여 기본값)면 "님"을 붙이지 않는다 — "친구가 …" / "친구 2명이 …" (#280: "친구님이"로 나갔다)
      *
      * @param label       세션 제목, 없으면 null(본문에서 뺀다)
      * @param latestName  가장 최근에 채운 친구의 이름
@@ -59,8 +62,14 @@ public record PushMessage(String type, String title, String body, Map<String, St
      * @param total       전체 칸 수
      */
     public static PushMessage fillProgress(String code, String label, String latestName, int friends, int filled, int total) {
-        String who = shorten(latestName == null || latestName.isBlank() ? "친구" : latestName.strip(), PROGRESS_NAME_MAX) + "님";
-        String title = friends > 1 ? who + " 외 " + (friends - 1) + "명이 네컷을 채웠어요" : who + "이 네컷을 채웠어요";
+        String name = latestName == null ? "" : latestName.strip();
+        String title;
+        if (name.isEmpty() || name.equals(UNNAMED_FRIEND)) {
+            title = friends > 1 ? UNNAMED_FRIEND + " " + friends + "명이 네컷을 채웠어요" : UNNAMED_FRIEND + "가 네컷을 채웠어요";
+        } else {
+            String who = shorten(name, PROGRESS_NAME_MAX) + "님";
+            title = friends > 1 ? who + " 외 " + (friends - 1) + "명이 네컷을 채웠어요" : who + "이 네컷을 채웠어요";
+        }
         String where = label == null || label.isBlank() ? "" : "'" + shorten(label.strip(), 20) + "' ";
         String body = where + total + "칸 중 " + filled + "칸이 찼어요. " + (total - filled) + "칸만 더 채우면 완성이에요!";
         return new PushMessage(TYPE_FILL_PROGRESS, title, body, Map.of("code", code));

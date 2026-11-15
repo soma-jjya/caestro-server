@@ -95,9 +95,12 @@ public interface NotificationOutboxRepository extends JpaRepository<Notification
 
     long countByStatus(OutboxStatus status);
 
-    /** 가장 오래 기다리는 PENDING 행의 생성 시각(지표: 적체 나이). 없으면 null. */
-    @Query("select min(o.createdAt) from NotificationOutbox o where o.status = com.caestro.server.domain.notification.entity.OutboxStatus.PENDING")
-    LocalDateTime oldestPendingCreatedAt();
+    /**
+     * 보낼 시각이 지났는데 아직 PENDING 인 행 중 가장 이른 보낼 시각(지표: 적체 나이, #280). 없으면 null.
+     * 묶음 대기·재시도 백오프로 일부러 미룬 행(not_before 가 미래)은 밀린 것이 아니라 들지 않는다. idx_notification_outbox_due 를 탄다.
+     */
+    @Query("select min(o.notBefore) from NotificationOutbox o where o.status = com.caestro.server.domain.notification.entity.OutboxStatus.PENDING and o.notBefore <= :now")
+    LocalDateTime oldestOverdueNotBefore(@Param("now") LocalDateTime now);
 
     /** 끝난 행 정리(보관 기간 뒤). */
     @Modifying(clearAutomatically = true, flushAutomatically = true)

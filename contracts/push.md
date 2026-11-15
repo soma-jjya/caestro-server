@@ -24,7 +24,7 @@
 | type | 언제 | data | 앱 동작 |
 |---|---|---|---|
 | `fill_completed` | 함께 채우기 네 칸이 **처음** 모두 찬 순간, 세션 주인과 그 네 칸을 채운 참여자에게 **세션당 1회씩**. 참여자는 문구만 다르다("함께 채운 네컷이 완성됐어요. 지금 저장해 보세요.") | `{ "type": "fill_completed", "code": "K7X2MQ", "notificationId": "42" }` | 탭 → `PATCH /notifications/{notificationId}/read` 뒤 그 세션 화면(참여자도 거기서 완성해 저장). 포그라운드면 배너 대신 세션을 즉시 다시 조회 |
-| `fill_progress` | 주인이 아닌 사람이 칸을 채웠고 아직 네 칸이 다 차지 않았을 때, **세션 주인에게만**. 채울 때마다가 아니라 묶어서: 마지막 채움 뒤 10분 조용하면 한 통, 세션당 1시간에 최대 1통, 그사이 완성되면 보내지 않고 `fill_completed` 만(#274, contracts/notifications.md "묶음 알림"). 문구 예 "민지님 외 1명이 네컷을 채웠어요" / "'제주 여행' 4칸 중 3칸이 찼어요. 1칸만 더 채우면 완성이에요!" | `{ "type": "fill_progress", "code": "K7X2MQ", "notificationId": "44" }` | `fill_completed` 와 같다: 탭 → 읽음 뒤 그 세션 화면. 포그라운드면 세션 다시 조회. **이 type 을 모르는 앱 버전**은 시스템 알림은 뜨고 탭하면 앱만 열린다 |
+| `fill_progress` | 주인이 아닌 사람이 칸을 채웠고 아직 네 칸이 다 차지 않았을 때, **세션 주인에게만**. 채울 때마다가 아니라 묶어서: 마지막 채움 뒤 5분 조용하면 한 통, 세션당 1시간에 최대 1통, 그사이 완성되면 보내지 않고 `fill_completed` 만(#274, contracts/notifications.md "묶음 알림"). 문구 예 "민지님 외 1명이 네컷을 채웠어요" / "'제주 여행' 4칸 중 3칸이 찼어요. 1칸만 더 채우면 완성이에요!" | `{ "type": "fill_progress", "code": "K7X2MQ", "notificationId": "44" }` | `fill_completed` 와 같다: 탭 → 읽음 뒤 그 세션 화면. 포그라운드면 세션 다시 조회. **이 type 을 모르는 앱 버전**은 시스템 알림은 뜨고 탭하면 앱만 열린다 |
 | `fill_expiring` | 함께 채우기 세션이 **24시간 안에 만료**하고 사진이 있을 때, 세션 주인에게 **세션당 1회**(매일 KST 09:00 배치, #213) | `{ "type": "fill_expiring", "code": "K7X2MQ", "notificationId": "43" }` | 탭 → 읽음 뒤 그 세션 화면(저장 유도) |
 | `support_reply` | 앱 문의(#263, contracts/support.md)에 운영자가 답한 순간, 문의한 사람에게 **답변마다** | `{ "type": "support_reply", "ticketId": "12", "notificationId": "88" }` | 문의 `ticketId` 상세로 |
 | `test` | `POST /users/me/push-token/test` | `{ "type": "test" }` | 아무 데도 안 감 |
@@ -68,7 +68,7 @@ push:
 ## 관측
 
 - `push_sent_total{type,result}` — result 가 failed 로 치우치면 FCM 설정·서킷(`resilience4j_circuitbreaker_state{name="fcm"}`)을 본다.
-- `notification_requested_total{type}` — 발송 **요청** 수(#271). 네 칸 완성은 주인+참여자 수, 만료 안내는 후보 세션 수, 문의 답변은 1. 커밋 뒤 비동기 구간보다 앞에서 세므로 `requested − sent − unregistered` 가 그 구간에서 잃은 수다. Grafana `peakpic-notifications`.
+- `notification_requested_total{type}` — 발송 **요청** 수(#271). 네 칸 완성은 주인+참여자 수, 만료 안내는 후보 세션 수, 문의 답변은 1. 아웃박스(#272) 뒤로는 행의 최종 결과로 센다: `requested − relay.processed{sent} − {expired} − cancelled` = 대기 중 + DEAD(#280). FCM 결과(`push.sent`)로 빼면 기기 없는 사용자의 알림(FCM 호출 없이 알림함만)이 유실로 잡힌다. Grafana `peakpic-notifications`.
 - `notification_record_failed_total{type}` — 알림함 저장이 실패해 푸시만 간 수. 0 이어야 한다.
 - `circuit_transition_total{name,to}` 와 로그 `Circuit opened: name=…` — 서킷이 열린 순간. CloudWatch 알람 `peakpic-app-circuit-open` 이 이 로그를 센다.
 - 비동기 실행기 지표는 Spring Boot 기본(`executor_*{name="applicationTaskExecutor"}`).
