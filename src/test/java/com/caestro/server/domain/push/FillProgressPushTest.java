@@ -50,7 +50,7 @@ import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 /**
- * #274 — 친구가 칸을 채우면 주인에게 묶음 알림 "친구가 네컷을 채웠어요". 세션별 한 행에 합쳐 10분 조용하면 한 통, 한 시간에 한 통,
+ * #274 — 친구가 칸을 채우면 주인에게 묶음 알림 "친구가 네컷을 채웠어요". 세션별 한 행에 합쳐 5분 조용하면 한 통, 한 시간에 한 통,
  * 완성되면 취소. 합치기는 MySQL upsert 라 실제 MySQL 필요 (docker-compose up -d / CI 서비스 컨테이너). FCM 은 목, 릴레이는 직접 모드로 한 바퀴씩.
  */
 // RANDOM_PORT: 모의 서블릿 환경에는 WS ServerContainer가 없어 WS 설정 빈이 초기화되지 못한다 (contextLoads와 동일)
@@ -58,7 +58,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 @TestPropertySource(properties = "notification.stream.enabled=false")
 class FillProgressPushTest {
 
-    private static final Duration QUIET = Duration.ofMinutes(10);
+    private static final Duration QUIET = Duration.ofMinutes(5);
     private static final Duration WINDOW = Duration.ofHours(1);
 
     @Autowired private FillService fillService;
@@ -129,7 +129,7 @@ class FillProgressPushTest {
     }
 
     @Test
-    @DisplayName("친구가 세 칸을 연달아 채우면 행은 하나(합친 수 3), 10분 조용해지기 전엔 안 가고, 그 뒤 주인에게 한 통 — 문구는 보내는 순간의 칸 수")
+    @DisplayName("친구가 세 칸을 연달아 채우면 행은 하나(합친 수 3), 5분 조용해지기 전엔 안 가고, 그 뒤 주인에게 한 통 — 문구는 보내는 순간의 칸 수")
     void threeFills_oneNotificationAfterQuiet() {
         LocalDateTime start = LocalDateTime.now();
         for (int i = 0; i < 3; i++) {
@@ -141,10 +141,10 @@ class FillProgressPushTest {
         assertThat(rows.get(0).getMergedCount()).isEqualTo(3);
         assertThat(rows.get(0).getStatus()).isEqualTo(OutboxStatus.PENDING);
 
-        relay.runOnce(start.plusMinutes(5));
+        relay.runOnce(start.plusMinutes(3));
         verify(sender, never()).send(eq(token.getToken()), any());
 
-        relay.runOnce(start.plusMinutes(11));
+        relay.runOnce(start.plusMinutes(6));
         PushMessage sent = onlyPushToOwner();
         assertThat(sent.type()).isEqualTo(PushMessage.TYPE_FILL_PROGRESS);
         assertThat(sent.title()).isEqualTo("민지님이 네컷을 채웠어요");
@@ -217,12 +217,12 @@ class FillProgressPushTest {
         fillService.fillSlot(code, 0, friend.getId(), "민지", jpeg((byte) 0), "image/jpeg");
         NotificationOutbox first = progressRows().get(0);
         LocalDateTime created = first.getCreatedAt();
-        // 9분마다 채움이 63분 동안 이어진다 — 매번 10분씩 늦추지만 처음 + 1시간에서 멈춘다
-        for (int minute = 9; minute <= 63; minute += 9) {
+        // 4분마다 채움이 64분 동안 이어진다 — 매번 5분씩 늦추지만 처음 + 1시간에서 멈춘다
+        for (int minute = 4; minute <= 64; minute += 4) {
             outbox.enqueueCollapsed(owner.getId(), PushMessage.fillProgressPlaceholder(code), progressKey, created.plusMinutes(minute), QUIET, WINDOW);
         }
         NotificationOutbox merged = progressRows().get(0);
-        assertThat(merged.getMergedCount()).isEqualTo(8);
+        assertThat(merged.getMergedCount()).isEqualTo(17);
         assertThat(merged.getNotBefore()).isEqualTo(created.plus(WINDOW));
 
         relay.runOnce(created.plus(WINDOW));
