@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.caestro.server.domain.deveval.dto.PhotoScoreDto;
+import com.caestro.server.domain.deveval.dto.request.AutoScoreRequest;
 import com.caestro.server.domain.deveval.dto.request.UpsertDevEvaluationRequest;
 import com.caestro.server.domain.deveval.dto.response.DevEvaluationPageResponse;
 import com.caestro.server.domain.deveval.dto.response.DevEvaluationRowResponse;
@@ -343,5 +344,97 @@ class DevEvaluationPersistenceTest {
         assertThat(photos.existsById(a)).isFalse();
         assertThat(guides.count()).isZero();
         assertCode(() -> service.delete(a), ErrorCode.DEV_EVAL_NOT_FOUND);
+    }
+
+    static UpsertDevEvaluationRequest guided(int rating, String shot) {
+        UpsertDevEvaluationRequest r = record(rating, true);
+        return new UpsertDevEvaluationRequest(r.rating(), r.ratingMax(), r.guide(), r.guideVersion(), shot, r.guideStyle(), r.shutterScore(),
+                r.photoScore(), r.mediaType(), r.takenAt(), r.ratedAt(), r.width(), r.height(), r.appVersion(), r.device(), r.note(), r.extra());
+    }
+
+    private DevEvaluationRowResponse row(String id) {
+        return service.page(0, 50, null, null).items().stream().filter(r -> r.id().equals(id)).findFirst().orElseThrow();
+    }
+
+    @Test
+    @DisplayName("자동 점수(#289): 관리자가 사진에서 매긴 값은 앱 점수와 따로 남고 목록·CSV 에 나온다. updatedAt 은 그대로")
+    void autoScore_recorded() {
+        String a = id();
+        service.upsert(dev.getId(), a, record(20, true));
+        service.uploadPhoto(dev.getId(), a, jpeg(100), "image/jpeg");
+        Instant before = row(a).updatedAt();
+        assertThat(row(a).autoScore()).isNull();
+
+        service.recordAutoScore(a, new AutoScoreRequest("SCORED", 92.0, 93.0, 1.0, 0.98, 1));
+
+        DevEvaluationRowResponse r = row(a);
+        assertThat(r.autoScore().status()).isEqualTo("SCORED");
+        assertThat(r.autoScore().total()).isEqualTo(92.0);
+        assertThat(r.autoScore().pose()).isEqualTo(93.0);
+        assertThat(r.autoScore().place()).isEqualTo(1.0);
+        assertThat(r.autoScore().shape()).isEqualTo(0.98);
+        assertThat(r.autoScore().algo()).isEqualTo(1);
+        assertThat(r.autoScore().scoredAt()).isEqualTo(NOW);
+        assertThat(r.photoScore().total()).as("앱이 보낸 점수는 그대로").isEqualTo(78.0);
+        assertThat(r.updatedAt()).as("사진 주소 캐시 키").isEqualTo(before);
+
+        String[] lines = new String(service.csv(null, null), StandardCharsets.UTF_8).substring(1).split("\r\n");
+        assertThat(lines[0]).contains(",photoScoreShape,autoScoreStatus,autoScoreTotal,autoScorePose,autoScorePlace,autoScoreShape,mediaType,");
+        assertThat(lines[1]).contains(",78,84,0.97,,SCORED,92,93,1,0.98,photo,");
+
+        // 사람을 못 찾은 결과는 상태만
+        service.recordAutoScore(a, new AutoScoreRequest("NOBODY", 50.0, 50.0, null, null, 1));
+        assertThat(row(a).autoScore().status()).isEqualTo("NOBODY");
+        assertThat(row(a).autoScore().total()).isNull();
+        assertThat(row(a).autoScore().pose()).isNull();
+    }
+
+    @Test
+    @DisplayName("자동 점수 지우기(#289): 사진·가이드 이미지를 다시 올리거나 가이드 기록이 바뀌면 지운다. 만족도만 고치면 남는다")
+    void autoScore_clearedWhenStale() {
+        String a = id();
+        service.upsert(dev.getId(), a, guided(20, "shot_0003"));
+        AutoScoreRequest scored = new AutoScoreRequest("SCORED", 80.0, 85.0, 0.95, 0.99, 1);
+
+        service.recordAutoScore(a, scored);
+        service.upsert(dev.getId(), a, guided(27, "shot_0003"));
+        assertThat(row(a).autoScore()).as("만족도만 바뀜").isNotNull();
+
+        service.upsert(dev.getId(), a, guided(27, "shot_0004"));
+        assertThat(row(a).autoScore()).as("다른 가이드").isNull();
+
+        service.recordAutoScore(a, scored);
+        service.uploadPhoto(dev.getId(), a, jpeg(100), "image/jpeg");
+        assertThat(row(a).autoScore()).as("사진을 다시 올림").isNull();
+
+        service.recordAutoScore(a, scored);
+        service.uploadGuide(dev.getId(), a, "photo", jpeg(100), "image/jpeg");
+        assertThat(row(a).autoScore()).as("가이드 이미지를 다시 올림").isNull();
+    }
+
+    @Test
+    @DisplayName("자동 점수 검증(#289): 상태 SCORED·NOBODY·NO_GUIDE_POSE, SCORED 는 total·pose 0~100 필수, place·shape 0~1, 계산식 버전 1 이상, 없는 기록 404")
+    void autoScore_validation() {
+        String a = id();
+        service.upsert(dev.getId(), a, record(20, true));
+        for (AutoScoreRequest bad : List.of(
+                new AutoScoreRequest(null, 80.0, 80.0, null, null, 1),
+                new AutoScoreRequest("GREAT", 80.0, 80.0, null, null, 1),
+                new AutoScoreRequest("SCORED", null, 80.0, null, null, 1),
+                new AutoScoreRequest("SCORED", 80.0, null, null, null, 1),
+                new AutoScoreRequest("SCORED", 101.0, 80.0, null, null, 1),
+                new AutoScoreRequest("SCORED", 80.0, -1.0, null, null, 1),
+                new AutoScoreRequest("SCORED", Double.NaN, 80.0, null, null, 1),
+                new AutoScoreRequest("SCORED", 80.0, 80.0, 1.5, null, 1),
+                new AutoScoreRequest("SCORED", 80.0, 80.0, null, -0.1, 1),
+                new AutoScoreRequest("SCORED", 80.0, 80.0, null, null, 0),
+                new AutoScoreRequest("SCORED", 80.0, 80.0, null, null, null))) {
+            assertCode(() -> service.recordAutoScore(a, bad), ErrorCode.DEV_EVAL_INVALID);
+        }
+        assertThat(row(a).autoScore()).isNull();
+        assertCode(() -> service.recordAutoScore(id(), new AutoScoreRequest("NO_GUIDE_POSE", null, null, null, null, 1)),
+                ErrorCode.DEV_EVAL_NOT_FOUND);
+        service.recordAutoScore(a, new AutoScoreRequest("NO_GUIDE_POSE", null, null, null, null, 1));
+        assertThat(row(a).autoScore().status()).isEqualTo("NO_GUIDE_POSE");
     }
 }
