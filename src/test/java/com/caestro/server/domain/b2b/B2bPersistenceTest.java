@@ -1,6 +1,9 @@
 package com.caestro.server.domain.b2b;
 
 import static org.assertj.core.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.BDDMockito.given;
 
 import com.caestro.server.domain.b2b.dto.request.*;
 import com.caestro.server.domain.b2b.dto.response.*;
@@ -68,6 +71,8 @@ class B2bPersistenceTest {
     private static final List<FrameWindowDto> WINDOWS = List.of(
             new FrameWindowDto(.1, .05, .8, .2, 0), new FrameWindowDto(.1, .28, .8, .2, 0),
             new FrameWindowDto(.1, .51, .8, .2, 0), new FrameWindowDto(.1, .74, .8, .2, 0));
+    private static final List<FrameWindowDto> ONE_WINDOW = List.of(new FrameWindowDto(.1, .1, .8, .8, 0));
+    private static final byte[] JPEG = {(byte) 0xFF, (byte) 0xD8, (byte) 0xFF, (byte) 0xE0, 0, 0, 0, 0, 0, 0};
     @Autowired B2bProjectService projects;
     @Autowired B2bFillService b2b;
     @Autowired B2bImageService images;
@@ -262,6 +267,58 @@ class B2bPersistenceTest {
         var unchanged = projects.get(project.id());
         assertThat(unchanged.status()).isEqualTo(B2bProject.Status.valueOf(status));
         assertThat(unchanged.frames()).isEqualTo(project.frames());
+    }
+
+    @Test
+    void singleFrameNeedsExactlyOneWindowAndCreatesOneSlotSession() {
+        // #294: 1×1 한 컷. 창은 1개를 넘겨 저장할 수 없고, 공개에는 정확히 1개, 참여 세션은 칸 하나
+        var draft = projects.create(new UpsertB2bProjectRequest("한 컷", "single", null));
+        error(() -> projects.replaceFrames(draft.id(), new ReplaceB2bFramesRequest(List.of(
+                new ReplaceB2bFramesRequest.Frame(null, "창 둘", B2bFrame.Layout.SINGLE, uploadedId, WINDOWS.subList(0, 2))))),
+                ErrorCode.B2B_INVALID_FRAME);
+        assertThat(projects.get(draft.id()).frames()).isEmpty();
+        projects.replaceFrames(draft.id(), new ReplaceB2bFramesRequest(List.of(
+                new ReplaceB2bFramesRequest.Frame(null, "창 없음", B2bFrame.Layout.SINGLE, uploadedId, List.of()))));
+        error(() -> projects.publish(draft.id()), ErrorCode.B2B_NOT_PUBLISHABLE);
+
+        projects.replaceFrames(draft.id(), new ReplaceB2bFramesRequest(List.of(
+                new ReplaceB2bFramesRequest.Frame(null, "한 컷", B2bFrame.Layout.SINGLE, uploadedId, ONE_WINDOW),
+                input(null, "네컷", uploadedId))));
+        var live = projects.publish(draft.id());
+        assertThat(live.frames()).extracting(B2bFrameResponse::layout)
+                .containsExactly(B2bFrame.Layout.SINGLE, B2bFrame.Layout.STRIP);
+
+        var single = b2b.create("single", userId, choose(live.frames().getFirst()));
+        assertThat(single.frame().layout()).isEqualTo(B2bFrame.Layout.SINGLE);
+        assertThat(single.frame().windows()).hasSize(1);
+        assertThat(single.fill().layout()).isEqualTo("Single");
+        assertThat(single.fill().slots()).extracting(s -> s.index()).containsExactly(0);
+        assertThat(slotRows.count()).isEqualTo(1);
+        assertThat(b2b.get("single", single.fill().code(), userId).frame()).isEqualTo(single.frame());
+        assertThat(b2b.create("single", userId, choose(live.frames().getLast())).fill().slots()).hasSize(4);
+
+        // 1번 칸은 없고, 0번 칸 하나가 차면 완성(완성 알림 표시가 남는다)
+        given(imageStore.store(any(), anyString(), any())).willReturn("imgsingle00000000000001");
+        error(() -> fills.fillSlot(single.fill().code(), 1, userId, "참여자", JPEG, "image/jpeg"), ErrorCode.FILL_INVALID_SLOT);
+        assertThat(fills.fillSlot(single.fill().code(), 0, userId, "참여자", JPEG, "image/jpeg").slots()).hasSize(1);
+        assertThat(sessionRows.findByCode(single.fill().code()).orElseThrow().getCompletedNotifiedAt()).isNotNull();
+    }
+
+    @Test
+    void liveFrameCannotSwitchToSingleWhileKeepingFourWindows() {
+        // 배치를 SINGLE 로 바꾸면서 창 4개를 그대로 보내면 저장 전에 400 — 운영자 화면이 창을 1개로 줄여 보내야 한다
+        var live = projects.publish(ready("yuja", 1).id());
+        var only = live.frames().getFirst();
+        error(() -> projects.replaceFrames(live.id(), new ReplaceB2bFramesRequest(List.of(
+                new ReplaceB2bFramesRequest.Frame(only.id(), only.name(), B2bFrame.Layout.SINGLE, uploadedId, WINDOWS)))),
+                ErrorCode.B2B_INVALID_FRAME);
+        var switched = projects.replaceFrames(live.id(), new ReplaceB2bFramesRequest(List.of(
+                new ReplaceB2bFramesRequest.Frame(only.id(), only.name(), B2bFrame.Layout.SINGLE, uploadedId, ONE_WINDOW))));
+        assertThat(switched.frames()).singleElement().satisfies(f -> {
+            assertThat(f.layout()).isEqualTo(B2bFrame.Layout.SINGLE);
+            assertThat(f.version()).isEqualTo(only.version() + 1);
+        });
+        assertThat(b2b.create("yuja", userId, choose(switched.frames().getFirst())).fill().slots()).hasSize(1);
     }
 
     @Test

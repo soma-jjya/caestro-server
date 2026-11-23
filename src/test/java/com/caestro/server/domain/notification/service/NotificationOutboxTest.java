@@ -308,7 +308,7 @@ class NotificationOutboxTest {
         // 참여자 id 는 자동 증가하는 주인 id(me)와 겹치지 않게 크게 — 겹치면 주인과 같은 dedup_key 가 된다
         given(tokens.existsByUserIdAndDisabledAtIsNull(900_011L)).willReturn(true);
         given(tokens.existsByUserIdAndDisabledAtIsNull(900_012L)).willReturn(false);
-        FillCompletedEvent completed = new FillCompletedEvent(1L, me, "K7X2MQ", List.of(900_011L, 900_012L));
+        FillCompletedEvent completed = new FillCompletedEvent(1L, me, "K7X2MQ", List.of(900_011L, 900_012L), 4);
 
         enqueuer.onFillCompleted(completed);
         enqueuer.onFillCompleted(completed);
