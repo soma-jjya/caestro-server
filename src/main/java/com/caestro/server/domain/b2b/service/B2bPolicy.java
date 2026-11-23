@@ -1,5 +1,6 @@
 package com.caestro.server.domain.b2b.service;
 
+import com.caestro.server.domain.b2b.entity.B2bFrame;
 import com.caestro.server.domain.catalog.dto.FrameWindowDto;
 import com.caestro.server.global.exception.CustomException;
 import com.caestro.server.global.exception.error.ErrorCode;
@@ -30,10 +31,13 @@ final class B2bPolicy {
         return normalized;
     }
 
-    /** 창이 있으면 개수·유한수·경계·각도를 검사한다. null은 초안의 빈 목록이다. */
-    static List<FrameWindowDto> windows(List<FrameWindowDto> windows) {
+    /**
+     * 창이 있으면 개수·유한수·경계·각도를 검사한다. null은 초안의 빈 목록이다.
+     * 개수는 배치의 칸 수(SINGLE 1, STRIP·GRID 4)까지다 — 초안은 모자라도 되지만 넘칠 수는 없다(#294).
+     */
+    static List<FrameWindowDto> windows(List<FrameWindowDto> windows, B2bFrame.Layout layout) {
         if (windows == null) return List.of();
-        if (windows.size() > 4) throw new CustomException(ErrorCode.B2B_INVALID_FRAME);
+        if (windows.size() > layout.slots()) throw new CustomException(ErrorCode.B2B_INVALID_FRAME);
         for (FrameWindowDto w : windows) {
             if (w == null || !Double.isFinite(w.x()) || !Double.isFinite(w.y()) || !Double.isFinite(w.w())
                     || !Double.isFinite(w.h()) || !Double.isFinite(w.rot())

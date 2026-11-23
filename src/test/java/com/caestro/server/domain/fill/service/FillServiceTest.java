@@ -3,11 +3,14 @@ package com.caestro.server.domain.fill.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 import com.caestro.server.domain.fill.dto.FillCustomFrameDto;
@@ -20,6 +23,7 @@ import com.caestro.server.domain.fill.dto.response.FillResponse;
 import com.caestro.server.domain.fill.entity.FillSession;
 import com.caestro.server.domain.fill.entity.FillSlot;
 import com.caestro.server.domain.fill.entity.FillQueueItem;
+import com.caestro.server.domain.fill.event.FillCompletedEvent;
 import com.caestro.server.domain.fill.repository.FillQueueRepository;
 import com.caestro.server.domain.fill.repository.FillSessionRepository;
 import com.caestro.server.domain.fill.repository.FillSlotRepository;
@@ -35,6 +39,7 @@ import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Optional;
+import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -131,6 +136,123 @@ class FillServiceTest {
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode()).isEqualTo(ErrorCode.FILL_INVALID_FRAME);
         verify(sessionRepository, never()).save(any());
+    }
+
+    /** B2B 한 컷(#294) 세션: 배치 Single, 고정 프레임. */
+    private FillSession singleSession() {
+        return FillSession.builder().id(11L).code("S1NGL3").owner(owner).frame("White").layout("Single").frameLocked(true)
+                .expiresAt(LocalDateTime.now(clock).plusDays(7)).createdAt(LocalDateTime.now(clock)).build();
+    }
+
+    @Test
+    @DisplayName("칸 수(#294): Single 은 1칸, Strip·Grid 와 모르는 값은 4칸")
+    void slotCount_followsTheLayout() {
+        assertThat(FillService.slotCount("Single")).isEqualTo(1);
+        assertThat(FillService.slotCount("Strip")).isEqualTo(4);
+        assertThat(FillService.slotCount("Grid")).isEqualTo(4);
+        assertThat(FillService.slotCount(null)).isEqualTo(4);
+    }
+
+    @Test
+    @DisplayName("생성(#294): 공개 생성은 Single 을 받지 않고(앱이 모르는 배치), B2B 고정 프레임 생성은 칸 하나(0번)만 만든다")
+    void create_singleOnlyThroughLockedFrameWithOneSlot() {
+        assertThatThrownBy(() -> service.create(1L, new CreateFillRequest("White", "Single", null, null, null, null)))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode()).isEqualTo(ErrorCode.FILL_INVALID_FRAME);
+        verify(sessionRepository, never()).save(any());
+
+        given(userRepository.findById(1L)).willReturn(Optional.of(owner));
+        given(codeGenerator.next()).willReturn("S1NGL3");
+        given(sessionRepository.existsByCode("S1NGL3")).willReturn(false);
+        given(sessionRepository.save(any(FillSession.class))).willAnswer(inv -> {
+            FillSession s = inv.getArgument(0);
+            ReflectionTestUtils.setField(s, "id", 11L);
+            ReflectionTestUtils.setField(s, "createdAt", LocalDateTime.now(clock));
+            return s;
+        });
+        given(slotRepository.save(any(FillSlot.class))).willAnswer(inv -> inv.getArgument(0));
+
+        FillResponse r = service.createWithLockedFrame(1L, new CreateFillRequest("White", "Single", null, null, null, false));
+
+        assertThat(r.layout()).isEqualTo("Single");
+        assertThat(r.slots()).singleElement().satisfies(slot -> {
+            assertThat(slot.index()).isZero();
+            assertThat(slot.imageUrl()).isNull();
+        });
+        ArgumentCaptor<FillSlot> saved = ArgumentCaptor.forClass(FillSlot.class);
+        verify(slotRepository, times(1)).save(saved.capture());
+        assertThat(saved.getValue().getSlotIndex()).isZero();
+    }
+
+    @Test
+    @DisplayName("한 컷(#294): 칸은 0번 하나뿐 — 1번은 채우기·비우기·클립·되돌리기 모두 400, 응답 slots 도 하나")
+    void single_onlySlotZeroExists() {
+        FillSession single = singleSession();
+        given(sessionRepository.findByCode("S1NGL3")).willReturn(Optional.of(single));
+        given(slotRepository.findBySessionIdOrderBySlotIndex(11L))
+                .willReturn(List.of(FillSlot.builder().id(200L).session(single).slotIndex(0).build()));
+
+        assertThat(service.get("S1NGL3", 1L).slots()).hasSize(1);
+        for (ThrowingCallable call : List.<ThrowingCallable>of(
+                () -> service.fillSlot("S1NGL3", 1, 1L, null, JPEG, "image/jpeg"),
+                () -> service.clearSlot("S1NGL3", 1, 1L),
+                () -> service.uploadSlotClip("S1NGL3", 1, 1L, GIF, "image/gif"),
+                () -> service.restoreQueued("S1NGL3", 7L, 1, 1L))) {
+            assertThatThrownBy(call).isInstanceOf(CustomException.class)
+                    .extracting(e -> ((CustomException) e).getErrorCode()).isEqualTo(ErrorCode.FILL_INVALID_SLOT);
+        }
+        verify(slotRepository, never()).findBySessionIdAndSlotIndex(anyLong(), anyInt());
+        verify(imageStore, never()).store(any(), anyString(), any());
+    }
+
+    @Test
+    @DisplayName("[회귀 #294] 네컷(Strip)은 그대로 0~3번 — 3번은 되고 4번은 400")
+    void strip_keepsFourSlots() {
+        given(sessionRepository.findByCode("K7X2MQ")).willReturn(Optional.of(session));
+        given(slotRepository.findBySessionIdAndSlotIndex(10L, 3)).willReturn(Optional.of(slot(3)));
+        given(slotRepository.findBySessionIdOrderBySlotIndex(10L)).willReturn(slots(slot(0), slot(1), slot(2), slot(3)));
+
+        assertThat(service.clearSlot("K7X2MQ", 3, 1L).slots()).hasSize(4);
+        assertThatThrownBy(() -> service.clearSlot("K7X2MQ", 4, 1L)).isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode()).isEqualTo(ErrorCode.FILL_INVALID_SLOT);
+    }
+
+    @Test
+    @DisplayName("한 컷(#294): 칸 하나가 차면 완성 — 완성 사건이 칸 수 1·채운 친구와 함께 한 번 나가고 진행 사건은 없다")
+    void single_oneFilledSlotCompletes() {
+        FillSession single = singleSession();
+        FillSlot only = FillSlot.builder().id(200L).session(single).slotIndex(0).build();
+        given(sessionRepository.findByCode("S1NGL3")).willReturn(Optional.of(single));
+        given(slotRepository.findBySessionIdAndSlotIndex(11L, 0)).willReturn(Optional.of(only));
+        given(userRepository.findById(2L)).willReturn(Optional.of(friend));
+        given(imageStore.store(any(), anyString(), any())).willReturn("imgS000000000000000001");
+        given(slotRepository.findBySessionIdOrderBySlotIndex(11L)).willReturn(List.of(only));
+        given(sessionRepository.markCompletedNotified(eq(11L), any())).willReturn(1);
+
+        FillResponse r = service.fillSlot("S1NGL3", 0, 2L, "민지", JPEG, "image/jpeg");
+
+        assertThat(r.slots()).singleElement().satisfies(slot -> {
+            assertThat(slot.imageUrl()).endsWith("imgS000000000000000001");
+            assertThat(slot.filledByName()).isEqualTo("민지");
+        });
+        ArgumentCaptor<Object> events = ArgumentCaptor.forClass(Object.class);
+        verify(eventPublisher).publishEvent(events.capture());
+        assertThat(events.getValue()).isInstanceOfSatisfying(FillCompletedEvent.class, e -> {
+            assertThat(e.slots()).isEqualTo(1);
+            assertThat(e.ownerId()).isEqualTo(1L);
+            assertThat(e.participantIds()).containsExactly(2L);
+        });
+    }
+
+    @Test
+    @DisplayName("프레임 바꾸기(#294): 공개 세션을 Single 로 바꿀 수 없다 — 앱이 모르는 배치")
+    void updateFrame_rejectsSingle() {
+        given(sessionRepository.findByCode("K7X2MQ")).willReturn(Optional.of(session));
+
+        assertThatThrownBy(() -> service.updateFrame("K7X2MQ", 1L, new UpdateFrameRequest("White", "Single", null, null, false)))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode()).isEqualTo(ErrorCode.FILL_INVALID_FRAME);
+        assertThat(session.getLayout()).isEqualTo("Strip");
     }
 
     @Test

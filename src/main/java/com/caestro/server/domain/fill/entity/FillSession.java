@@ -51,7 +51,7 @@ public class FillSession {
     @Column(nullable = false, length = 20)
     private String frame;
 
-    // 배치: Strip(1×4) | Grid(2×2) (앱의 FourCutLayout 이름)
+    // 배치: Strip(1×4) | Grid(2×2) (앱의 FourCutLayout 이름) | Single(1×1, B2B 고정 프레임만 — #294). 칸 수는 FillService.slotCount
     @Column(nullable = false, length = 20)
     private String layout;
 

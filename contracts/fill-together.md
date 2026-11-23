@@ -24,15 +24,19 @@
 ```json
 FillResponse = {
   "code": "K7X2MQ", "ownerMe": true,
-  "frame": "Black" | "White", "layout": "Strip" | "Grid", "artFrameId": "gyaru" | null,
+  "frame": "Black" | "White", "layout": "Strip" | "Grid" | "Single", "artFrameId": "gyaru" | null,
   "customFrame": {"base": "White", "borderless": false, "layers": [{"cx":0.5,"cy":0.9,"w":0.3,"rot":0,"url":"https://…/images/…","cell":null}]} | null,
   "title": "제주 여행" | null, "borderless": false,
-  "slots": [{"index":0,"imageUrl":"https://…"|null,"filledByMe":false,"filledByName":"민지"|null,"filledAt":"2026-09-26T03:00:00Z"|null,"clipUrl":"https://…"|null}, …4개],
+  "slots": [{"index":0,"imageUrl":"https://…"|null,"filledByMe":false,"filledByName":"민지"|null,"filledAt":"2026-09-26T03:00:00Z"|null,"clipUrl":"https://…"|null}, …칸 수만큼(Strip·Grid 4개, Single 1개)],
   "gifUrl": "https://…/images/…" | null,
   "expiresAt": "2026-10-03T03:00:00Z", "createdAt": "2026-09-26T03:00:00Z",
   "queue": [{"id":17,"imageUrl":"https://…","clipUrl":"https://…"|null,"fromSlot":2,"filledByMe":false,"filledByName":"민지"|null,"filledAt":"…Z"|null,"queuedAt":"…Z"}, …]
 }
 ```
+
+**배치와 칸 수 (#294).** `Strip`(1×4)·`Grid`(2×2)는 칸 4개(index 0..3), `Single`(1×1 한 컷)은 칸 1개(index 0)다. `slots`는 세션의 칸 수만큼 내려가고,
+칸 PUT/DELETE/clip·`restore?slot=`의 index가 칸 수 이상이면 400(`FILL_INVALID_SLOT`)이다. 완성(완성 알림)은 그 세션의 칸이 모두 찬 때, 진행 알림의 "N칸 중"도 세션의 칸 수다.
+`Single`은 B2B 고정 프레임 세션(contracts/b2b-projects.md)만 만든다 — `POST /fills`·`PUT /fills/{code}/frame`은 `Strip`·`Grid`만 받는다(400). 앱은 `Single`을 모른다.
 
 규칙(2026-10-21, #fill-queue): 칸은 **누구나** 채우고·바꾸고·비울 수 있다. 바뀌거나 비워진 사진은 지워지지 않고 세션의 **대기열(`queue`)** 맨 아래로
 내려간다(클립·주인·이름과 함께) — 다른 참여자가 "아까 사진이 이랬지"를 볼 수 있다. 대기열의 사진은 누구나 어느 칸으로든 되돌리거나(`restore`,
@@ -45,7 +49,7 @@ FillResponse = {
 (응답 JSON 의 해시 — 칸·대기열·프레임·GIF·이름 어느 것이 바뀌어도 달라진다. 보는 사람에 따라 `ownerMe`·`filledByMe` 가 달라 ETag 도 사람마다 다르다),
 직전 ETag 를 `If-None-Match` 로 보내면 그대로일 때 **304 + 본문 없음**이다. `Cache-Control: no-cache` 라 매번 서버에 묻되 바뀐 것만 받는다.
 화면을 떠나면 폴링을 멈춘다. 푸시가 포그라운드에서 오면 배너 대신 즉시 한 번 다시 묻는다.
-네 칸이 처음 다 찬 순간 주인과 그 칸을 채운 앱 참여자에게 푸시가 한 번씩 간다(contracts/push.md, `completed_notified_at`).
+칸이 처음 다 찬 순간(네컷은 네 칸, 한 컷은 한 칸) 주인과 그 칸을 채운 앱 참여자에게 푸시가 한 번씩 간다(contracts/push.md, `completed_notified_at`).
 만료 24시간 전에는 사진이 있는 세션의 주인에게 "네컷 사진이 곧 만료돼요!"가 한 번 간다(`fill_expiring`, `expiring_notified_at`, 매일 KST 09:00 배치 `FillExpiringNotifier`, #213). 빈 세션은 보내지 않는다.
 다음 단계는 SSE(인스턴스가 둘이라 Redis pub/sub 팬아웃 필요)이고, 계기는 `/fills/{code}` 요청이 전체 요청에서 차지하는 비중과 그 DB 시간이 지표에 보일 때다
 (`http_server_requests_seconds{uri="/fills/{code}",status}` 의 200 대 304 비율로 본다). 서버 쪽 DB 비용을 먼저 줄여야 하면 세션에 version 카운터를 두는 것이 그 전 단계다.

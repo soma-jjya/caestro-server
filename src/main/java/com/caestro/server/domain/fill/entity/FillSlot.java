@@ -19,7 +19,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 /**
- * 세션의 칸 하나(0~3). 비어 있거나, 누가 어떤 사진으로 언제 채웠는지를 든다.
+ * 세션의 칸 하나(0~3, 한 컷 세션은 0 하나 — FillService.slotCount). 비어 있거나, 누가 어떤 사진으로 언제 채웠는지를 든다.
  * 먼저 채운 사람이 임자다 — 다른 사람이 채운 칸에 덧쓰는 요청은 409로 막고, 비우기는 본인 칸이거나 세션 주인만 할 수 있다.
  */
 @Getter
