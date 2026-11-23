@@ -63,9 +63,8 @@ public class B2bFillService {
         B2bFrameResponse snapshot = mapper.response(frame);
 
         // 2. 저장소/코드/만료는 재사용한다. 공개 Fill 요청으로 고정 플래그를 지정할 수는 없다.
-        String layout = frame.getLayout() == B2bFrame.Layout.STRIP ? "Strip" : "Grid";
         FillResponse fill = fills.createWithLockedFrame(ownerId,
-                new CreateFillRequest("White", layout, null, null, request.title(), false));
+                new CreateFillRequest("White", fillLayout(frame.getLayout()), null, null, request.title(), false));
         FillSession session = sessions.findByCode(fill.code())
                 .orElseThrow(() -> new CustomException(ErrorCode.FILL_NOT_FOUND));
 
@@ -82,6 +81,18 @@ public class B2bFillService {
         B2bFill b2bFill = b2bFills.findByProjectSlugAndSessionCode(slug, normalized)
                 .orElseThrow(() -> new CustomException(ErrorCode.B2B_FILL_NOT_FOUND));
         return response(slug, mapper.snapshot(b2bFill.getFrameJson()), fills.get(normalized, userId));
+    }
+
+    /**
+     * B2B 배치 → 함께 채우기 세션의 layout(앱의 FourCutLayout 이름). 칸 수는 {@link FillService#slotCount} 가 정하며
+     * 배치의 창 수({@link B2bFrame.Layout#slots()})와 같다. Single(#294)은 이 경로로만 만들어진다.
+     */
+    static String fillLayout(B2bFrame.Layout layout) {
+        return switch (layout) {
+            case STRIP -> FillService.LAYOUT_STRIP;
+            case GRID -> FillService.LAYOUT_GRID;
+            case SINGLE -> FillService.LAYOUT_SINGLE;
+        };
     }
 
     private B2bFillResponse response(String slug, B2bFrameResponse frame, FillResponse fill) {

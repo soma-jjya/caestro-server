@@ -100,7 +100,7 @@ public interface FillApi {
     })
     ResponseEntity<FillResponse> deleteQueued(String code, long id, CustomUserDetails userDetails);
 
-    @Operation(summary = "대기열에서 칸으로 되돌리기", description = "대기열의 사진을 slot 번 칸(0~3)에 넣습니다(누구나). "
+    @Operation(summary = "대기열에서 칸으로 되돌리기", description = "대기열의 사진을 slot 번 칸(0~3, 한 컷 세션은 0)에 넣습니다(누구나). "
             + "그 칸에 있던 사진은 대기열 맨 아래로 내려갑니다. 사진의 주인·이름·클립이 함께 돌아갑니다.")
     @SecurityRequirement(name = "BearerAuth")
     @ApiResponses({

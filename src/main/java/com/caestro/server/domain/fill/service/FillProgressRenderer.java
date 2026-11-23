@@ -52,11 +52,13 @@ public class FillProgressRenderer implements OutboxMessageRenderer {
                 .filter(slot -> !slot.isEmpty() && slot.getFilledBy() != null && !slot.getFilledBy().getId().equals(ownerId))
                 .sorted(Comparator.comparing(FillSlot::getFilledAt, Comparator.nullsFirst(Comparator.naturalOrder())).reversed())
                 .toList();
-        if (byFriends.isEmpty() || filled >= FillService.SLOTS) {
+        // 칸 수는 세션 배치를 따른다(한 컷은 1칸 — 한 장이면 완성이라 진행 알림이 나가지 않는다, #294)
+        int total = FillService.slotCount(session.getLayout());
+        if (byFriends.isEmpty() || filled >= total) {
             return Optional.empty();
         }
         int friends = (int) byFriends.stream().map(slot -> slot.getFilledBy().getId()).distinct().count();
         // 3. 문구
-        return Optional.of(PushMessage.fillProgress(code, session.getTitle(), byFriends.get(0).getFilledByName(), friends, filled, FillService.SLOTS));
+        return Optional.of(PushMessage.fillProgress(code, session.getTitle(), byFriends.get(0).getFilledByName(), friends, filled, total));
     }
 }

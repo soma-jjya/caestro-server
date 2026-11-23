@@ -40,7 +40,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 함께 채우기(#fill-together). 세션은 프레임과 네 칸의 상태만 들고, 합성은 클라이언트가 한다.
+ * 함께 채우기(#fill-together). 세션은 프레임과 칸(네컷 4칸, B2B 한 컷 1칸 — {@link #slotCount})의 상태만 들고, 합성은 클라이언트가 한다.
  * 규칙: 칸은 누구나 채우고·바꾸고·비울 수 있다. 바뀌거나 비워진 사진은 지우지 않고 세션의 대기열(#fill-queue) 맨 아래로
  * 내려가 모두에게 보이며, 누구나 어느 칸으로든 되돌리거나(restore) 대기열에서 지울 수 있다. 없애기는 주인만.
  * 이미지 바이트는 {@link FillImageStore}가 보관하고 서비스는 id만 든다 — 인증 없는 난수 URL로 내려준다 (#152).
@@ -49,13 +49,22 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class FillService {
 
+    /** 네컷 배치(Strip·Grid)의 칸 수. 세션의 칸 수는 {@link #slotCount}로 구한다. */
     public static final int SLOTS = 4;
+    /** 배치 값(앱의 FourCutLayout 이름). */
+    public static final String LAYOUT_STRIP = "Strip";
+    public static final String LAYOUT_GRID = "Grid";
+    /** 1×1 한 컷(#294). B2B 고정 프레임 세션({@link #createWithLockedFrame})만 쓴다 — 앱은 이 값을 모른다. */
+    public static final String LAYOUT_SINGLE = "Single";
     private static final int CODE_ATTEMPTS = 5;
     // 표시 문자열의 컬럼 상한. 넘겨 보내면 DB가 거부해 500이 되므로 잘라서 받는다 (#151)
     private static final int TITLE_MAX = 30;
     private static final int NAME_MAX = 40;
     private static final Set<String> FRAMES = Set.of("Black", "White");
-    private static final Set<String> LAYOUTS = Set.of("Strip", "Grid");
+    // 공개 생성·프레임 바꾸기가 받는 배치. Single 은 앱이 모르므로 받지 않는다(#294)
+    private static final Set<String> LAYOUTS = Set.of(LAYOUT_STRIP, LAYOUT_GRID);
+    // 운영자가 정한 고정 프레임(B2B)이 쓸 수 있는 배치
+    private static final Set<String> LOCKED_LAYOUTS = Set.of(LAYOUT_STRIP, LAYOUT_GRID, LAYOUT_SINGLE);
 
     private final FillSessionRepository sessionRepository;
     private final FillSlotRepository slotRepository;
@@ -96,8 +105,14 @@ public class FillService {
         return create(ownerId, request, true);
     }
 
+    /** 배치의 칸 수: Single 1칸, 그 밖(Strip·Grid) 4칸. 칸 행·응답 slots·칸 번호 범위·완성·진행 알림이 모두 이 값을 따른다(#294). */
+    public static int slotCount(String layout) {
+        return LAYOUT_SINGLE.equals(layout) ? 1 : SLOTS;
+    }
+
     private FillResponse create(Long ownerId, CreateFillRequest request, boolean frameLocked) {
-        if (!FRAMES.contains(request.frame()) || !LAYOUTS.contains(request.layout())) {
+        Set<String> layouts = frameLocked ? LOCKED_LAYOUTS : LAYOUTS;
+        if (!FRAMES.contains(request.frame()) || !layouts.contains(request.layout())) {
             throw new CustomException(ErrorCode.FILL_INVALID_FRAME);
         }
         User owner = userRepository.findById(ownerId)
@@ -115,8 +130,9 @@ public class FillService {
                 .frameLocked(frameLocked)
                 .expiresAt(now.plusDays(ttlDays))
                 .build());
-        List<FillSlot> slots = new ArrayList<>(SLOTS);
-        for (int i = 0; i < SLOTS; i++) {
+        int slotCount = slotCount(session.getLayout());
+        List<FillSlot> slots = new ArrayList<>(slotCount);
+        for (int i = 0; i < slotCount; i++) {
             slots.add(slotRepository.save(FillSlot.builder().session(session).slotIndex(i).build()));
         }
         return toResponse(session, slots, ownerId);
@@ -217,13 +233,14 @@ public class FillService {
     }
 
     /**
-     * 네 칸이 모두 찬 첫 순간에 한 번만 주인과 칸을 채운 참여자들에게 알린다(#206). "보냈음" 표시는 같은 트랜잭션의 조건부 UPDATE 라
+     * 세션의 칸(네컷 4칸, 한 컷 1칸)이 모두 찬 첫 순간에 한 번만 주인과 칸을 채운 참여자들에게 알린다(#206). "보냈음" 표시는 같은 트랜잭션의 조건부 UPDATE 라
      * 동시 요청 둘이 모두 "다 찼다"를 봐도 한쪽만 이긴다. 발송 요청은 같은 트랜잭션의 아웃박스 행(OutboxEnqueuer, #272)이 되고 릴레이가 보낸다.
      *
-     * @return 네 칸이 모두 찼으면 true(이번에 알렸든 이미 알렸든)
+     * @return 칸이 모두 찼으면 true(이번에 알렸든 이미 알렸든)
      */
     private boolean notifyIfCompleted(FillSession session, List<FillSlot> slots) {
-        if (slots.size() < SLOTS || slots.stream().anyMatch(FillSlot::isEmpty)) {
+        int slotCount = slotCount(session.getLayout());
+        if (slots.size() < slotCount || slots.stream().anyMatch(FillSlot::isEmpty)) {
             return false;
         }
         if (sessionRepository.markCompletedNotified(session.getId(), LocalDateTime.now(clock)) == 1) {
@@ -235,7 +252,7 @@ public class FillService {
                     .filter(id -> !id.equals(ownerId))
                     .distinct()
                     .toList();
-            eventPublisher.publishEvent(new FillCompletedEvent(session.getId(), ownerId, session.getCode(), participantIds));
+            eventPublisher.publishEvent(new FillCompletedEvent(session.getId(), ownerId, session.getCode(), participantIds, slotCount));
         }
         return true;
     }
@@ -451,7 +468,7 @@ public class FillService {
     }
 
     private FillSlot slotOf(FillSession session, int index) {
-        if (index < 0 || index >= SLOTS) {
+        if (index < 0 || index >= slotCount(session.getLayout())) {
             throw new CustomException(ErrorCode.FILL_INVALID_SLOT);
         }
         return slotRepository.findBySessionIdAndSlotIndex(session.getId(), index)
@@ -478,8 +495,9 @@ public class FillService {
     }
 
     private FillResponse toResponse(FillSession session, List<FillSlot> slots, Long userId) {
-        List<FillSlotResponse> slotResponses = new ArrayList<>(SLOTS);
-        for (int i = 0; i < SLOTS; i++) {
+        int slotCount = slotCount(session.getLayout());
+        List<FillSlotResponse> slotResponses = new ArrayList<>(slotCount);
+        for (int i = 0; i < slotCount; i++) {
             final int index = i;
             FillSlot slot = slots.stream().filter(s -> s.getSlotIndex() == index).findFirst().orElse(null);
             if (slot == null || slot.isEmpty()) {

@@ -25,6 +25,15 @@ public record PushMessage(String type, String title, String body, Map<String, St
 
     /** 함께 채우기 네 칸이 다 찼을 때 주인에게. 탭하면 앱이 세션 {@code code} 로 간다. */
     public static PushMessage fillCompleted(String code) {
+        return fillCompleted(code, 4);
+    }
+
+    /** 세션의 칸({@code slots}개)이 다 찼을 때 주인에게. 한 칸짜리(B2B 한 컷, #294)는 "네컷·네 칸" 대신 사진으로 말한다. */
+    public static PushMessage fillCompleted(String code, int slots) {
+        if (slots == 1) {
+            return new PushMessage(TYPE_FILL_COMPLETED, "사진이 완성됐어요",
+                    "한 컷 프레임에 사진이 채워졌어요. 지금 확인해 보세요.", Map.of("code", code));
+        }
         return new PushMessage(TYPE_FILL_COMPLETED, "네컷이 완성됐어요",
                 "친구들이 네 칸을 모두 채웠어요. 지금 확인해 보세요.", Map.of("code", code));
     }
@@ -33,6 +42,15 @@ public record PushMessage(String type, String title, String body, Map<String, St
      * 같은 순간 칸을 채운 참여자에게. 종류가 같아 앱은 주인의 것과 똑같이 세션 {@code code} 로 가고, 참여자도 그 화면에서 완성해 저장할 수 있다.
      */
     public static PushMessage fillCompletedForParticipant(String code) {
+        return fillCompletedForParticipant(code, 4);
+    }
+
+    /** {@link #fillCompletedForParticipant(String)} 의 칸 수별 문구. 한 칸짜리(#294)는 사진으로 말한다. */
+    public static PushMessage fillCompletedForParticipant(String code, int slots) {
+        if (slots == 1) {
+            return new PushMessage(TYPE_FILL_COMPLETED, "사진이 완성됐어요",
+                    "함께 채운 사진이 완성됐어요. 지금 저장해 보세요.", Map.of("code", code));
+        }
         return new PushMessage(TYPE_FILL_COMPLETED, "네컷이 완성됐어요",
                 "함께 채운 네컷이 완성됐어요. 지금 저장해 보세요.", Map.of("code", code));
     }

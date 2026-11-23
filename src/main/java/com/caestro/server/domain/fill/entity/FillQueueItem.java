@@ -40,7 +40,7 @@ public class FillQueueItem {
     @JoinColumn(name = "session_id", nullable = false)
     private FillSession session;
 
-    // 어느 칸에 있었는지(0~3) — 되돌리기의 기본 칸이자 썸네일의 번호
+    // 어느 칸에 있었는지(0~3, 한 컷은 0) — 되돌리기의 기본 칸이자 썸네일의 번호
     @Column(name = "from_slot", nullable = false)
     private int fromSlot;
 
