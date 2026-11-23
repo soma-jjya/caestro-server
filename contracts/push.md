@@ -23,7 +23,7 @@
 
 | type | 언제 | data | 앱 동작 |
 |---|---|---|---|
-| `fill_completed` | 함께 채우기 네 칸이 **처음** 모두 찬 순간, 세션 주인과 그 네 칸을 채운 참여자에게 **세션당 1회씩**. 참여자는 문구만 다르다("함께 채운 네컷이 완성됐어요. 지금 저장해 보세요.") | `{ "type": "fill_completed", "code": "K7X2MQ", "notificationId": "42" }` | 탭 → `PATCH /notifications/{notificationId}/read` 뒤 그 세션 화면(참여자도 거기서 완성해 저장). 포그라운드면 배너 대신 세션을 즉시 다시 조회 |
+| `fill_completed` | 함께 채우기 네 칸이 **처음** 모두 찬 순간, 세션 주인과 그 네 칸을 채운 참여자에게 **세션당 1회씩**. 참여자는 문구만 다르다("함께 채운 네컷이 완성됐어요. 지금 저장해 보세요."). B2B 한 컷(`Single`, 칸 1개, #294) 세션은 그 한 칸이 찬 순간이고 제목이 "사진이 완성됐어요"다 | `{ "type": "fill_completed", "code": "K7X2MQ", "notificationId": "42" }` | 탭 → `PATCH /notifications/{notificationId}/read` 뒤 그 세션 화면(참여자도 거기서 완성해 저장). 포그라운드면 배너 대신 세션을 즉시 다시 조회 |
 | `fill_progress` | 주인이 아닌 사람이 칸을 채웠고 아직 네 칸이 다 차지 않았을 때, **세션 주인에게만**. 채울 때마다가 아니라 묶어서: 마지막 채움 뒤 5분 조용하면 한 통, 세션당 1시간에 최대 1통, 그사이 완성되면 보내지 않고 `fill_completed` 만(#274, contracts/notifications.md "묶음 알림"). 문구 예 "민지님 외 1명이 네컷을 채웠어요" / "'제주 여행' 4칸 중 3칸이 찼어요. 1칸만 더 채우면 완성이에요!" | `{ "type": "fill_progress", "code": "K7X2MQ", "notificationId": "44" }` | `fill_completed` 와 같다: 탭 → 읽음 뒤 그 세션 화면. 포그라운드면 세션 다시 조회. **이 type 을 모르는 앱 버전**은 시스템 알림은 뜨고 탭하면 앱만 열린다 |
 | `fill_expiring` | 함께 채우기 세션이 **24시간 안에 만료**하고 사진이 있을 때, 세션 주인에게 **세션당 1회**(매일 KST 09:00 배치, #213) | `{ "type": "fill_expiring", "code": "K7X2MQ", "notificationId": "43" }` | 탭 → 읽음 뒤 그 세션 화면(저장 유도) |
 | `support_reply` | 앱 문의(#263, contracts/support.md)에 운영자가 답한 순간, 문의한 사람에게 **답변마다** | `{ "type": "support_reply", "ticketId": "12", "notificationId": "88" }` | 문의 `ticketId` 상세로 |

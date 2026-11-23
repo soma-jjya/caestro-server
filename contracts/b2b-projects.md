@@ -18,7 +18,7 @@
 QR에는 입장 URL만 넣는다. 사용자 계정의 B2B 링크 목록은 없으므로 사용자가 개인 URL을 보관·공유한다.
 
 `domain/b2b`가 프로젝트, 선택 프레임, 이미지 사본, 세션 소속/스냅샷을 담당한다.
-기존 `fill`의 코드 발급, 4개 슬롯, 사진/클립/GIF 저장소, 대기열, 만료, 쓰기 한도를 재사용한다.
+기존 `fill`의 코드 발급, 슬롯(배치의 칸 수만큼 — 네컷 4개, 한 컷 1개), 사진/클립/GIF 저장소, 대기열, 만료, 쓰기 한도를 재사용한다.
 B2C `/catalog/frames`에 B2B 프레임을 등록하지 않는다. B2C 응답 구조도 유지한다.
 
 ## 인증
@@ -58,9 +58,9 @@ slug는 `^[a-z0-9-]{3,40}$`, 전체 유일하며 입력을 자동 소문자화�
 
 위 표의 `/`는 기준 경로 자체를 뜻한다. 중복 확인은 안내이며 저장 시에도 DB 유일 제약으로 검사한다.
 최초 공개 이후 slug 변경은 PAUSED에서도 409다. 이름/설명은 수정할 수 있다.
-publish/resume 시 프레임이 **1~10개**여야(2026-11-08 #237, 이전 1~3개) 하며, **모든 프레임에 이미지와 창 4개**가 있어야 한다.
+publish/resume 시 프레임이 **1~10개**여야(2026-11-08 #237, 이전 1~3개) 하며, **모든 프레임에 이미지와 배치만큼의 창**(`SINGLE` 정확히 1개, `STRIP`·`GRID` 정확히 4개, #294)이 있어야 한다.
 LIVE에서 프레임을 저장할 때도 같은 조건을 유지해야 한다. 0개이거나 미완성 프레임이 하나라도 섞여 있으면 기존 `B2B_NOT_PUBLISHABLE`(409, `{status,message}`)로 거부한다. 유효한 항목만 골라 공개하지 않는다.
-DRAFT/PAUSED에서는 0..3개 및 미완성 설정을 저장할 수 있다. 상태와 무관하게 3개 초과 저장은 기존처럼 400이다.
+DRAFT/PAUSED에서는 0..10개 및 미완성 설정을 저장할 수 있다. 상태와 무관하게 10개 초과 저장은 400이다.
 공개 프로젝트 조회는 저장된 1~10개를 displayOrder 순으로 그대로 반환한다. 네컷 생성은 해당 프로젝트에 현재 속한 frameId와 frameVersion으로 선택하며, 개수가 1~2개여도 동일하다.
 상태에 맞지 않는 publish/pause/resume은 409다. publishedAt은 최초 공개 시각을 유지한다.
 복제는 설정과 불변 이미지 사본만 공유한다. 세션·참여자·사진을 복사하지 않는다.
@@ -102,9 +102,9 @@ DRAFT/PAUSED에서는 0..3개 및 미완성 설정을 저장할 수 있다. 상�
 
 - 배열 전체를 한 트랜잭션으로 교체한다. 배열 순서가 0부터 시작하는 displayOrder다.
 - id 생략/null은 신규 생성. 기존 id는 같은 프로젝트의 현재 프레임이어야 하며 중복 id는 거부한다. 빠진 id는 현재 선택 목록에서 삭제한다.
-- name은 1..30자, layout은 `STRIP`(1×4) 또는 `GRID`(2×2). 카탈로그의 전역 sortOrder와 무관하다.
-- 초안에서 imageId=null은 이미지 없음, windows=null/[]는 미완성 상태다. 창은 최대 4개이며 있는 창은 각각 유효해야 한다.
-- 창 좌표는 카탈로그와 같다. `x,y`는 회전 전 사각형 좌상단, `w,h`는 이미지 폭/높이에 대한 비율, `rot`는 중심 기준 시계 방향 도(-180..180). 슬롯 번호는 배열 순서 0..3이다. 유한수, 양의 크기, 이미지 안의 경계를 검사한다(카탈로그와 같은 0.001 허용 오차).
+- name은 1..30자, layout은 `STRIP`(1×4), `GRID`(2×2), `SINGLE`(1×1 한 컷, #294). 카탈로그의 전역 sortOrder와 무관하다.
+- 초안에서 imageId=null은 이미지 없음, windows=null/[]는 미완성 상태다. 창은 배치의 칸 수까지(`SINGLE` 1개, `STRIP`·`GRID` 4개)이며 넘치면 상태와 무관하게 400(`B2B_INVALID_FRAME`)이다. 배치를 `SINGLE`로 바꿀 때는 창을 1개로 줄여 보낸다. 있는 창은 각각 유효해야 한다.
+- 창 좌표는 카탈로그와 같다. `x,y`는 회전 전 사각형 좌상단, `w,h`는 이미지 폭/높이에 대한 비율, `rot`는 중심 기준 시계 방향 도(-180..180). 슬롯 번호는 배열 순서 0..3(`SINGLE`은 0)이다. 유한수, 양의 크기, 이미지 안의 경계를 검사한다(카탈로그와 같은 0.001 허용 오차).
 - 이름/레이아웃/이미지/창/순서가 바뀌면 version +1. 동일 요청 재전송은 버전을 유지한다. 신규/복제 프레임은 version=1이다.
 - 응답에는 `imageUrl`, `width`, `height`, `displayOrder`, `version`이 추가된다. `catalogFrameId`는 없다.
 
@@ -113,6 +113,19 @@ DRAFT/PAUSED에서는 0..3개 및 미완성 설정을 저장할 수 있다. 상�
 기존 프레임을 같은 imageId로 다시 저장하거나 프로젝트를 복제하면 보관된 사본을 재사용한다.
 삭제된 프레임을 신규로 다시 만들면서 원본도 이미 정리된 경우에는 이미지를 다시 업로드해야 한다.
 
+### 1×1 한 컷 (`SINGLE`, #294)
+
+| 프레임 `layout` | 창(공개 조건) | 참여 세션 `fill.layout` | `fill.slots` |
+|---|---|---|---|
+| `STRIP` (1×4) | 정확히 4개 | `Strip` | 4개 (index 0..3) |
+| `GRID` (2×2) | 정확히 4개 | `Grid` | 4개 (index 0..3) |
+| `SINGLE` (1×1) | 정확히 1개 | `Single` | 1개 (index 0) |
+
+- 관리자 프레임 API와 참여 스냅샷(`frame.layout`) 모두 JSON 값 `"SINGLE"`이다. 축제 전용 서버도 같은 값을 쓴다.
+- `Single` 세션은 칸 하나다: 칸 PUT/DELETE/clip, 대기열 되돌리기(`restore?slot=`)의 index는 0만 되고 1 이상은 400(`FILL_INVALID_SLOT`). 그 칸이 차면 완성이며 완성 알림(`fill_completed`, 문구 "사진이 완성됐어요")이 한 번 간다. 진행 알림(`fill_progress`)은 나가지 않는다.
+- `Single`은 B2B 생성(`POST /b2b/projects/{slug}/fills`)만 만든다. 앱의 공개 `POST /fills`·`PUT /fills/{code}/frame`은 계속 `Strip`·`Grid`만 받는다(400 `FILL_INVALID_FRAME`). 앱(Android)은 모르는 배치를 `Strip`으로 읽고 칸을 4개로 채워 그리므로 한 컷 코드를 앱에서 열어도 죽지는 않지만, 1~3번 칸 쓰기는 400으로 거절된다. 앱 대응은 이 변경에 들어 있지 않다.
+- 운영 DB의 `b2b_frames.layout`은 MySQL ENUM이고 ddl-auto update가 값을 늘리지 않는다. [한 컷 SQL](sql/294-b2b-single-layout.sql)의 `ALTER TABLE b2b_frames MODIFY layout ENUM('GRID','SINGLE','STRIP') NOT NULL;`을 **서버 배포 전에** 손으로 한 번 실행한다. 값만 늘리므로 지금 떠 있는 서버와 기존 행에 영향이 없다. 순서: ALTER → 서버 배포 → 관리자 화면에서 `SINGLE` 선택 열기. ALTER 전에 `SINGLE` 프레임을 저장하면 500이다.
+
 ## 참여·공유·다운로드
 
 1. QR/입장 URL에서 `GET /b2b/projects/{slug}`를 호출한다. LIVE만 `{name,slug,description,frames}`를 반환하고 DRAFT/PAUSED/없는 slug는 모두 404다.
@@ -120,9 +133,9 @@ DRAFT/PAUSED에서는 0..3개 및 미완성 설정을 저장할 수 있다. 상�
 3. `POST /b2b/projects/{slug}/fills`에 Bearer JWT와 `{frameId,frameVersion,title?}`를 보낸다.
 4. 201 응답의 shareUrl로 이동하고 사진을 기존 `PUT /fills/{code}/slots/{index}`에 올린다. 개인 링크를 공유한다.
 5. 참여자는 기존 게스트 JWT로 `GET /b2b/projects/{slug}/fills/{code}`를 조회하고 같은 슬롯 API로 사진을 넣는다.
-6. FE는 슬롯 4개가 채워지면 응답의 고정 frame 설정/이미지와 슬롯 사진으로 합성·다운로드한다. 서버에서 완성 PNG를 합성하는 신규 API는 없다.
+6. FE는 `fill.slots`가 모두 채워지면(네컷 4개, 한 컷 1개) 응답의 고정 frame 설정/이미지와 슬롯 사진으로 합성·다운로드한다. 서버에서 완성 PNG를 합성하는 신규 API는 없다.
 
-사진 업로드는 `PUT /fills/{code}/slots/{index}?name=표시이름`이며 index는 0..3, name은 선택이다. PNG/JPEG 원본 바이트를 Content-Type과 함께 전송한다(multipart 아님, 기본 최대 3MB). 기존 업로드 API는 Content-Length가 필요하다. 브라우저에서는 File/Blob의 고정 길이 본문을 사용하고, 서버 프록시는 바이트 길이를 보존한다. 길이가 없으면 411, 크기 초과는 413이다. 슬롯의 `imageUrl` 4개가 모두 채워진 상태를 완료로 판단한다.
+사진 업로드는 `PUT /fills/{code}/slots/{index}?name=표시이름`이며 index는 0..칸 수-1(네컷 0..3, 한 컷 0. 넘으면 400 `FILL_INVALID_SLOT`), name은 선택이다. PNG/JPEG 원본 바이트를 Content-Type과 함께 전송한다(multipart 아님, 기본 최대 3MB). 기존 업로드 API는 Content-Length가 필요하다. 브라우저에서는 File/Blob의 고정 길이 본문을 사용하고, 서버 프록시는 바이트 길이를 보존한다. 길이가 없으면 411, 크기 초과는 413이다. `fill.slots`의 `imageUrl`이 모두 채워진 상태(네컷 4개, 한 컷 1개)를 완료로 판단한다.
 
 생성/조회 응답 (`shareUrl`은 기본 `b2b.web-base-url` 기준 예시):
 
@@ -135,7 +148,7 @@ DRAFT/PAUSED에서는 0..3개 및 미완성 설정을 저장할 수 있다. 상�
 }
 ```
 
-위 예제의 windows/slots는 지면상 생략했으며 실제 생성 응답에는 각각 4개가 있다.
+위 예제의 windows/slots는 지면상 생략했으며 실제 생성 응답에는 각각 배치의 칸 수만큼(`STRIP`·`GRID` 4개, `SINGLE` 1개) 있다.
 외곽 `frame`이 B2B 렌더링 기준이다. 내부 `fill.frame/layout`은 기존 엔진의 기본값/배치이고 B2B 프레임 이미지를 대체하지 않는다.
 슬롯 쓰기 응답은 기존 FillResponse 그대로이므로 FE는 외곽 스냅샷을 유지하고 `fill` 상태만 갱신하거나 B2B GET으로 다시 읽는다.
 
@@ -159,7 +172,7 @@ B2B 세션은 생성 시 frameLocked=true다. 기존 `PUT /fills/{code}/frame` �
 - B2B 이미지 정리 배치는 현재 프레임과 세션 스냅샷 양쪽에서 참조하지 않는 사본만 삭제한다. 생성 후 1일 유예, `cleanup.b2b.cron` 기본 매일 05:00(서버 시간대), ShedLock 적용.
 - 이미지 URL 호스트는 기존 `catalog.public-base-url`을 사용한다. 웹 공유 URL은 `b2b.web-base-url`, 기본 `https://peakpic.app/go`다.
 - S3 모드의 이미지 GET은 CloudFront로 리다이렉트된다. CDN의 `/catalog/*` 응답은 요청의 Origin 유무와 무관하게 `Access-Control-Allow-Origin: *`를 포함해야 한다. [공유 URL·CloudFront 운영 적용 절차](../infra/cloudfront/README.md)를 따른다.
-- 추가 DB 변경은 [검토용 SQL](sql/174-b2b.sql)을 확인한다. 스키마/외래키 반영 → 백엔드 → FE 순서로 배포한다. 이 작업에서 운영 DB에 SQL을 실행하지 않는다.
+- 추가 DB 변경은 [검토용 SQL](sql/174-b2b.sql)을 확인한다. 한 컷(`SINGLE`, #294)은 [ENUM 값 추가 SQL](sql/294-b2b-single-layout.sql)을 배포 전에 실행한다. 스키마/외래키 반영 → 백엔드 → FE 순서로 배포한다. 이 작업에서 운영 DB에 SQL을 실행하지 않는다.
 
 에러 응답은 기존 `{"status":409,"message":"..."}` 형식이다. 에러 코드 이름은 서버 코드 식별자이며 응답에 새 code 필드를 추가하지 않는다.
 프레임 버전 충돌 등은 요청 종류와 HTTP 상태를 기준으로 처리한다. 요청 검증 실패는 400, 권한 없음은 403, 없는/공개되지 않은 프로젝트는 404, 상태·버전 충돌은 409, 만료는 410, 업로드 길이 누락은 411, 크기 초과는 413, 사용량 제한은 429다. 인증 만료 처리는 기존 JWT 갱신 흐름을 따른다.

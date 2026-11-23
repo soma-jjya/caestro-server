@@ -19,6 +19,7 @@ public record ReplaceB2bFramesRequest(
             @NotBlank @Size(max = 30) String name,
             @NotNull Layout layout,
             @Size(max = 32) String imageId,
+            // 가장 많은 배치(STRIP·GRID)의 창 수. 배치별 상한(SINGLE 1개)은 서비스가 검사한다(#294)
             @Size(max = 4) List<@NotNull FrameWindowDto> windows
     ) {}
 }

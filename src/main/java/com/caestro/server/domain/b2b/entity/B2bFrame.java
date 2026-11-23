@@ -16,7 +16,24 @@ import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 @EntityListeners(AuditingEntityListener.class)
 @Table(name = "b2b_frames", indexes = @Index(name = "idx_b2b_frame_project", columnList = "project_id,display_order"))
 public class B2bFrame {
-    public enum Layout { STRIP, GRID }
+    /**
+     * 사진 배치: STRIP(1×4)·GRID(2×2)·SINGLE(1×1, #294). {@link #slots()} 는 사진 창 수이자 이 배치로 만드는 함께 채우기 세션의 칸 수.
+     * 운영 DB 의 layout 열은 MySQL ENUM 이라 값을 늘리면 손으로 ALTER 한다(contracts/sql/294-b2b-single-layout.sql).
+     */
+    public enum Layout {
+        STRIP(4), GRID(4), SINGLE(1);
+
+        private final int slots;
+
+        Layout(int slots) {
+            this.slots = slots;
+        }
+
+        /** 공개하려면 창이 정확히 이만큼 있어야 하고, 저장할 때도 이보다 많을 수 없다. */
+        public int slots() {
+            return slots;
+        }
+    }
 
     @Id @Column(length = 40)
     private String id;

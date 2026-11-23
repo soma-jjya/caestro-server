@@ -25,4 +25,20 @@ class PushMessageTest {
         assertThat(PushMessage.fillProgress("K7X2MQ", "강대근", "친구", 1, 3, 4).title()).isEqualTo("친구가 네컷을 채웠어요");
         assertThat(PushMessage.fillProgress("K7X2MQ", "강대근", "친구", 2, 3, 4).title()).isEqualTo("친구 2명이 네컷을 채웠어요");
     }
+
+    @Test
+    @DisplayName("완성 문구(#294): 네컷은 그대로 '네 칸', 한 칸짜리 한 컷은 '네컷·네 칸' 없이 사진으로 — 종류·이동 코드는 같다")
+    void fillCompleted_followsSlotCount() {
+        assertThat(PushMessage.fillCompleted("K7X2MQ")).isEqualTo(PushMessage.fillCompleted("K7X2MQ", 4));
+        assertThat(PushMessage.fillCompleted("K7X2MQ", 4).body()).isEqualTo("친구들이 네 칸을 모두 채웠어요. 지금 확인해 보세요.");
+        assertThat(PushMessage.fillCompletedForParticipant("K7X2MQ")).isEqualTo(PushMessage.fillCompletedForParticipant("K7X2MQ", 4));
+
+        for (PushMessage single : java.util.List.of(PushMessage.fillCompleted("K7X2MQ", 1),
+                PushMessage.fillCompletedForParticipant("K7X2MQ", 1))) {
+            assertThat(single.type()).isEqualTo(PushMessage.TYPE_FILL_COMPLETED);
+            assertThat(single.data()).containsEntry("code", "K7X2MQ");
+            assertThat(single.title()).isEqualTo("사진이 완성됐어요");
+            assertThat(single.body()).doesNotContain("네컷", "네 칸");
+        }
+    }
 }

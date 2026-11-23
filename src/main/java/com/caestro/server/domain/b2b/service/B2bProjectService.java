@@ -103,7 +103,7 @@ public class B2bProjectService {
                 throw new CustomException(ErrorCode.B2B_INVALID_FRAME);
             }
             B2bPolicy.text(input.name(), 30, true, ErrorCode.B2B_INVALID_FRAME);
-            B2bPolicy.windows(input.windows());
+            B2bPolicy.windows(input.windows(), input.layout());
         }
 
         // 2. 이미지 사본과 설정을 같은 트랜잭션에 저장한다. 뒤 항목이 실패해도 전부 롤백된다.
@@ -113,7 +113,7 @@ public class B2bProjectService {
             B2bFrame old = input.id() == null ? null : byId.get(input.id());
             B2bImage image = images.retain(input.imageId(), old == null ? null : old.getImage());
             String name = input.name().strip();
-            String windows = mapper.json(B2bPolicy.windows(input.windows()));
+            String windows = mapper.json(B2bPolicy.windows(input.windows(), input.layout()));
             B2bFrame frame;
             if (old == null) {
                 frame = B2bFrame.builder().id(B2bPolicy.id("bf_")).project(project).name(name).layout(input.layout())
@@ -133,7 +133,7 @@ public class B2bProjectService {
         return B2bProjectResponse.from(project, replacement.stream().map(mapper::response).toList(), clock.getZone());
     }
 
-    /** DRAFT → LIVE. 프레임은 1~10개이며 모두 유효한 이미지·창 4개를 가져야 한다. */
+    /** DRAFT → LIVE. 프레임은 1~10개이며 모두 유효한 이미지와 배치만큼의 창(SINGLE 1개, STRIP·GRID 4개)을 가져야 한다. */
     @Transactional
     public B2bProjectResponse publish(String id) { return transition(id, Status.DRAFT, Status.LIVE); }
 
@@ -170,7 +170,8 @@ public class B2bProjectService {
     private void requirePublishable(List<B2bFrame> choices) {
         if (choices.isEmpty() || choices.size() > ReplaceB2bFramesRequest.MAX_FRAMES) throw new CustomException(ErrorCode.B2B_NOT_PUBLISHABLE);
         for (B2bFrame frame : choices) {
-            if (frame.getImage() == null || B2bPolicy.windows(mapper.windows(frame.getWindowsJson())).size() != 4) {
+            B2bFrame.Layout layout = frame.getLayout();
+            if (frame.getImage() == null || B2bPolicy.windows(mapper.windows(frame.getWindowsJson()), layout).size() != layout.slots()) {
                 throw new CustomException(ErrorCode.B2B_NOT_PUBLISHABLE);
             }
         }

@@ -35,16 +35,17 @@ public interface B2bAdminApi {
     ResponseEntity<B2bProjectResponse> update(String id, UpsertB2bProjectRequest request);
 
     @Operation(summary = "프레임 목록 전체 교체", description = "최대 10개. 배열 순서가 displayOrder. id 생략은 생성, 누락은 선택 목록에서 삭제. "
-            + "imageId는 catalog/studio/images 업로드 id. 초안/중지는 0~10개 및 미완성 설정 허용, LIVE는 모든 프레임이 유효한 1~10개 유지. 기존 네컷 스냅샷은 유지.")
+            + "imageId는 catalog/studio/images 업로드 id. layout 은 STRIP(1×4)·GRID(2×2)·SINGLE(1×1), 창은 배치의 칸 수(SINGLE 1개, 그 밖 4개)를 넘으면 400. "
+            + "초안/중지는 0~10개 및 미완성 설정 허용, LIVE는 모든 프레임이 유효한 1~10개 유지. 기존 네컷 스냅샷은 유지.")
     ResponseEntity<B2bProjectResponse> replaceFrames(String id, ReplaceB2bFramesRequest request);
 
-    @Operation(summary = "최초 공개", description = "DRAFT → LIVE. 프레임 1~10개가 필요하며, 모두 이미지와 창 4개를 가져야 함. 0개·미완성 프레임 또는 상태 미충족은 409.")
+    @Operation(summary = "최초 공개", description = "DRAFT → LIVE. 프레임 1~10개가 필요하며, 모두 이미지와 배치만큼의 창(SINGLE 1개, STRIP·GRID 4개)을 가져야 함. 0개·미완성 프레임 또는 상태 미충족은 409.")
     ResponseEntity<B2bProjectResponse> publish(String id);
 
     @Operation(summary = "일시중지", description = "LIVE → PAUSED. 신규 참여를 막고 기존 네컷은 만료까지 유지.")
     ResponseEntity<B2bProjectResponse> pause(String id);
 
-    @Operation(summary = "공개 재개", description = "PAUSED → LIVE. 모두 이미지와 창 4개를 가진 프레임 1~10개인지 재검사, publishedAt 유지. 0개·미완성 프레임 또는 상태 미충족은 409.")
+    @Operation(summary = "공개 재개", description = "PAUSED → LIVE. 모두 이미지와 배치만큼의 창(SINGLE 1개, STRIP·GRID 4개)을 가진 프레임 1~10개인지 재검사, publishedAt 유지. 0개·미완성 프레임 또는 상태 미충족은 409.")
     ResponseEntity<B2bProjectResponse> resume(String id);
 
     @Operation(summary = "프로젝트 복제", description = "설정만 새 id의 DRAFT로 복제. 참여자·사진은 복사하지 않음.")
